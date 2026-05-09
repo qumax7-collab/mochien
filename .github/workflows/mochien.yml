@@ -1,0 +1,78 @@
+name: Mochien YouTube Shorts
+
+on:
+  schedule:
+    - cron: '0 23 * * *'  # KST 08:00 (UTC -9h)
+    - cron: '0 3 * * *'   # KST 12:00
+    - cron: '0 9 * * *'   # KST 18:00
+  workflow_dispatch:       # 수동 실행 허용
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install Noto Sans JP font
+        run: |
+          mkdir -p fonts
+          wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansjp/static/NotoSansJP-Bold.ttf" \
+            -O fonts/NotoSansJP-Bold.ttf
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create .env
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          echo "OPENAI_API_KEY=$OPENAI_API_KEY"           >> .env
+          echo "ELEVENLABS_API_KEY=$ELEVENLABS_API_KEY"   >> .env
+          echo "ELEVENLABS_VOICE_ID=$ELEVENLABS_VOICE_ID" >> .env
+          echo "PEXELS_API_KEY=$PEXELS_API_KEY"           >> .env
+          echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN"   >> .env
+          echo "TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID"       >> .env
+
+      - name: Restore YouTube token
+        env:
+          YOUTUBE_CREDENTIALS: ${{ secrets.YOUTUBE_CREDENTIALS }}
+        run: echo "$YOUTUBE_CREDENTIALS" > token.json
+
+      - name: Restore client_secrets.json
+        env:
+          CLIENT_SECRETS: ${{ secrets.CLIENT_SECRETS }}
+        run: echo "$CLIENT_SECRETS" > client_secrets.json
+
+      - name: step2 — 기사 선택 (Telegram)
+        run: python step2_select.py
+
+      - name: step4 — Pexels 배경 영상
+        run: python step4_pexels.py
+
+      - name: step5 — ElevenLabs TTS
+        run: python step5_tts.py
+
+      - name: step6 — FFmpeg 합성
+        run: python step6_ffmpeg.py
+
+      - name: step7 — Whisper 자막
+        run: python step7_whisper_subtitle.py
+
+      - name: step9 — YouTube 업로드
+        run: python step9_youtube.py
