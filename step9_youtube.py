@@ -29,7 +29,6 @@ YOUTUBE_CATEGORY_ID = "25"   # News & Politics
 YOUTUBE_LANGUAGE = "ja"
 
 JST = timezone(timedelta(hours=9))
-UPLOAD_SLOTS_JST_HOURS = [8, 12, 18]
 
 CHANNEL_FOOTER = (
     "\n\n━━━━━━━━━━━━━━━━━━\n"
@@ -70,24 +69,12 @@ def authenticate():
     return creds
 
 
-def next_publish_time():
-    """현재 JST 기준 가장 가까운 미래 슬롯을 UTC ISO 8601로 반환."""
-    now_jst = datetime.now(JST)
-    for hour in UPLOAD_SLOTS_JST_HOURS:
-        candidate = now_jst.replace(hour=hour, minute=0, second=0, microsecond=0)
-        if candidate > now_jst:
-            return candidate.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    tomorrow = now_jst + timedelta(days=1)
-    candidate = tomorrow.replace(hour=UPLOAD_SLOTS_JST_HOURS[0], minute=0, second=0, microsecond=0)
-    return candidate.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-
-
 def build_description(korean_summary, hashtags):
     tags_str = " ".join(hashtags)
     return f"{korean_summary}\n\n{tags_str}{CHANNEL_FOOTER}"
 
 
-def upload_video(youtube, title, description, tags, publish_at):
+def upload_video(youtube, title, description, tags):
     body = {
         "snippet": {
             "title": title,
@@ -98,8 +85,7 @@ def upload_video(youtube, title, description, tags, publish_at):
             "defaultAudioLanguage": YOUTUBE_LANGUAGE,
         },
         "status": {
-            "privacyStatus": "private",  # 예약 업로드는 반드시 private
-            "publishAt": publish_at,
+            "privacyStatus": "public",
             "selfDeclaredMadeForKids": False,
         },
     }
@@ -148,21 +134,15 @@ def main():
     korean_summary = gpt["korean_summary"]
     hashtags = gpt["hashtags"]
 
-    publish_at = next_publish_time()
+    now_jst = datetime.now(JST).strftime("%m/%d %H:%M JST")
     description = build_description(korean_summary, hashtags)
 
-    publish_jst = (
-        datetime.fromisoformat(publish_at.replace("Z", "+00:00"))
-        .astimezone(JST)
-        .strftime("%m/%d %H:%M JST")
-    )
-
     print(f"제목      : {title}")
-    print(f"예약 시간 : {publish_jst}")
+    print(f"공개 시간 : {now_jst}")
 
     creds = authenticate()
     youtube = build("youtube", "v3", credentials=creds)
-    video_id = upload_video(youtube, title, description, hashtags, publish_at)
+    video_id = upload_video(youtube, title, description, hashtags)
     post_comment(youtube, video_id, hook)
 
     result_url = f"https://www.youtube.com/watch?v={video_id}"
@@ -170,7 +150,7 @@ def main():
     tg_notify(
         f"✅ <b>업로드 완료!</b>\n\n"
         f"<b>제목:</b> {title}\n"
-        f"<b>예약:</b> {publish_jst}\n"
+        f"<b>공개:</b> {now_jst}\n"
         f"<b>한국어 요약:</b> {korean_summary}\n\n"
         f"🎬 {result_url}"
     )
