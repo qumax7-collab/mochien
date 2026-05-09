@@ -65,7 +65,7 @@ RSS (NHK cat6) 최대 5개 수집
 언어            : Python 3.14
 영상 합성        : FFmpeg (Creatomate 대체)
 자동화 실행      : GitHub Actions (Make.com 대체) - 공개 repo 무료 무제한
-스케줄          : 08:00 / 12:00 / 18:00 JST (하루 3회)
+스케줄          : 09:00 / 13:00 / 18:00 JST (하루 3회)
 로컬 개발 환경   : Windows / C:\mochien 프로젝트 폴더
 중간 저장        : Google Drive (검수 후 YouTube 업로드)
 
@@ -222,7 +222,7 @@ sleepy            mochien_sleepy.png        변동 없음
 ================================================================
 API         : YouTube Data API v3 videos.insert
 설명란 구성 : korean_summary + hashtags + 채널 고정 문구
-업로드 시간 : 08:00 / 12:00 / 18:00 JST (하루 3회)
+업로드 시간 : 09:00 / 13:00 / 18:00 JST (하루 3회)
 카테고리    : 뉴스 (News & Politics)
 언어        : 일본어
 
@@ -254,9 +254,9 @@ API         : YouTube Data API v3 videos.insert
 ================================================================
 용도        : 스케줄 자동 실행 (내 PC 꺼져 있어도 동작)
 트리거      : cron
-              - "0 23 * * *"  (KST 08:00 = UTC 23:00 전날)
-              - "0 3 * * *"   (KST 12:00 = UTC 03:00)
-              - "0 9 * * *"   (KST 18:00 = UTC 09:00)
+              - "0 0 * * *"   (JST 09:00 = UTC 00:00)
+              - "0 4 * * *"   (JST 13:00 = UTC 04:00)
+              - "0 9 * * *"   (JST 18:00 = UTC 09:00)
 실행 환경   : ubuntu-latest
 비용        : 공개 repo 무료 무제한
 

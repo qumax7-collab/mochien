@@ -2,9 +2,9 @@ name: Mochien YouTube Shorts
 
 on:
   schedule:
-    - cron: '0 23 * * *'  # KST 08:00 (UTC -9h)
-    - cron: '0 3 * * *'   # KST 12:00
-    - cron: '0 9 * * *'   # KST 18:00
+    - cron: '0 0 * * *'   # JST 09:00
+    - cron: '0 4 * * *'   # JST 13:00
+    - cron: '0 9 * * *'   # JST 18:00
   workflow_dispatch:       # 수동 실행 허용
 
 jobs:
