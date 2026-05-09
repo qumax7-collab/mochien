@@ -69,9 +69,9 @@ def authenticate():
     return creds
 
 
-def build_description(korean_summary, hashtags):
+def build_description(hashtags):
     tags_str = " ".join(hashtags)
-    return f"{korean_summary}\n\n{tags_str}{CHANNEL_FOOTER}"
+    return f"{tags_str}{CHANNEL_FOOTER}"
 
 
 def upload_video(youtube, title, description, tags):
@@ -135,7 +135,7 @@ def main():
     hashtags = gpt["hashtags"]
 
     now_jst = datetime.now(JST).strftime("%m/%d %H:%M JST")
-    description = build_description(korean_summary, hashtags)
+    description = build_description(hashtags)
 
     print(f"제목      : {title}")
     print(f"공개 시간 : {now_jst}")
