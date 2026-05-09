@@ -21,7 +21,10 @@ CLIENT_SECRETS_PATH = "client_secrets.json"
 TOKEN_PATH = "token.json"
 
 # ===== YouTube API 설정 =====
-SCOPES = ["https://www.googleapis.com/auth/youtube"]
+SCOPES = [
+    "https://www.googleapis.com/auth/youtube",
+    "https://www.googleapis.com/auth/youtube.force-ssl",
+]
 YOUTUBE_CATEGORY_ID = "25"   # News & Politics
 YOUTUBE_LANGUAGE = "ja"
 
@@ -112,6 +115,22 @@ def upload_video(youtube, title, description, tags, publish_at):
     return response["id"]
 
 
+def post_comment(youtube, video_id, text):
+    response = youtube.commentThreads().insert(
+        part="snippet",
+        body={
+            "snippet": {
+                "videoId": video_id,
+                "topLevelComment": {
+                    "snippet": {"textOriginal": text}
+                },
+            }
+        },
+    ).execute()
+    print(f"댓글 등록 완료: {response['id']}")
+    return response["id"]
+
+
 def main():
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("[오류] .env에 TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID를 입력하세요.")
@@ -125,6 +144,7 @@ def main():
         gpt = json.load(f)
 
     title = gpt["title"]
+    hook = gpt["hook"]
     korean_summary = gpt["korean_summary"]
     hashtags = gpt["hashtags"]
 
@@ -143,6 +163,7 @@ def main():
     creds = authenticate()
     youtube = build("youtube", "v3", credentials=creds)
     video_id = upload_video(youtube, title, description, hashtags, publish_at)
+    post_comment(youtube, video_id, hook)
 
     result_url = f"https://www.youtube.com/watch?v={video_id}"
 

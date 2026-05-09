@@ -40,6 +40,8 @@ USER_PROMPT_TEMPLATE = """\
 - 難しい経済用語はやさしい言葉に言い換える
 - 視聴者を「あなた」と呼ぶ
 - スクリプト末尾は必ず「以上、モチエンがお伝えしました！」で締める
+- 冒頭の挨拶は禁止。最初の一文は必ずhookの内容から始めること。
+- hashtagsには必ず#Shortsを含めること。
 
 short_title : 6〜10字の核心キーワード（例:「日越首脳会談」「原油急騰の影響」）
 image_prompt: Pexels検索用英語キーワード（例: "japanese economy stock market"）
