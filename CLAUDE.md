@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 9일 (step2_select 구조 반영)
+최종 업데이트: 2026년 5월 9일 (GitHub Actions 배포 완료)
 
 ================================================================
 ## 0. 작업 규칙
@@ -83,8 +83,10 @@ requests                  - HTTP 크롤링, Pexels API 호출
 openai                    - ChatGPT API 호출 + Whisper API 자막 생성
 ffmpeg-python             - FFmpeg 영상 합성
 google-auth               - Google Drive 업로드 인증
+google-auth-oauthlib      - YouTube OAuth2 인증
 google-api-python-client  - YouTube Data API v3 / Google Drive API
 Pillow                    - 이미지 처리 (캐릭터 PNG 오버레이)
+python-dotenv             - .env 파일 로드
 
 
 ================================================================
@@ -258,13 +260,18 @@ API         : YouTube Data API v3 videos.insert
 실행 환경   : ubuntu-latest
 비용        : 공개 repo 무료 무제한
 
+워크플로우 파일 : .github/workflows/mochien.yml
+repo URL        : https://github.com/qumax7-collab/mochien.git
+
 GitHub Secrets 등록 필요:
   OPENAI_API_KEY
   ELEVENLABS_API_KEY
+  ELEVENLABS_VOICE_ID
   PEXELS_API_KEY
   TELEGRAM_BOT_TOKEN
-  YOUTUBE_CREDENTIALS
-  GOOGLE_DRIVE_CREDENTIALS
+  TELEGRAM_CHAT_ID
+  YOUTUBE_CREDENTIALS   ← token.json 전체 내용
+  CLIENT_SECRETS        ← client_secrets.json 전체 내용
 
 
 ================================================================
@@ -309,7 +316,7 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
 ✅  9.  YouTube 자동 업로드 + 텔레그램 완료 알림 (step9_youtube.py)
 ✅  9b. 텔레그램 기사 선택 + ChatGPT 통합 (step2_select.py)
 ✅  10. 전체 파이프라인 통합 테스트 (step2~9 순차 실행 완료)
-→  11. GitHub Actions 스케줄 설정 및 배포
+✅  11. GitHub Actions 스케줄 설정 및 배포 완료
 
 실행 순서 (현재):
   python step2_select.py   ← 텔레그램에서 기사 선택 (ChatGPT 포함)
@@ -342,6 +349,16 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
   이전 세션의 stale 콜백이 재처리됨 → 세션 시작 시 flush_updates()로 큐 비우기 필수
 - step2_select 설계: 기사 선택 전 ChatGPT를 먼저 호출해 한국어 요약을 Telegram에 표시.
   거절된 기사는 ChatGPT 비용만 소모 (TTS·FFmpeg·Whisper 등 고비용 단계는 선택 후 1회만 실행)
+- GitHub Actions 폰트: apt-get install fonts-noto-cjk 사용.
+  Linux 설치 경로는 /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc
+  step6/step7의 get_font()에 해당 경로를 Windows 경로보다 앞에 추가해야 함
+- .gitignore 작성 시 *.png / *.gif 와일드카드 금지.
+  mochien_*.png, mochien_talk.gif 캐릭터 에셋이 함께 무시됨 → 파일명 개별 지정
+- requirements.txt에 python-dotenv, google-auth-oauthlib 누락 주의.
+  로컬 venv에 설치돼 있어도 requirements.txt에 없으면 GitHub Actions에서 실패함
+- token.json에 client_id / client_secret이 포함되어 있어 민감 정보.
+  .gitignore에 반드시 포함. GitHub Actions에서는 YOUTUBE_CREDENTIALS Secret으로 복원
+- client_secrets.json도 민감 정보. CLIENT_SECRETS Secret으로 관리하고 .gitignore에 추가
 
 
 ================================================================
