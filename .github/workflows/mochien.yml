@@ -25,10 +25,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Install Noto Sans JP font
-        run: |
-          mkdir -p fonts
-          wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansjp/static/NotoSansJP-Bold.ttf" \
-            -O fonts/NotoSansJP-Bold.ttf
+        run: sudo apt-get install -y fonts-noto-cjk
 
       - name: Install Python dependencies
         run: pip install -r requirements.txt

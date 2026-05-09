@@ -52,6 +52,10 @@ def get_font():
         return FONT_PATH
     # Windows 내장 일본어 폰트 우선 사용
     system_fonts = [
+        # Linux (apt: fonts-noto-cjk)
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc",
+        # Windows
         "C:/Windows/Fonts/NotoSansJP-Bold.ttf",
         "C:/Windows/Fonts/NotoSansJP-Bold.otf",
         "C:/Windows/Fonts/YuGothB.ttc",

@@ -23,6 +23,10 @@ def get_font():
     if os.path.exists("fonts/NotoSansJP-Bold.ttf"):
         return "Noto Sans JP", "fonts"
     for path, name in [
+        # Linux (apt: fonts-noto-cjk)
+        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc", "Noto Sans CJK JP"),
+        ("/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc", "Noto Sans CJK JP"),
+        # Windows
         ("C:/Windows/Fonts/YuGothB.ttc", "Yu Gothic"),
         ("C:/Windows/Fonts/YuGothR.ttc", "Yu Gothic"),
         ("C:/Windows/Fonts/meiryo.ttc",  "Meiryo"),
