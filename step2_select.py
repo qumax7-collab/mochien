@@ -63,6 +63,8 @@ CALLBACK_SELECT = "select"
 CALLBACK_NEXT = "next"
 CALLBACK_CANCEL = "cancel"
 
+_poll_offset = None  # 세션 내 getUpdates offset 공유
+
 BUTTONS = {
     "inline_keyboard": [[
         {"text": "✅ 이 기사로 진행", "callback_data": CALLBACK_SELECT},
@@ -111,13 +113,14 @@ def tg_answer(callback_query_id):
 
 def flush_updates():
     """이전 세션의 오래된 콜백 업데이트를 큐에서 비워 재처리 방지."""
+    global _poll_offset
     try:
         resp = requests.get(_tg("getUpdates"), params={"timeout": 0}, timeout=5)
         resp.raise_for_status()
         updates = resp.json().get("result", [])
         if updates:
-            last_id = updates[-1]["update_id"]
-            requests.get(_tg("getUpdates"), params={"timeout": 0, "offset": last_id + 1}, timeout=5)
+            _poll_offset = updates[-1]["update_id"] + 1
+            requests.get(_tg("getUpdates"), params={"timeout": 0, "offset": _poll_offset}, timeout=5)
             print(f"  [오래된 업데이트 {len(updates)}개 제거]")
     except Exception:
         pass
@@ -125,7 +128,7 @@ def flush_updates():
 
 def wait_for_callback(message_id):
     """버튼 응답 대기. 콜백 데이터 문자열 반환, 타임아웃 시 cancel 반환."""
-    offset = None
+    global _poll_offset
     deadline = time.time() + WAIT_TIMEOUT_SEC
 
     while time.time() < deadline:
@@ -134,8 +137,8 @@ def wait_for_callback(message_id):
             break
 
         params = {"timeout": poll_sec, "allowed_updates": ["callback_query"]}
-        if offset is not None:
-            params["offset"] = offset
+        if _poll_offset is not None:
+            params["offset"] = _poll_offset
 
         try:
             resp = requests.get(_tg("getUpdates"), params=params, timeout=poll_sec + 5)
@@ -145,7 +148,7 @@ def wait_for_callback(message_id):
             continue
 
         for update in resp.json().get("result", []):
-            offset = update["update_id"] + 1
+            _poll_offset = update["update_id"] + 1
             cb = update.get("callback_query")
             if not cb:
                 continue
