@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 9일 (GitHub Actions 배포 완료)
+최종 업데이트: 2026년 5월 9일 (전체 파이프라인 검증 완료)
 
 ================================================================
 ## 0. 작업 규칙
@@ -347,6 +347,13 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
 - Telegram Bot API: sendMessage 엔드포인트, chat_id + text 파라미터로 간단 연동
 - Telegram getUpdates offset 미공유 버그: wait_for_callback을 매번 offset=None으로 시작하면
   이전 세션의 stale 콜백이 재처리됨 → 세션 시작 시 flush_updates()로 큐 비우기 필수
+- Telegram 기사 선택 내 offset 버그: wait_for_callback이 기사마다 offset=None으로 리셋되면
+  기사 1의 "다음 기사" 콜백을 기사 2~5에서 반복 수신해 모든 기사를 건너뜀.
+  _poll_offset을 모듈 레벨 전역변수로 선언해 세션 전체에서 공유해야 함
+- YouTube commentThreads.insert: private/예약 상태 영상에는 403 반환.
+  댓글 등록은 공개(public) 영상에만 가능 → 업로드 시 privacyStatus를 public으로 설정 필수
+- YouTube 예약 업로드 불필요: GitHub Actions cron이 정시에 트리거하므로
+  privacyStatus: public + publishAt 제거로 단순화 가능. 댓글 문제도 동시 해결됨
 - step2_select 설계: 기사 선택 전 ChatGPT를 먼저 호출해 한국어 요약을 Telegram에 표시.
   거절된 기사는 ChatGPT 비용만 소모 (TTS·FFmpeg·Whisper 등 고비용 단계는 선택 후 1회만 실행)
 - GitHub Actions 폰트: apt-get install fonts-noto-cjk 사용.
