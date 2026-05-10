@@ -2,6 +2,7 @@ import sys
 import json
 import os
 import time
+import datetime
 
 import feedparser
 import requests
@@ -18,6 +19,20 @@ MAX_ARTICLES = 5
 # ===== 출력 파일 =====
 ARTICLE_FILE = "article.json"
 GPT_RESULT_FILE = "gpt_result.json"
+OUTPUT_DIR = "output"
+
+# ===== 시간대 =====
+JST = datetime.timezone(datetime.timedelta(hours=9))
+
+# JST 시간 → 업로드 슬롯명 (05~10시→"09" / 10~15시→"13" / 15~20시→"18")
+def get_time_slot(hour):
+    if 5 <= hour < 10:
+        return "09"
+    if 10 <= hour < 15:
+        return "13"
+    if 15 <= hour < 20:
+        return "18"
+    return f"{hour:02d}"
 
 # ===== ChatGPT =====
 GPT_MODEL = "gpt-4.1-mini"
@@ -259,8 +274,15 @@ def main():
                 json.dump(article, f, ensure_ascii=False, indent=2)
             with open(GPT_RESULT_FILE, "w", encoding="utf-8") as f:
                 json.dump(gpt, f, ensure_ascii=False, indent=2)
+            now_jst = datetime.datetime.now(JST)
+            slot = get_time_slot(now_jst.hour)
+            out_dir = os.path.join(OUTPUT_DIR, now_jst.strftime("%Y-%m-%d"))
+            os.makedirs(out_dir, exist_ok=True)
+            out_path = os.path.join(out_dir, f"{slot}_gpt_result.json")
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(gpt, f, ensure_ascii=False, indent=2)
             print(f"\n선택 완료: {article['title']}")
-            print(f"{ARTICLE_FILE}, {GPT_RESULT_FILE} 저장 완료")
+            print(f"{ARTICLE_FILE}, {GPT_RESULT_FILE}, {out_path} 저장 완료")
             return
 
         if result == CALLBACK_CANCEL:
