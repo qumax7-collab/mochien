@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 9일 (전체 파이프라인 검증 완료)
+최종 업데이트: 2026년 5월 10일 (6차 세션)
 
 ================================================================
 ## 0. 작업 규칙
@@ -47,15 +47,18 @@ RSS (NHK cat6) 최대 5개 수집
 → 기사별 ChatGPT API (gpt-4.1-mini) → 한국어 요약 생성
 → 텔레그램 기사 선택 (✅ 진행 / 🔄 다음 / ❌ 취소)
 → article.json + gpt_result.json 저장
+→ gpt_result.json을 output/{날짜}/{시간}_gpt_result.json 에도 복사 (롱폼 연결용)
 
 [ step4~step7 — 영상 생성 ]
 → Pexels API 배경 영상 취득
 → ElevenLabs TTS (Eleven Flash v2.5) → 일본어 음성 생성
-→ FFmpeg 영상 합성 (1080x1920)
+→ FFmpeg 영상 합성 (1080x1920) + Ken Burns 효과
 → Whisper API 일본어 자막 합성
 
 [ step9 — 업로드 + 알림 ]
-→ YouTube Data API v3 자동 업로드 (예약)
+→ 텔레그램 승인 버튼 (10분 무응답 시 자동 진행)
+→ YouTube Data API v3 즉시 public 업로드
+→ hook 일본어 자동 댓글 등록
 → 텔레그램 완료 알림 (Mochien_Notify_bot)
 
 
@@ -66,13 +69,13 @@ RSS (NHK cat6) 최대 5개 수집
 영상 합성        : FFmpeg (Creatomate 대체)
 자동화 실행      : GitHub Actions (Make.com 대체) - 공개 repo 무료 무제한
 스케줄          : 09:00 / 13:00 / 18:00 JST (하루 3회)
+                  ※ GitHub Actions 지연 감안해서 트리거는 2시간 앞당겨 설정
 로컬 개발 환경   : Windows / C:\mochien 프로젝트 폴더
-중간 저장        : Google Drive (검수 후 YouTube 업로드)
 
 Make.com 대체 이유   : Python으로 모든 API 직접 호출 가능. $9/월 절감
 Creatomate 대체 이유 : FFmpeg으로 동일 기능 구현 가능. $45/월 절감
 ZapCap 대체 이유     : Whisper API로 동일 기능 구현 가능. ~$8/월 추가 절감
-전환 후 월 비용      : ~$6 (기존 ~$67 대비 $61 절감)
+전환 후 월 비용      : ~$4.48 (기존 ~$67 대비 $62.52 절감)
 
 
 ================================================================
@@ -82,15 +85,17 @@ feedparser                - RSS 수집
 requests                  - HTTP 크롤링, Pexels API 호출
 openai                    - ChatGPT API 호출 + Whisper API 자막 생성
 ffmpeg-python             - FFmpeg 영상 합성
-google-auth               - Google Drive 업로드 인증
-google-auth-oauthlib      - YouTube OAuth2 인증
-google-api-python-client  - YouTube Data API v3 / Google Drive API
+google-auth               - Google 인증
+google-auth-oauthlib      - YouTube OAuth2 인증 (필수 — requirements.txt에 명시)
+google-api-python-client  - YouTube Data API v3
 Pillow                    - 이미지 처리 (캐릭터 PNG 오버레이)
-python-dotenv             - .env 파일 로드
+python-dotenv             - .env 파일 로드 (필수 — requirements.txt에 명시)
+python-telegram-bot       - 텔레그램 봇 연동
+beautifulsoup4            - HTML 파싱
 
 
 ================================================================
-## 5. ChatGPT 프롬프트 (현재 버전)
+## 5. ChatGPT 프롬프트 (현재 버전) ← 6차 세션 수정 완료
 ================================================================
 시스템 프롬프트:
   あなたはJSONのみを出力するAIです。
@@ -101,24 +106,29 @@ python-dotenv             - .env 파일 로드
 
 유저 프롬프트:
   【モチエンキャラクター設定】
+  - 冒頭の挨拶は禁止。最初の一文は必ずhookの内容から始めること。
+  - hookは必ず日本語で生成すること。数字・疑問形・驚きの表現を含めること。
+  - hashtagsには必ず#Shortsを含めること。
   - 落ち着いていて信頼感がある話し方（40〜60代向け）
   - 難しい経済用語はやさしい言葉に言い換える
   - 視聴者を「あなた」と呼ぶ
-  - スクリプト末尾は必ず「以上、モチエンがお伝えしました！」で締める
+  - スクリプト末尾は必ず下記で締めること:
+    「皆さんはどう思いますか？コメントで教えてください！
+     以上、モチエンがお伝えしました！
+     チャンネル登録お願いします！
+     今夜21時に詳しく解説します！」
 
   short_title : 6〜10字の核心キーワード
-                例:「日越首脳会談」「原油急騰の影響」
-  image_prompt: Pexels 검색용 영어 키워드
-                예: "japanese economy stock market"
+  image_prompt: Pexels 검색용 영어 키워드 (예: "japanese economy stock market")
 
   뉴스 제목: {title}
   뉴스 본문: {article_body}
 
 JSON 8필드 상세:
   title          - 영상 제목 (30자 이내, 숫자 포함)
-  hook           - 첫 후킹 문장
-  script         - 본문 스크립트 (마무리: 「以上、モチエンがお伝えしました！」)
-  hashtags       - 해시태그 배열
+  hook           - 첫 후킹 문장 (일본어 / 숫자·의문형·충격 표현 포함)
+  script         - 본문 스크립트 (마무리 4줄 필수)
+  hashtags       - 해시태그 배열 (#Shorts 필수 포함)
   korean_summary - 한국어 1줄 요약
   emotion        - 영어 감정값 (아래 목록 중 1개)
   image_prompt   - Pexels 검색 영어 키워드
@@ -134,22 +144,19 @@ emotion 허용값:
 ================================================================
 해상도      : 1080x1920 (YouTube Shorts 세로형)
 폰트        : Noto Sans JP
-배경        : Pexels 스톡 영상 (전체 화면)
+배경        : Pexels 스톡 영상 (전체 화면) + Ken Burns 효과 (미세 줌인/줌아웃)
 프레임레이트 : 30fps
 
 레이어 구성 (아래에서 위 순서):
-  1. background  - Pexels 영상 / 전체 화면 1080x1920
+  1. background  - Pexels 영상 / 전체 화면 1080x1920 / Ken Burns 효과
   2. top_bar     - 상단 레터박스 / 네이비(#1B2A4A) / 상단 고정 / 높이 약 10%
   3. red_line    - 가로선 #E50000 / 두께 4~6px / top_bar 하단 경계
-  4. short_title - top_bar 위 텍스트 / 흰색 / Noto Sans JP Bold / 중앙 정렬
+  4. short_title - top_bar 위 텍스트 / 흰색 / Noto Sans JP Bold / 105px
   5. face        - 모찌엔 캐릭터 PNG / 우하단 고정 / 흰 외곽선 10px 포함된 PNG
   6. mouth_gif   - mochien_talk.gif 무한루프 / face 레이어 입 위치에 오버레이
-  7. subtitle    - 화면 중앙 (Y:50%) / 흰 텍스트 + 검정 스트로크 3~5px
+  7. subtitle    - 화면 하단 고정 / 흰 텍스트 + 검정 스트로크 / 132px
                    ※ Whisper API 처리 후 자막 오버레이
   8. audio       - ElevenLabs 생성 mp3
-
-하단 레터박스: 없음 (v13에서 제거 확정)
-자막 최종 처리: Whisper API (음성 → SRT 변환 → FFmpeg burn-in)
 
 
 ================================================================
@@ -168,8 +175,7 @@ Query params: query={image_prompt 키워드}, per_page=1
 ## 8. ElevenLabs TTS 설정
 ================================================================
 모델        : Eleven Flash v2.5
-보이스      : 차분한 일본어 여성 뉴스 앵커 보이스
-              (ElevenLabs Voice Library → Japanese 필터 → calm/professional/mature)
+보이스      : Harune (일본어 여성 / 차분한 뉴스 앵커 스타일)
 API 키명    : Mozzi
 출력 형식   : mp3_44100_128
 연동 방식   : Python requests로 직접 API 호출
@@ -179,17 +185,12 @@ API 키명    : Mozzi
 ================================================================
 ## 9. Whisper API 자막 설정
 ================================================================
-용도        : ElevenLabs 생성 음성(mp3)을 텍스트로 변환 → SRT 자막 생성 → FFmpeg burn-in
-선택 이유   : ZapCap 대비 월 ~$8 절감 / OpenAI API 키 하나로 통합 관리 가능
+용도        : ElevenLabs 생성 음성(mp3)을 텍스트로 변환 → ASS 자막 생성 → FFmpeg burn-in
 모델        : whisper-1
 언어        : ja (Japanese)
-출력 형식   : srt (타임스탬프 포함 자막 파일)
-가격        : $0.006/분 → 하루 3편 x 1분 x 30일 = 90분 → 월 ~$0.54
-파이프라인  :
-  ElevenLabs mp3 생성
-  → Whisper API에 mp3 전송 → SRT 수신
-  → FFmpeg로 SRT 자막 burn-in
-  → Google Drive 저장 → YouTube 업로드
+출력 형식   : ASS (타임스탬프 포함 자막 파일)
+가격        : $0.006/분 → 하루 3편 x 1분 x 30일 = 월 ~$0.18
+별도 키     : 불필요 / OPENAI_API_KEY 공용 사용
 
 
 ================================================================
@@ -197,7 +198,7 @@ API 키명    : Mozzi
 ================================================================
 GitHub      : https://github.com/qumax7-collab/mochien-assets
 Raw URL     : https://raw.githubusercontent.com/qumax7-collab/mochien-assets/main/mochien_{emotion}.png
-외곽선      : 흰색 10px / 알파채널 유지 / 포토샵 액션 배치 처리
+외곽선      : 흰색 10px / 알파채널 유지
 배치        : 우하단 고정
 현재 고정값 : neutral (emotion 자동 매핑은 2단계에서 구현)
 
@@ -218,13 +219,19 @@ sleepy            mochien_sleepy.png        변동 없음
 
 
 ================================================================
-## 11. YouTube 업로드 설정
+## 11. YouTube 업로드 설정 ← 6차 세션 업데이트
 ================================================================
 API         : YouTube Data API v3 videos.insert
-설명란 구성 : korean_summary + hashtags + 채널 고정 문구
-업로드 시간 : 09:00 / 13:00 / 18:00 JST (하루 3회)
-카테고리    : 뉴스 (News & Politics)
-언어        : 일본어
+채널명      : モチエンのひとこと経済ニュース
+설명란 구성 : 일본어 채널 소개 + hashtags (한국어 제거)
+업로드 방식 : 승인 즉시 public 공개 (예약 공개 제거)
+              ※ private 예약 시 댓글 API 차단 → 즉시 공개로 전환
+업로드 시간 : 09:00 / 13:00 / 18:00 JST
+승인 방식   : 텔레그램 봇 승인 버튼 탭 후 즉시 업로드
+              ※ 10분 무응답 시 자동 업로드 진행
+자동 댓글   : 업로드 직후 hook 필드 (일본어) 자동 댓글 등록
+              ※ 고정댓글: YouTube API 미지원 → YouTube Studio 수동 고정
+              ※ 구독자 5,000명 이후부터 관리 시작해도 충분
 
 
 ================================================================
@@ -235,43 +242,81 @@ API         : YouTube Data API v3 videos.insert
               - 기사별 일본어 제목 + 한국어 요약 전송
               - 인라인 버튼: ✅ 이 기사로 진행 / 🔄 다음 기사 / ❌ 취소
               - 선택 후 "⏳ 영상 생성 시작..." 상태 표시
-역할 2      : 업로드 완료 알림 (step9_youtube.py)
-              - 영상 제목, 예약 시간, 한국어 요약, YouTube URL 전송
-연동 방식   : Python requests → Telegram Bot API (sendMessage, editMessageText, answerCallbackQuery)
+역할 2      : 업로드 완료 알림
+              - 영상 제목, YouTube URL 전송
+역할 4      : API 잔액 경고
+              - OpenAI $3 이하 / ElevenLabs $2 이하 시 경고 전송
+              - 경고만 보내고 파이프라인은 계속 실행
+연동 방식   : Python requests → Telegram Bot API
 주의        : 세션 시작 전 flush_updates() 필수 (오래된 콜백 재처리 방지)
 
 
 ================================================================
-## 13. Google Drive 설정
+## 13. GitHub Actions / 보안 설정 ← 6차 세션 업데이트
 ================================================================
-용도        : YouTube 업로드 전 영상 검수용 중간 저장소
-연동 방식   : google-api-python-client
-검수 흐름   : Whisper 자막 합성 완료 영상 → Google Drive 저장 → 확인 후 YouTube 업로드
+repo        : https://github.com/qumax7-collab/mochien (Public)
+워크플로우  : .github/workflows/mochien.yml
+실행 환경   : ubuntu-latest / 공개 repo 무료 무제한
+
+스케줄 cron (UTC 기준 — GitHub Actions는 무조건 UTC):
+  변경 후 (지연 감안 앞당기기):
+  "0 22 * * *"  → KST 07:00 트리거 (지연 시 09시 내 업로드)
+  "0 2 * * *"   → KST 11:00 트리거 (지연 시 13시 내 업로드)
+  "0 8 * * *"   → KST 17:00 트리거 (지연 시 18~19시 내 업로드)
+  "0 12 * * *"  → JST 21:00 (롱폼/블로그용, 예정)
+
+GitHub Actions 지연 특성:
+  - 무료 플랜: 30분~4시간 지연 발생 가능 (정상 동작)
+  - repo 최근 활동 없으면 트리거 자체가 건너뛰어짐
+  - 대응: 더미 커밋 자동화로 repo 활성 상태 유지
+
+OAuth 설정:
+  Google Cloud Console → OAuth 앱 프로덕션 전환 완료
+  → token.json refresh_token 무기한 유효 (재인증 불필요)
+  ※ 새 API 스코프 추가 시에만 token.json 재발급 필요
+
+보안 구조:
+  로컬 → .env 파일에 키 보관 / .gitignore로 GitHub 업로드 차단
+  GitHub → Secrets에 암호화 저장 / Actions 실행 시 자동 주입
+
+GitHub Secrets 등록 목록:
+  OPENAI_API_KEY / ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID /
+  PEXELS_API_KEY / TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID /
+  YOUTUBE_CREDENTIALS / CLIENT_SECRETS
 
 
 ================================================================
-## 14. GitHub Actions 스케줄 설정
+## 14. 파일 구조
 ================================================================
-용도        : 스케줄 자동 실행 (내 PC 꺼져 있어도 동작)
-트리거      : cron
-              - "0 0 * * *"   (JST 09:00 = UTC 00:00)
-              - "0 4 * * *"   (JST 13:00 = UTC 04:00)
-              - "0 9 * * *"   (JST 18:00 = UTC 09:00)
-실행 환경   : ubuntu-latest
-비용        : 공개 repo 무료 무제한
-
-워크플로우 파일 : .github/workflows/mochien.yml
-repo URL        : https://github.com/qumax7-collab/mochien.git
-
-GitHub Secrets 등록 필요:
-  OPENAI_API_KEY
-  ELEVENLABS_API_KEY
-  ELEVENLABS_VOICE_ID
-  PEXELS_API_KEY
-  TELEGRAM_BOT_TOKEN
-  TELEGRAM_CHAT_ID
-  YOUTUBE_CREDENTIALS   ← token.json 전체 내용
-  CLIENT_SECRETS        ← client_secrets.json 전체 내용
+C:\mochien\
+  ├── CLAUDE.md
+  ├── .env
+  ├── .gitignore
+  ├── requirements.txt
+  ├── client_secrets.json
+  ├── token.json
+  ├── .github/workflows/mochien.yml
+  ├── venv\
+  ├── step2_rss_crawler.py
+  ├── step2_select.py
+  ├── step3_chatgpt.py
+  ├── step4_pexels.py
+  ├── step5_tts.py
+  ├── step6_ffmpeg.py
+  ├── step7_whisper_subtitle.py
+  ├── step9_youtube.py
+  ├── article.json
+  ├── gpt_result.json
+  ├── pexels_result.json
+  ├── background.mp4
+  ├── voice.mp3
+  ├── output_video.mp4
+  ├── output_video_subtitled.mp4
+  └── output/                        ← 날짜별 gpt_result 보관 (롱폼 연결용)
+        └── 2026-05-10/
+              ├── 09_gpt_result.json
+              ├── 13_gpt_result.json
+              └── 18_gpt_result.json
 
 
 ================================================================
@@ -282,16 +327,16 @@ GitHub Secrets 등록 필요:
 Make            미사용 (Python 대체)    $0
 Creatomate      미사용 (FFmpeg 대체)    $0
 ZapCap          미사용 (Whisper 대체)   $0
-OpenAI API      gpt-4.1-mini + Whisper  ~$4.54
+OpenAI API      gpt-4.1-mini + Whisper  ~$4.18
 ElevenLabs      종량제                  ~$0.30
 Pexels API      무료 플랜               $0
 GitHub Actions  공개 repo 무료          $0
 YouTube API     무료                    $0
 Telegram Bot    무료                    $0
+Conoha Wing     정액제 (예정)           ~$5
 --------------  ----------------------  -----------
-합계                                    ~$6/월
-기존 비용                               ~$67/월
-절감액                                  ~$61/월 (한화 약 8만 5천원)
+현재 합계                               ~$4.48/월
+롱폼+블로그 추가 후                     ~$10~12/월 (예상)
 
 
 ================================================================
@@ -312,19 +357,28 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
 ✅  5.  ElevenLabs TTS 호출 (step5_tts.py)
 ✅  6.  FFmpeg 영상 합성 (step6_ffmpeg.py)
 ✅  7.  Whisper API 자막 합성 (step7_whisper_subtitle.py)
-✅  8.  Google Drive 업로드 (미구현, 현재 생략)
 ✅  9.  YouTube 자동 업로드 + 텔레그램 완료 알림 (step9_youtube.py)
 ✅  9b. 텔레그램 기사 선택 + ChatGPT 통합 (step2_select.py)
-✅  10. 전체 파이프라인 통합 테스트 (step2~9 순차 실행 완료)
 ✅  11. GitHub Actions 스케줄 설정 및 배포 완료
+✅  12. 6차 세션 기능 추가 (2026-05-10)
+        - cron 2시간 앞당기기 + keepalive 주간 자동 커밋
+        - hook 강화 + 마무리 3줄 수정 (step2_select.py)
+        - gpt_result JST 슬롯별 날짜 폴더 저장 (step2_select.py)
+        - API 잔액 텔레그램 경고 (step2_select.py)
+        - 무응답 10분 자동 진행 / ❌ 취소 명시적 구분 (step2_select.py)
+        - 배경 쿨 블루 컬러 그레이딩 + 비네팅 (step6_ffmpeg.py)
+
+🔜  13. run_pipeline.py — 전체 파이프라인 통합 실행 스크립트
+🔜  14. emotion 자동 매핑 복원
+🔜  15. 롱폼 파이프라인 구축
 
 실행 순서 (현재):
-  python step2_select.py   ← 텔레그램에서 기사 선택 (ChatGPT 포함)
+  python step2_select.py
   python step4_pexels.py
   python step5_tts.py
   python step6_ffmpeg.py
   python step7_whisper_subtitle.py
-  python step9_youtube.py  ← 자동 업로드 후 완료 알림
+  python step9_youtube.py
 
 
 ================================================================
@@ -332,50 +386,68 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
 ================================================================
 - Pexels API Authorization 헤더: Bearer 없이 키만 입력
 - OpenAI API 키는 platform.openai.com에서 발급 (ChatGPT Plus 구독과 완전히 별개)
-- Make OpenAI Connection에 저장된 키는 암호화되어 직접 확인 불가
 - Creatomate Stroke/Shadow는 알파채널 인식 불가 → PNG에 직접 외곽선 추가 필요
 - ElevenLabs 무료 플랜 API 키: 연결 저장은 되지만 런타임 실패 → 유료 크레딧 필요
-- Google Drive 공유 URL은 Creatomate와 호환 안 됨 (현재는 미사용)
 - GitHub Raw URL CDN 캐시 이슈 → 파일 교체 후 브라우저에서 직접 확인 필요
-- Pexels API 무료 월 200 요청 한도: 하루 3편x30일=90 요청으로 여유
-- Creatomate 트랜스크립션: 일본어 띄어쓰기 미인식 → 단어별 자막 불가
-- ZapCap: 월 $9 종량제 → Whisper API로 대체 ($0.54/월). OpenAI 키로 통합 가능
-- Whisper API: 입력은 mp3, 출력 형식 srt 지정 시 타임스탬프 포함 자막 파일 반환
+- Creatomate 트랜스크립션: 일본어 띄어쓰기 미인식 → ZapCap 대체
 - Python 3.12는 Windows 바이너리 설치 파일 미제공 → 3.13 이상 사용
 - FFmpeg PATH 등록: C:\ffmpeg\bin 을 시스템 환경변수 Path에 추가
-- GitHub Actions는 공개 repo에서 무료 무제한 (비디오 렌더링도 CPU로 충분)
-- Telegram Bot API: sendMessage 엔드포인트, chat_id + text 파라미터로 간단 연동
-- Telegram getUpdates offset 미공유 버그: wait_for_callback을 매번 offset=None으로 시작하면
-  이전 세션의 stale 콜백이 재처리됨 → 세션 시작 시 flush_updates()로 큐 비우기 필수
-- Telegram 기사 선택 내 offset 버그: wait_for_callback이 기사마다 offset=None으로 리셋되면
-  기사 1의 "다음 기사" 콜백을 기사 2~5에서 반복 수신해 모든 기사를 건너뜀.
-  _poll_offset을 모듈 레벨 전역변수로 선언해 세션 전체에서 공유해야 함
-- YouTube commentThreads.insert: private/예약 상태 영상에는 403 반환.
-  댓글 등록은 공개(public) 영상에만 가능 → 업로드 시 privacyStatus를 public으로 설정 필수
-- YouTube 예약 업로드 불필요: GitHub Actions cron이 정시에 트리거하므로
-  privacyStatus: public + publishAt 제거로 단순화 가능. 댓글 문제도 동시 해결됨
-- step2_select 설계: 기사 선택 전 ChatGPT를 먼저 호출해 한국어 요약을 Telegram에 표시.
-  거절된 기사는 ChatGPT 비용만 소모 (TTS·FFmpeg·Whisper 등 고비용 단계는 선택 후 1회만 실행)
-- GitHub Actions 폰트: apt-get install fonts-noto-cjk 사용.
-  Linux 설치 경로는 /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc
-  step6/step7의 get_font()에 해당 경로를 Windows 경로보다 앞에 추가해야 함
-- .gitignore 작성 시 *.png / *.gif 와일드카드 금지.
+- NHK 사이트 Next.js 전환 → 정적 크롤링 불가 → RSS summary 사용
+- .env 파일은 .gitignore 등록 필수 / API 키 노출 시 즉시 삭제 후 재발급
+- Claude Code PowerShell 자동 승인: settings.json에 PowerShell(*) 추가
+- ZapCap API 불안정 + 처리 시간 5~10분 → Whisper API로 대체
+- Whisper API는 별도 키 불필요 / OPENAI_API_KEY 공용 사용
+- YouTube OAuth 인증: 데스크톱 앱 유형으로 생성 / token.json 자동 갱신
+- 텔레그램 봇 토큰 공개 노출 시 즉시 /revoke로 재발급
+- GitHub Actions Secrets에 API 키 저장 → 코드에는 키 없음
+- 저작권: RSS summary 수집 + ChatGPT 재작성 구조 → 원문 미사용으로 문제없음
+- Google OAuth 앱 테스트→프로덕션 전환: Google Cloud Console → 대상 → 앱 게시 (무료)
+  → 프로덕션 전환 후 refresh_token 무기한 유효 / GitHub Actions 장기 운용 가능
+- GitHub Secrets는 repo별로 별도 등록 필요 (mochien-assets repo ≠ mochien repo)
+- google-auth-oauthlib / python-dotenv requirements.txt에 명시 필요
+  (로컬 venv에 설치돼 있어도 누락 시 GitHub Actions 실패)
+- GitHub Actions 폰트: apt-get install -y fonts-noto-cjk 사용
+  Linux 경로: /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc
+  step6/step7의 get_font()에 해당 경로를 Windows 경로보다 앞에 추가
+- GitHub Actions Public repo: 실행 횟수 무제한 무료
+- YouTube private 예약 영상은 commentThreads.insert API 차단
+  → 승인 즉시 public 업로드로 전환하여 해결
+- token.json 재발급 필요 시점: 새 API 스코프 추가 때만 (코드 수정과 무관)
+- 쇼츠 조회수 수익 RPM: $0.01~$0.06 / 쇼츠는 구독자 모집 채널, 롱폼이 실질 수익 채널
+- YouTube 고정댓글 pin: API 미지원 → YouTube Studio 수동 고정
+  → 구독자 5,000명 이후부터 관리 시작해도 충분
+- 텔레그램 승인 버튼 중복 탭 시 파이프라인 중복 실행 → 한 번만 탭할 것
+- 롱폼 심층 분석은 gpt-4.1-mini 한계 → gpt-4.1 모델 사용 권장
+- GitHub Actions cron: 무료 플랜에서 1~4시간 지연 발생 가능 (정상 동작)
+  → repo 최근 활동 없으면 스케줄 트리거 자체가 건너뛰어짐
+  → 더미 커밋 자동화로 repo 활성 유지 필요
+  → 트리거 시간을 목표 시간보다 2시간 앞당겨서 지연 보정
+- GitHub Actions cron은 무조건 UTC 기준 (JST/KST 직접 입력 불가)
+  KST = UTC+9이므로 원하는 시간에서 9시간 빼서 입력
+- 오후 시간대 업로드는 조회수 낮음 (일본 직장인 시청 패턴 고려)
+  → 09시/13시/18시 JST 업로드 목표로 트리거 시간 앞당겨 운용
+- gpt_result.json 날짜/시간별 저장 → 롱폼 파이프라인에서 당일 3개 파일 읽어 활용
+- .gitignore 작성 시 *.png / *.gif 와일드카드 금지
   mochien_*.png, mochien_talk.gif 캐릭터 에셋이 함께 무시됨 → 파일명 개별 지정
-- requirements.txt에 python-dotenv, google-auth-oauthlib 누락 주의.
-  로컬 venv에 설치돼 있어도 requirements.txt에 없으면 GitHub Actions에서 실패함
-- token.json에 client_id / client_secret이 포함되어 있어 민감 정보.
-  .gitignore에 반드시 포함. GitHub Actions에서는 YOUTUBE_CREDENTIALS Secret으로 복원
-- client_secrets.json도 민감 정보. CLIENT_SECRETS Secret으로 관리하고 .gitignore에 추가
+- Telegram getUpdates: flush_updates() 세션 시작 시 필수 (stale 콜백 재처리 방지)
+- Ken Burns는 Pexels 모션 영상에 적용 시 어색함 → 비네팅+컬러그레이딩으로 대체
+- FFmpeg colorbalance: rs/rm/rh (레드), bs/bm/bh (블루) / 범위: -1~1
+- FFmpeg vignette: angle 파라미터 (0~PI/2) / 0.8이 자연스러운 수준
+- step2 타임아웃과 취소 구분: CALLBACK_TIMEOUT (무응답→자동 진행) vs CALLBACK_CANCEL (❌ 버튼)
+- ElevenLabs 잔액: GET /v1/user → subscription.character_limit - character_count = 잔여 캐릭터
 
 
 ================================================================
 ## 19. 2단계 예고 (파이프라인 안정화 이후 검토)
 ================================================================
-- emotion 자동 매핑 복원 (ChatGPT emotion 필드 → 캐릭터 PNG URL 자동 선택)
+- 10단계: 전체 파이프라인 통합 테스트 (2~9단계 단일 실행)
+- emotion 자동 매핑 복원 (ChatGPT emotion → 캐릭터 PNG 자동 선택)
+- output 폴더 날짜별 자동 생성 + 30일 이전 자동 삭제
 - 씬별 배경 영상 전환 (4씬 구조 재설계)
 - 워드프레스 REST API 블로그 자동 발행
+- Streamlit 웹 UI 구축 (파이프라인 실행 버튼 + 결과 미리보기)
 - 퀀트 트레이딩 Python 파이프라인 구축
 - Project Flint (Unity 2D) C# 개발 시작
-- Claude Code 전환 완료 후 Make 의존도 완전 제거
+- 한국 채널 파이프라인 구축 (쇼츠 안정화 이후)
 
 ================================================================

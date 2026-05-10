@@ -1,0 +1,479 @@
+================================================================
+모찌엔 YouTube Shorts 자동화 프로젝트 — 마스터 노트
+최종 업데이트: 2026년 5월 10일 (6차 세션)
+================================================================
+※ 편집 방법: 변경된 항목만 해당 섹션에서 수정. 통째로 재작성 금지.
+※ 세션 후 업데이트 시 상단 날짜도 함께 수정.
+================================================================
+
+
+----------------------------------------------------------------
+[1. 프로젝트 개요]
+----------------------------------------------------------------
+목적      : 일본 경제 뉴스를 자동 수집 → 모찌엔 캐릭터가 일본어로 요약하는
+            YouTube Shorts 영상을 자동 생성·업로드
+타겟      : 일본 YouTube 이용자 (40~60대 직장인, 은퇴 준비층)
+부가 수신 : 텔레그램 봇으로 한국어 요약 + 승인 버튼 수신 → 승인 시 YouTube 업로드
+
+
+----------------------------------------------------------------
+[2. 전체 자동화 플로우] ← 6차 세션 업데이트
+----------------------------------------------------------------
+쇼츠 파이프라인 (하루 3회: 09시 / 13시 / 18시 JST):
+RSS (NHK cat6)
+→ HTTP 본문 크롤링
+→ ChatGPT API (gpt-4.1-mini) → JSON 8필드 생성
+→ JSON 파싱
+→ Pexels API 배경 영상 취득
+→ ElevenLabs TTS (Eleven Flash v2.5) → 일본어 음성 생성
+→ FFmpeg 영상 합성 (1080×1920) + Ken Burns 효과
+→ Whisper API 트랜스크립션 → FFmpeg 자막 합성
+→ 텔레그램 봇 승인 요청 전송
+→ 승인 버튼 탭 (10분 무응답 시 자동 진행)
+→ YouTube Data API v3 즉시 공개 업로드
+→ hook 일본어 자동 댓글 등록
+→ 텔레그램 봇 업로드 완료 알림
+→ gpt_result.json 날짜/시간별 저장 (롱폼 연결용)
+
+롱폼 파이프라인 (하루 1회: 21시 JST) ← 예정
+당일 쇼츠 3개 gpt_result.json 읽기
+→ ChatGPT API (gpt-4.1) → 심층 분석 스크립트 생성
+→ ElevenLabs TTS → FFmpeg 영상 합성 (1920×1080)
+→ YouTube 업로드 + 블로그 동시 발행
+
+블로그 파이프라인 (하루 1회: 21시 JST) ← 예정
+롱폼 스크립트 재활용 → 워드프레스 REST API 자동 발행
+→ 유튜브 영상 임베드 포함
+
+※ Make.com → Python + GitHub Actions로 전환 확정
+※ Creatomate → FFmpeg으로 전환 확정
+※ ZapCap → Whisper API + FFmpeg으로 전환 확정
+※ 예약 공개 → 승인 즉시 public 공개로 전환 (5차 세션)
+
+
+----------------------------------------------------------------
+[3. 핵심 전환 결정 (누적)]
+----------------------------------------------------------------
+전환 이유   : Make + Creatomate 고정비 $67/월 → Python + FFmpeg $4.48/월
+              월 $62.52 절감
+
+변경 전     변경 후
+----------  ----------------------------------------
+Make        Python 스크립트 (feedparser, requests 등)
+Creatomate  FFmpeg 영상 합성
+ZapCap      Whisper API (OpenAI) + FFmpeg 자막 합성
+스케줄      GitHub Actions cron (공개 repo 무료 무제한)
+수동 승인   텔레그램 봇 인라인 버튼 승인 시스템
+예약 공개   승인 즉시 public 공개 (댓글 API 정책 대응)
+
+향후 확장   : 퀀트 트레이딩, Project Flint(Unity C#) 동일 환경 활용 예정
+UI 계획     : 파이프라인 완성 후 Streamlit으로 웹 UI 구축 예정
+
+
+----------------------------------------------------------------
+[4. 로컬 개발 환경 (2차 세션 설치 완료)]
+----------------------------------------------------------------
+OS          : Windows
+프로젝트    : C:\mochien
+가상환경    : C:\mochien\venv (Python 3.14.4)
+활성화 명령 : C:\mochien\venv\Scripts\activate
+
+설치 완료
+  - Python 3.14.4
+  - FFmpeg 8.1.1 (C:\ffmpeg\bin → PATH 등록)
+  - Node.js v24.15.0
+  - Claude Code v2.1.133
+
+설치된 라이브러리
+  - feedparser 6.0.12                RSS 수집
+  - requests 2.33.1                  HTTP 크롤링 / API 호출
+  - openai 2.36.0                    ChatGPT API + Whisper API
+  - ffmpeg-python 0.2.0              영상 합성
+  - google-auth 2.52.0               Google 인증
+  - google-auth-oauthlib             YouTube OAuth 인증 (필수)
+  - google-api-python-client 2.196.0 YouTube / Drive API
+  - Pillow 12.2.0                    이미지 처리
+  - beautifulsoup4 4.14.3            HTML 파싱
+  - python-dotenv 1.2.2              .env 파일 로드
+  - python-telegram-bot              텔레그램 봇 연동
+
+
+----------------------------------------------------------------
+[5. 진행 현황]
+----------------------------------------------------------------
+✅ 완료
+  - 1단계: Python 가상환경 + 라이브러리 설치
+  - 2단계: RSS 수집 + HTTP 크롤링 (step2_rss_crawler.py)
+           → NHK Next.js 전환으로 전체 본문 불가 → RSS summary 사용
+  - 3단계: ChatGPT API + JSON 8필드 파싱 (step3_chatgpt.py)
+           → gpt_result.json 저장 확인
+  - 4단계: Pexels API 배경 영상 취득 (step4_pexels.py)
+           → background.mp4 다운로드 확인
+  - 5단계: ElevenLabs TTS 음성 생성 (step5_tts.py)
+           → Harune 보이스 사용 (일본어 여성)
+  - 6단계: FFmpeg 영상 합성 (step6_ffmpeg.py)
+           → 레이아웃 수정: 모찌엔 위치, mouth_gif 크기 조정
+           → 자막/제목 크기 확대 (제목 105px / 자막 132px)
+           → 자막 위치: 하단 고정
+  - 7단계: Whisper API 트랜스크립션 + FFmpeg 자막 합성 (step7_whisper_subtitle.py)
+           → ZapCap 완전 대체
+           → output_video_subtitled.mp4 생성 확인
+  - 9단계: YouTube Data API v3 업로드 + 텔레그램 승인 시스템 (step9_youtube.py)
+           → 텔레그램 봇 승인 버튼 → YouTube 즉시 공개 업로드 흐름 완성
+           → hook 일본어 자동 댓글 등록
+           → 설명란 일본어만 유지 (한국어 제거)
+  - 11단계: GitHub Actions 스케줄 설정 및 배포 ← 4차 세션 완료
+           → mochien repo (qumax7-collab/mochien) 생성 및 push
+           → GitHub Secrets 8개 등록 완료
+           → 첫 자동 실행 성공 (3분 28초)
+           → 텔레그램 승인 → YouTube 업로드 전체 흐름 확인
+
+✅ 6차 세션 완료 (2026-05-10)
+  - cron 2시간 앞당기기 (07/11/17 JST 트리거) + keepalive 주간 자동 커밋
+  - hook 강화 (숫자·의문형·충격 표현 필수) + 마무리 3줄로 수정
+  - gpt_result.json JST 슬롯별 날짜 폴더 저장 (output/{날짜}/09|13|18_gpt_result.json)
+  - OpenAI $3 / ElevenLabs 10,000자 이하 시 텔레그램 경고 (파이프라인 계속 실행)
+  - step2 무응답 10분 → 자동 진행 (CALLBACK_TIMEOUT) / ❌ 취소는 명시적 버튼만
+  - 배경 영상 쿨 블루 컬러 그레이딩 + 비네팅 (step6_ffmpeg.py)
+  - Ken Burns → 건너뜀 (Pexels 영상 자체 모션으로 충분)
+
+🔜 다음 작업 (7차 세션)
+  1. run_pipeline.py — 전체 파이프라인 통합 실행 스크립트
+     → python run_pipeline.py 한 커맨드로 step2~9 순차 실행
+  2. emotion 자동 매핑 복원
+     → ChatGPT emotion 필드 → 캐릭터 PNG URL 자동 선택
+     → FACE_EMOTION_OVERRIDE 제거
+  3. 롱폼 파이프라인 구축
+     → ChatGPT gpt-4.1 모델 (심층 분석)
+     → 당일 output/{날짜}/ 폴더의 gpt_result 3개 읽어서 구성
+     → 하루 1편 21시 JST 업로드
+
+🔜 이후 순서
+  - 블로그 파이프라인 (워드프레스)
+    → 일본 서버 Conoha Wing ($5/월)
+    → 롱폼 스크립트 재활용
+    → 유튜브 영상 임베드 포함
+    → 롱폼과 동시 21시 발행
+  - 8단계: Google Drive 업로드 연동 (선택사항)
+
+
+----------------------------------------------------------------
+[6. 파이프라인 파일 구조] ← 6차 세션 업데이트
+----------------------------------------------------------------
+C:\mochien\
+  ├── CLAUDE.md                      ← Claude Code 프로젝트 규칙
+  ├── .env                           ← API 키 보관 (GitHub 비공개)
+  ├── .gitignore                     ← .env / token.json 제외 설정
+  ├── requirements.txt               ← 라이브러리 목록
+  ├── client_secrets.json            ← YouTube OAuth 인증 정보
+  ├── token.json                     ← YouTube OAuth 토큰 (자동 갱신)
+  ├── .github/workflows/mochien.yml  ← GitHub Actions 워크플로우
+  ├── venv\                          ← 가상환경
+  ├── step2_rss_crawler.py
+  ├── step2_select.py
+  ├── step3_chatgpt.py
+  ├── step4_pexels.py
+  ├── step5_tts.py
+  ├── step6_ffmpeg.py
+  ├── step7_whisper_subtitle.py      ← ZapCap 대체
+  ├── step9_youtube.py               ← 텔레그램 승인 + YouTube 업로드 + 댓글
+  ├── article.json                   ← 2단계 출력 (덮어쓰기)
+  ├── gpt_result.json                ← 3단계 출력 (덮어쓰기)
+  ├── pexels_result.json             ← 4단계 출력
+  ├── background.mp4                 ← Pexels 영상
+  ├── voice.mp3                      ← ElevenLabs 음성
+  ├── output_video.mp4               ← FFmpeg 합성 영상
+  ├── output_video_subtitled.mp4     ← Whisper 자막 합성 영상
+  └── output/                        ← 날짜별 gpt_result 보관 (롱폼 연결용)
+        └── 2026-05-10/
+              ├── 09_gpt_result.json
+              ├── 13_gpt_result.json
+              └── 18_gpt_result.json
+
+
+----------------------------------------------------------------
+[7. ChatGPT 프롬프트] ← 5차 세션 수정 완료
+----------------------------------------------------------------
+あなたはJSONのみを出力するAIです。
+出力は必ず { で始まり } で終わる純粋なJSONのみ。
+```json などのマークダウン記号は絶対に使用禁止。
+以下のキー以外は絶対に追加しないこと:
+  title, hook, script, hashtags, korean_summary, emotion, image_prompt, short_title
+
+【モチエンキャラクター設定】
+- 冒頭の挨拶は禁止。最初の一文は必ずhookの内容から始めること。
+- hookは必ず日本語で生成すること。数字・疑問形・驚きの表現を含めること。
+- hashtagsには必ず#Shortsを含めること。
+- 落ち着いていて信頼感がある話し方（40〜60代向け）
+- 難しい経済用語はやさしい言葉に言い換える
+- 視聴者を「あなた」と呼ぶ
+- スクリプト末尾は必ず下記で締めること:
+  「皆さんはどう思いますか？コメントで教えてください！
+   以上、モチエンがお伝えしました！
+   チャンネル登録お願いします！
+   今夜21時に詳しく解説します！」
+
+short_title : 6〜10字の核心キーワード
+image_prompt: Pexels 검색용 영어 키워드 (예: "japanese economy stock market")
+
+뉴스 제목: {title}
+뉴스 본문: {article_body}
+
+JSON 8필드:
+  title / hook / script / hashtags / korean_summary / emotion / image_prompt / short_title
+
+emotion 허용값:
+  smile / happy / surprised / shocked / worried /
+  angry / anxious / sad / neutral / shy / embarrassed / sleepy
+
+
+----------------------------------------------------------------
+[8. Pexels API 설정]
+----------------------------------------------------------------
+URL         : https://api.pexels.com/videos/search
+Method      : GET
+Header      : Authorization: {PEXELS_API_KEY}  ※ Bearer 없이 키만
+Query       : query = image_prompt 필드 사용 (뉴스별 다른 배경)
+응답 경로   : videos[0].video_files[0].link
+무료 플랜   : 월 200 요청 / 하루 3편×30일 = 90 요청 (여유 있음)
+
+
+----------------------------------------------------------------
+[9. Whisper API 자막 설정] ← ZapCap 대체 (3차 세션)
+----------------------------------------------------------------
+용도        : voice.mp3 트랜스크립션 → 타임스탬프 추출 → FFmpeg 자막 합성
+API         : OpenAI Whisper API (OPENAI_API_KEY 공용 사용, 별도 키 불필요)
+비용        : $0.006/분 → 하루 3편×1분×30일 = 월 ~$0.18
+처리 시간   : 즉시 (ZapCap 5~10분 대비 대폭 개선)
+출력 형식   : ASS 자막 파일 → FFmpeg으로 영상에 합성
+자막 스타일 : 크기 132px / 하단 고정 / 흰 텍스트 + 검정 스트로크
+
+
+----------------------------------------------------------------
+[10. FFmpeg 영상 합성 레이아웃]
+----------------------------------------------------------------
+해상도: 1080×1920 / 폰트: Noto Sans JP / fps: 30
+
+레이어 (아래→위):
+  1. background  Pexels 영상 전체화면 + Ken Burns 효과 (미세 줌인/줌아웃)
+  2. top_bar     네이비(#1B2A4A) 상단
+  3. red_line    #E50000 / 4~6px
+  4. short_title 흰색 Bold 텍스트 (105px)
+  5. face        모찌엔 PNG / 우하단 / 흰 외곽선 10px
+  6. mouth_gif   캐릭터 입 위치 (크기 조정 완료)
+  7. subtitle    화면 하단 고정 / 흰 텍스트 + 검정 스트로크 (132px)
+  8. audio       ElevenLabs mp3
+
+
+----------------------------------------------------------------
+[11. 모찌엔 캐릭터 에셋]
+----------------------------------------------------------------
+GitHub      : https://github.com/qumax7-collab/mochien-assets
+Raw URL     : https://raw.githubusercontent.com/qumax7-collab/mochien-assets/main/mochien_{emotion}.png
+외곽선      : 흰색 10px / 알파채널 유지
+현재 고정값 : neutral (base PNG 사용)
+
+emotion → 파일명 → 사용 상황
+smile / happy / surprised / shocked / worried /
+angry / anxious / sad / neutral / shy / embarrassed / sleepy
+
+
+----------------------------------------------------------------
+[12. YouTube 업로드 설정] ← 5차 세션 수정
+----------------------------------------------------------------
+채널명      : モチエンのひとこと経済ニュース
+API         : YouTube Data API v3 videos.insert
+인증        : OAuth 2.0 (client_secrets.json / token.json)
+설명란 구성 : 일본어 채널 소개 + hashtags (한국어 제거)
+업로드 방식 : 승인 즉시 public 공개 (예약 공개 제거)
+              ※ private 예약 시 댓글 API 차단 → 즉시 공개로 전환
+업로드 시간 : 09:00 / 13:00 / 18:00 JST (실제 트리거는 앞당겨서 지연 보정)
+승인 방식   : 텔레그램 봇 승인 버튼 탭 후 즉시 업로드
+              ※ 10분 무응답 시 자동 업로드 진행
+자동 댓글   : 업로드 직후 hook 필드 (일본어) 자동 댓글 등록
+              ※ 고정댓글은 YouTube API 미지원 → YouTube Studio에서 수동 고정
+              ※ 고정댓글은 구독자 5,000명 이후부터 관리 시작해도 충분
+
+
+----------------------------------------------------------------
+[13. 텔레그램 봇 설정]
+----------------------------------------------------------------
+봇 이름     : Mochien Notify
+봇 유저네임 : @Mochien_Notify_bot
+용도        : 한국어 요약 + 승인/취소 인라인 버튼 전송
+              승인 시 YouTube 업로드 자동 진행
+              10분 무응답 시 자동 업로드 진행
+              업로드 완료 후 동영상 URL 알림
+              API 잔액 경고 알림 (OpenAI $3 이하 / ElevenLabs $2 이하)
+환경변수    : TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID (.env 저장)
+
+
+----------------------------------------------------------------
+[14. GitHub Actions / 보안 설정] ← 6차 세션 업데이트
+----------------------------------------------------------------
+repo        : https://github.com/qumax7-collab/mochien (Public)
+워크플로우  : .github/workflows/mochien.yml
+
+스케줄 cron (JST = UTC+9):
+  현재 설정 (cron 값은 정확, 실행 지연이 문제):
+  "0 0 * * *"   JST 09:00 (UTC 00:00)
+  "0 4 * * *"   JST 13:00 (UTC 04:00)
+  "0 9 * * *"   JST 18:00 (UTC 09:00)
+
+  변경 예정 (지연 감안해서 앞당기기):
+  "0 22 * * *"  → KST 07:00 트리거 (지연 시 09시 내 업로드)
+  "0 2 * * *"   → KST 11:00 트리거 (지연 시 13시 내 업로드)
+  "0 8 * * *"   → KST 17:00 트리거 (지연 시 18~19시 내 업로드)
+  "0 12 * * *"  JST 21:00 (UTC 12:00) ← 롱폼/블로그용 (예정)
+
+GitHub Actions 지연 특성:
+  - 무료 플랜: 30분~4시간 지연 발생 가능 (정상 동작)
+  - repo 최근 활동 없으면 트리거 자체가 건너뛰어짐
+  - 대응: 더미 커밋 자동화로 repo 활성 상태 유지
+
+실행 환경   : ubuntu-latest / 공개 repo 무료 무제한
+첫 실행     : 수동 Run workflow 성공 (3분 28초)
+
+OAuth 설정:
+  Google Cloud Console → OAuth 앱 프로덕션 전환 완료
+  → token.json refresh_token 무기한 유효 (재인증 불필요)
+  ※ 새 API 스코프 추가 시에만 token.json 재발급 필요
+
+보안 구조:
+  로컬 → .env 파일에 키 보관 / .gitignore로 GitHub 업로드 차단
+  GitHub → Secrets에 암호화 저장 / Actions 실행 시 자동 주입
+
+GitHub Secrets 등록 목록 (mochien repo):
+  OPENAI_API_KEY / ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID /
+  PEXELS_API_KEY / TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID /
+  YOUTUBE_CREDENTIALS / CLIENT_SECRETS
+
+
+----------------------------------------------------------------
+[15. 월 예상 비용] ← 5차 세션 업데이트
+----------------------------------------------------------------
+Make            ❌ 해지    $0
+Creatomate      ❌ 해지    $0
+ZapCap          ❌ 해지    $0
+OpenAI API      종량제     ~$4.18  (ChatGPT ~$4 + Whisper ~$0.18)
+                           롱폼 추가 시 ~$1~2 추가
+ElevenLabs      종량제     ~$0.30
+Pexels          무료       $0
+GitHub Actions  무료       $0
+YouTube API     무료       $0
+텔레그램        무료       $0
+Conoha Wing     정액제     ~$5     (블로그 호스팅, 예정)
+---------------------------------
+현재 합계                  ~$4.48/월
+롱폼+블로그 추가 후        ~$10~12/월 (예상)
+
+
+----------------------------------------------------------------
+[16. AI 구독 정리]
+----------------------------------------------------------------
+Claude        ✅ 유지   프로젝트 설계, 디버깅, 프롬프트 최적화
+ChatGPT Plus  선택      API만으로 대체 가능
+Gemini        ❌ 해지   현재 파이프라인 활용 구간 없음
+
+
+----------------------------------------------------------------
+[17. 레슨런 (누적)]
+----------------------------------------------------------------
+- Pexels API Authorization 헤더: Bearer 없이 키만 입력
+- OpenAI API 키: platform.openai.com 발급 / ChatGPT Plus와 완전히 별개
+- Creatomate Stroke/Shadow는 알파채널 인식 불가 → PNG에 직접 외곽선 추가
+- ElevenLabs 무료 플랜 API: 연결 저장은 되지만 런타임 실패 → 유료 필요
+- GitHub Raw URL CDN 캐시 이슈 → 파일 교체 후 브라우저에서 직접 확인
+- Creatomate 트랜스크립션: 일본어 띄어쓰기 미인식 → ZapCap 대체
+- Python 3.12는 Windows 바이너리 설치 파일 미제공 → 3.13 이상 사용
+- FFmpeg PATH 등록: C:\ffmpeg\bin → 시스템 환경변수 Path에 추가
+- NHK 사이트 Next.js 전환 → 정적 크롤링 불가 → RSS summary 사용
+- .env 파일은 .gitignore 등록 필수 / API 키 노출 시 즉시 삭제 후 재발급
+- Claude Code PowerShell 자동 승인: settings.json에 PowerShell(*) 추가
+- ZapCap API 불안정 + 처리 시간 5~10분 → Whisper API로 대체
+- Whisper API는 별도 키 불필요 / OPENAI_API_KEY 공용 사용
+- YouTube OAuth 인증: 데스크톱 앱 유형으로 생성 / token.json 자동 갱신
+- 텔레그램 봇 토큰 공개 노출 시 즉시 /revoke로 재발급
+- GitHub Actions Secrets에 API 키 저장 → 코드에는 키 없음
+- 저작권: RSS summary 수집 + ChatGPT 재작성 구조 → 원문 미사용으로 문제없음
+- Google OAuth 앱 테스트→프로덕션 전환: Google Cloud Console → 대상 → 앱 게시 (무료)
+  → 프로덕션 전환 후 refresh_token 무기한 유효 / GitHub Actions 장기 운용 가능
+- GitHub Secrets는 repo별로 별도 등록 필요 (mochien-assets repo ≠ mochien repo)
+- google-auth-oauthlib requirements.txt에 명시 필요 (누락 시 GitHub Actions 실패)
+- GitHub Actions 폰트 설치: apt-get install -y fonts-noto-cjk 사용
+  → 시스템 폰트 경로 자동 감지로 step6/step7 수정 필요
+- GitHub Actions Public repo: 실행 횟수 무제한 무료
+- YouTube private 예약 영상은 commentThreads.insert API 차단
+  → 승인 즉시 public 업로드로 전환하여 해결
+- token.json 재발급 필요 시점: 새 API 스코프 추가 때만 (코드 수정과 무관)
+- 쇼츠 조회수 수익 RPM: $0.01~$0.06 / 100만 조회수 = $10~$150 수준
+  → 쇼츠는 구독자 모집 채널, 롱폼이 실질 수익 채널
+- YouTube 고정댓글 pin: API 미지원 → YouTube Studio 수동 고정
+  → 구독자 5,000명 이후부터 관리 시작해도 충분 (초반 댓글 자체가 적음)
+- 텔레그램 승인 버튼 중복 탭 시 파이프라인 중복 실행 → 한 번만 탭할 것
+- 롱폼 심층 분석은 gpt-4.1-mini 한계 → gpt-4.1 모델 사용 권장
+- 블로그 일본 타겟: Conoha Wing (일본 서버) SEO 유리 / WordPress REST API 자동화
+- GitHub Actions cron: 무료 플랜에서 1~4시간 지연 발생 가능 (정상 동작)
+  → repo 최근 활동 없으면 스케줄 트리거 자체가 건너뛰어짐
+  → 더미 커밋 자동화로 repo 활성 유지 필요
+  → 트리거 시간을 목표 시간보다 2시간 앞당겨서 지연 보정
+- 일본어 몰라도 채널 운영 가능: 스폰서 이메일 / 댓글 답변 → ChatGPT 번역 활용
+  → 댓글 대응은 구독자 5,000명 이후부터 신경 써도 충분
+- 롱폼 수익 $500/월 기준: 10만 조회수/월 필요 (일본 경제 채널 RPM $5 기준)
+  → 구독자 1만명 / 18~24개월 소요 예상
+- 쇼츠 파이프라인이 안정화되면 한국 채널 병행 검토 (파이프라인 구조 그대로 재사용)
+- gpt_result.json 날짜/시간별 저장 → 롱폼 파이프라인에서 당일 3개 파일 읽어 활용
+- Ken Burns는 Pexels 모션 영상에 적용 시 어색함 → 비네팅+컬러그레이딩으로 대체
+- FFmpeg colorbalance 파라미터: rs/rm/rh (레드 그림자/중간/하이라이트), bs/bm/bh (블루) / 범위: -1~1
+- FFmpeg vignette 파라미터: angle (0~PI/2, 높을수록 강함) / 0.8이 자연스러운 수준
+- step2 타임아웃과 취소 구분 필수: CALLBACK_TIMEOUT (무응답 자동 진행) vs CALLBACK_CANCEL (❌ 버튼)
+- ElevenLabs 잔액 확인: GET /v1/user → subscription.character_limit - character_count = 잔여 캐릭터
+
+
+----------------------------------------------------------------
+[18. 콘텐츠 전략] ← 6차 세션 업데이트
+----------------------------------------------------------------
+하루 발행 스케줄 (JST):
+  09시  쇼츠 1편 (이슈 A)
+  13시  쇼츠 1편 (이슈 B)
+  18시  쇼츠 1편 (이슈 C)
+  21시  롱폼 1편 (이슈 A+B+C 심층 분석) + 블로그 1편 동시 발행 ← 예정
+
+쇼츠 역할  : 구독자 모집 / 롱폼 예고편
+롱폼 역할  : 실질 광고 수익 창출
+블로그 역할: 검색 트래픽 + 애드센스 수익
+
+수익 구조 (롱폼 기준, 일본 경제 채널 RPM $5):
+  구독자 1,000명  → 월 $50~100  (약 12개월 소요)
+  구독자 5,000명  → 월 $250     (약 18개월 소요)
+  구독자 10,000명 → 월 $500     (약 24개월 소요)
+  ※ 스폰서십/멤버십 추가 시 같은 조회수에서 수익 2~3배 가능
+
+YPP 수익화 조건:
+  구독자 500명 + 쇼츠 300만 조회 → 제한적 YPP
+  구독자 1,000명 + 쇼츠 1,000만 조회 → 광고 수익 공유 전체 혜택
+
+구독자 목표별 계획:
+  1,000명 → 롱폼 파이프라인 본격 가동
+  5,000명 → 블로그 파이프라인 + 워드프레스 연동 / 댓글 대응 루틴 시작
+  10,000명~ → 스폰서십 / 브랜드 협찬 검토
+
+장기 방향:
+  일본 채널 안정화 후 → 한국 채널 병행 (파이프라인 재사용, 언어만 변경)
+  한국 채널 = 직접 소통 가능 / 팬덤 형성 / 스폰서십 직접 협상
+
+
+----------------------------------------------------------------
+[19. 2단계 예고 (파이프라인 안정화 이후 검토)]
+----------------------------------------------------------------
+- 10단계: 전체 파이프라인 통합 테스트 (2~9단계 단일 실행)
+- emotion 자동 매핑 복원 (ChatGPT emotion → 캐릭터 PNG 자동 선택)
+- output 폴더 날짜별 자동 생성 + 30일 이전 자동 삭제
+- 씬별 배경 영상 전환 (4씬 구조 재설계)
+- 워드프레스 REST API 블로그 자동 발행
+- Streamlit 웹 UI 구축 (파이프라인 실행 버튼 + 결과 미리보기)
+- 퀀트 트레이딩 Python 파이프라인 구축
+- Project Flint (Unity 2D) C# 개발 시작
+- 한국 채널 파이프라인 구축 (쇼츠 안정화 이후)
+
+================================================================
