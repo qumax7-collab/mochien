@@ -72,6 +72,10 @@ smile / happy / surprised / shocked / worried / angry / anxious / sad / neutral 
 ニュース本文: {article_body}
 """
 
+# ===== API 잔액 경고 =====
+OPENAI_BALANCE_WARN = 3.0       # USD
+ELEVENLABS_CHARS_WARN = 10000   # 잔여 캐릭터 수
+
 # ===== 텔레그램 =====
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
@@ -91,6 +95,52 @@ BUTTONS = {
         {"text": "❌ 취소",           "callback_data": CALLBACK_CANCEL},
     ]]
 }
+
+
+# ─────────────────────────────────────────
+# API 잔액 체크
+# ─────────────────────────────────────────
+
+def check_api_balance():
+    warnings = []
+
+    # OpenAI 잔액 확인
+    try:
+        openai_key = os.getenv("OPENAI_API_KEY", "")
+        resp = requests.get(
+            "https://api.openai.com/dashboard/billing/credit_grants",
+            headers={"Authorization": f"Bearer {openai_key}"},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            balance = resp.json().get("total_available", None)
+            if balance is not None and balance < OPENAI_BALANCE_WARN:
+                warnings.append(f"⚠️ OpenAI 잔액 부족: ${balance:.2f} (기준 ${OPENAI_BALANCE_WARN})")
+    except Exception:
+        pass
+
+    # ElevenLabs 잔여 캐릭터 확인
+    try:
+        el_key = os.getenv("ELEVENLABS_API_KEY", "")
+        resp = requests.get(
+            "https://api.elevenlabs.io/v1/user",
+            headers={"xi-api-key": el_key},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            sub = resp.json().get("subscription", {})
+            remaining = sub.get("character_limit", 0) - sub.get("character_count", 0)
+            if remaining < ELEVENLABS_CHARS_WARN:
+                warnings.append(f"⚠️ ElevenLabs 잔여 캐릭터 부족: {remaining:,}자 (기준 {ELEVENLABS_CHARS_WARN:,}자)")
+    except Exception:
+        pass
+
+    if warnings:
+        msg = "🔴 <b>API 잔액 경고</b>\n\n" + "\n".join(warnings)
+        try:
+            tg_send(msg)
+        except Exception:
+            print("\n".join(warnings))
 
 
 # ─────────────────────────────────────────
@@ -238,6 +288,7 @@ def main():
         print("[오류] .env에 TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID를 입력하세요.")
         sys.exit(1)
 
+    check_api_balance()
     flush_updates()
     print("=== NHK cat6 RSS 수집 ===")
     articles = fetch_articles()
