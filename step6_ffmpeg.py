@@ -20,6 +20,15 @@ TOP_BAR_COLOR = "0x1B2A4A"
 RED_LINE_COLOR = "0xE50000"
 TITLE_FONT_SIZE = 105
 
+# ===== 비네팅 + 컬러 그레이딩 =====
+VIGNETTE_ANGLE = 0.8  # 비네팅 강도 (0~PI/2)
+CG_RS = -0.10         # 그림자 레드 감소
+CG_RM = -0.05         # 중간 레드 감소
+CG_RH = -0.03         # 하이라이트 레드 감소
+CG_BS =  0.08         # 그림자 블루 증가
+CG_BM =  0.05         # 중간 블루 증가
+CG_BH =  0.03         # 하이라이트 블루 증가
+
 FACE_H = 500
 FACE_MARGIN_X = 30
 FACE_MARGIN_Y = 100          # 하단 여백 증가 → 캐릭터 잘림 방지
@@ -117,7 +126,13 @@ def build_filter(font_path, mouth_gif):
 
     f = []
     f.append(
-        f"[0:v]scale=-2:{OUTPUT_H},crop={OUTPUT_W}:{OUTPUT_H},setsar=1[bg]"
+        f"[0:v]scale=-2:{OUTPUT_H},crop={OUTPUT_W}:{OUTPUT_H},setsar=1[bg_raw]"
+    )
+    f.append(
+        f"[bg_raw]colorbalance=rs={CG_RS}:rm={CG_RM}:rh={CG_RH}:bs={CG_BS}:bm={CG_BM}:bh={CG_BH}[bg_graded]"
+    )
+    f.append(
+        f"[bg_graded]vignette=angle={VIGNETTE_ANGLE}[bg]"
     )
     f.append(
         f"[bg]drawbox=x=0:y=0:w={OUTPUT_W}:h={TOP_BAR_H}:color={TOP_BAR_COLOR}:t=fill[bg1]"
