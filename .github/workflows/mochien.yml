@@ -56,6 +56,15 @@ jobs:
           CLIENT_SECRETS: ${{ secrets.CLIENT_SECRETS }}
         run: echo "$CLIENT_SECRETS" > client_secrets.json
 
+      - name: Restore previous gpt_results (이전 슬롯 누적)
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: mochien.yml
+          name: gpt-results
+          path: output/
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          if_no_artifact_found: ignore
+
       - name: step2 — 기사 선택 (Telegram)
         run: python step2_select.py
 
