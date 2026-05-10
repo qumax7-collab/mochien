@@ -80,11 +80,12 @@ ELEVENLABS_CHARS_WARN = 10000   # 잔여 캐릭터 수
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 LONG_POLL_SEC = 30
-WAIT_TIMEOUT_SEC = 300  # 5분
+WAIT_TIMEOUT_SEC = 600  # 10분
 
 CALLBACK_SELECT = "select"
 CALLBACK_NEXT = "next"
 CALLBACK_CANCEL = "cancel"
+CALLBACK_TIMEOUT = "timeout"  # 무응답 자동 진행용
 
 _poll_offset = None  # 세션 내 getUpdates offset 공유
 
@@ -226,7 +227,7 @@ def wait_for_callback(message_id):
             tg_answer(cb["id"])
             return cb["data"]
 
-    return CALLBACK_CANCEL
+    return CALLBACK_TIMEOUT
 
 
 # ─────────────────────────────────────────
@@ -319,8 +320,9 @@ def main():
 
         result = wait_for_callback(message_id)
 
-        if result == CALLBACK_SELECT:
-            tg_edit(message_id, text + "\n\n⏳ <b>영상 생성 시작...</b>")
+        if result in (CALLBACK_SELECT, CALLBACK_TIMEOUT):
+            label = "⏳ <b>영상 생성 시작...</b>" if result == CALLBACK_SELECT else "⏳ <b>무응답 — 자동 진행...</b>"
+            tg_edit(message_id, text + f"\n\n{label}")
             with open(ARTICLE_FILE, "w", encoding="utf-8") as f:
                 json.dump(article, f, ensure_ascii=False, indent=2)
             with open(GPT_RESULT_FILE, "w", encoding="utf-8") as f:
