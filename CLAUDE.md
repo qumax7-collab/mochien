@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 10일 (6차 세션)
+최종 업데이트: 2026년 5월 10일 (7차 세션)
 
 ================================================================
 ## 0. 작업 규칙
@@ -60,6 +60,16 @@ RSS (NHK cat6) 최대 5개 수집
 → YouTube Data API v3 즉시 public 업로드
 → hook 일본어 자동 댓글 등록
 → 텔레그램 완료 알림 (Mochien_Notify_bot)
+→ output/{날짜}/{슬롯}_gpt_result.json을 GitHub Artifact로 업로드
+
+[ 롱폼 파이프라인 (mochien_longform.yml) — JST 21:00 ]
+→ GitHub Artifact에서 당일 gpt_result 3개 파일 복원
+→ long1_script.py: gpt-4.1로 롱폼 스크립트 생성 (long_script.json)
+→ long2_tts.py: 5섹션 TTS → long_voice.mp3
+→ long3_pexels.py: 4개 배경 영상 다운로드
+→ long4_ffmpeg.py: 섹션별 클립 생성 → concat → long_output_no_sub.mp4
+→ long5_whisper.py: Whisper 자막 합성 → long_output.mp4
+→ long6_youtube.py: YouTube 업로드 + 댓글 + 텔레그램 "[롱폼] 완료" 알림
 
 
 ================================================================
@@ -115,8 +125,7 @@ beautifulsoup4            - HTML 파싱
   - スクリプト末尾は必ず下記で締めること:
     「皆さんはどう思いますか？コメントで教えてください！
      以上、モチエンがお伝えしました！
-     チャンネル登録お願いします！
-     今夜21時に詳しく解説します！」
+     チャンネル登録お願いします！」
 
   short_title : 6〜10字の核心キーワード
   image_prompt: Pexels 검색용 영어 키워드 (예: "japanese economy stock market")
@@ -127,7 +136,7 @@ beautifulsoup4            - HTML 파싱
 JSON 8필드 상세:
   title          - 영상 제목 (30자 이내, 숫자 포함)
   hook           - 첫 후킹 문장 (일본어 / 숫자·의문형·충격 표현 포함)
-  script         - 본문 스크립트 (마무리 4줄 필수)
+  script         - 본문 스크립트 (마무리 3줄 필수)
   hashtags       - 해시태그 배열 (#Shorts 필수 포함)
   korean_summary - 한국어 1줄 요약
   emotion        - 영어 감정값 (아래 목록 중 1개)
@@ -142,21 +151,33 @@ emotion 허용값:
 ================================================================
 ## 6. FFmpeg 영상 합성 레이아웃 스펙
 ================================================================
+[ 쇼츠 (step6_ffmpeg.py) ]
 해상도      : 1080x1920 (YouTube Shorts 세로형)
 폰트        : Noto Sans JP
-배경        : Pexels 스톡 영상 (전체 화면) + Ken Burns 효과 (미세 줌인/줌아웃)
+배경        : Pexels 스톡 영상 (전체 화면) + 쿨 블루 컬러 그레이딩 + 비네팅
 프레임레이트 : 30fps
 
 레이어 구성 (아래에서 위 순서):
-  1. background  - Pexels 영상 / 전체 화면 1080x1920 / Ken Burns 효과
+  1. background  - Pexels 영상 / 전체 화면 1080x1920
+                   → colorbalance (rs-0.10/bs+0.08 등) + vignette(angle=0.8)
   2. top_bar     - 상단 레터박스 / 네이비(#1B2A4A) / 상단 고정 / 높이 약 10%
   3. red_line    - 가로선 #E50000 / 두께 4~6px / top_bar 하단 경계
   4. short_title - top_bar 위 텍스트 / 흰색 / Noto Sans JP Bold / 105px
   5. face        - 모찌엔 캐릭터 PNG / 우하단 고정 / 흰 외곽선 10px 포함된 PNG
   6. mouth_gif   - mochien_talk.gif 무한루프 / face 레이어 입 위치에 오버레이
   7. subtitle    - 화면 하단 고정 / 흰 텍스트 + 검정 스트로크 / 132px
-                   ※ Whisper API 처리 후 자막 오버레이
+                   ※ Whisper API 처리 후 자막 오버레이 (\an5 화면 중앙)
   8. audio       - ElevenLabs 생성 mp3
+
+[ 롱폼 (long4_ffmpeg.py) ]
+해상도      : 1920x1080 (YouTube 가로형)
+폰트        : Noto Sans JP Bold / 제목 80px
+배경        : Pexels 스톡 영상 + 동일 컬러 그레이딩 + 비네팅
+섹션 구성   : intro / issue1 / issue2 / issue3 / outro (5섹션 FFmpeg concat)
+상단 바     : 높이 108px / 네이비 + 빨간 구분선 / 섹션별 라벨 표시
+              intro·outro → short_title / issueN → "①②③ + 이슈 제목 14자"
+캐릭터      : 우하단 고정 / FACE_H=300px / mochien_talk.gif 오버레이
+자막        : Whisper ASS \an2 (하단 중앙) / 72px / 6단어/줄
 
 
 ================================================================
@@ -252,23 +273,38 @@ API         : YouTube Data API v3 videos.insert
 
 
 ================================================================
-## 13. GitHub Actions / 보안 설정 ← 6차 세션 업데이트
+## 13. GitHub Actions / 보안 설정 ← 7차 세션 업데이트
 ================================================================
 repo        : https://github.com/qumax7-collab/mochien (Public)
-워크플로우  : .github/workflows/mochien.yml
+워크플로우  : .github/workflows/mochien.yml          (쇼츠 / 하루 3회)
+              .github/workflows/mochien_longform.yml  (롱폼 / 하루 1회)
+              .github/workflows/keepalive.yml          (repo 활성 유지 / 주 1회)
 실행 환경   : ubuntu-latest / 공개 repo 무료 무제한
 
 스케줄 cron (UTC 기준 — GitHub Actions는 무조건 UTC):
-  변경 후 (지연 감안 앞당기기):
-  "0 22 * * *"  → KST 07:00 트리거 (지연 시 09시 내 업로드)
-  "0 2 * * *"   → KST 11:00 트리거 (지연 시 13시 내 업로드)
-  "0 8 * * *"   → KST 17:00 트리거 (지연 시 18~19시 내 업로드)
-  "0 12 * * *"  → JST 21:00 (롱폼/블로그용, 예정)
+  쇼츠 (mochien.yml):
+  "0 22 * * *"  → JST 07:00 트리거 (지연 시 09시 내 업로드)
+  "0 2 * * *"   → JST 11:00 트리거 (지연 시 13시 내 업로드)
+  "0 8 * * *"   → JST 17:00 트리거 (지연 시 18~19시 내 업로드)
+
+  롱폼 (mochien_longform.yml):
+  "0 10 * * *"  → JST 19:00 트리거 (지연 시 21시 내 업로드)
+
+  keepalive:
+  "0 0 * * 1"   → 매주 월요일 UTC 00:00 / .github/keepalive.txt 타임스탬프 커밋
+
+쇼츠→롱폼 gpt_result 파일 전달 방식 (Artifact):
+  1. 쇼츠 워크플로우 시작 시: 기존 gpt-results artifact 다운로드 (이전 슬롯 복원)
+  2. 파이프라인 실행: step2가 output/{날짜}/{슬롯}_gpt_result.json 저장
+  3. step9 이후: output/ 전체를 gpt-results artifact로 업로드 (overwrite)
+  → 하루 3회 실행 후 artifact에 09/13/18 파일 누적됨
+  4. 롱폼 워크플로우: dawidd6/action-download-artifact로 gpt-results 수신
+  ※ GITHUB_TOKEN은 별도 등록 불필요 — GitHub Actions가 자동 제공
 
 GitHub Actions 지연 특성:
   - 무료 플랜: 30분~4시간 지연 발생 가능 (정상 동작)
   - repo 최근 활동 없으면 트리거 자체가 건너뛰어짐
-  - 대응: 더미 커밋 자동화로 repo 활성 상태 유지
+  - 대응: keepalive.yml이 매주 월요일 자동 커밋으로 활성 상태 유지
 
 OAuth 설정:
   Google Cloud Console → OAuth 앱 프로덕션 전환 완료
@@ -283,6 +319,7 @@ GitHub Secrets 등록 목록:
   OPENAI_API_KEY / ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID /
   PEXELS_API_KEY / TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID /
   YOUTUBE_CREDENTIALS / CLIENT_SECRETS
+  ※ GITHUB_TOKEN은 자동 제공 — 별도 등록 불필요
 
 
 ================================================================
@@ -295,16 +332,31 @@ C:\mochien\
   ├── requirements.txt
   ├── client_secrets.json
   ├── token.json
-  ├── .github/workflows/mochien.yml
+  ├── .github/
+  │     └── workflows/
+  │           ├── mochien.yml             ← 쇼츠 파이프라인 (하루 3회)
+  │           ├── mochien_longform.yml    ← 롱폼 파이프라인 (하루 1회)
+  │           └── keepalive.yml           ← repo 활성 유지 (주 1회)
   ├── venv\
+  ├── [ 쇼츠 파이프라인 ]
+  ├── run_pipeline.py                     ← 쇼츠 전체 실행 (step2→4→5→6→7→9)
   ├── step2_rss_crawler.py
-  ├── step2_select.py
-  ├── step3_chatgpt.py
+  ├── step2_select.py                     ← RSS + ChatGPT + 텔레그램 선택
+  ├── step3_chatgpt.py                    ← step2_select에 통합됨
   ├── step4_pexels.py
   ├── step5_tts.py
   ├── step6_ffmpeg.py
   ├── step7_whisper_subtitle.py
   ├── step9_youtube.py
+  ├── [ 롱폼 파이프라인 ]
+  ├── run_longform.py                     ← 롱폼 전체 실행 (long1→6)
+  ├── long1_script.py                     ← gpt-4.1 롱폼 스크립트 생성
+  ├── long2_tts.py                        ← 5섹션 TTS + concat
+  ├── long3_pexels.py                     ← 4개 배경 영상 다운로드
+  ├── long4_ffmpeg.py                     ← 섹션별 클립 생성 + concat
+  ├── long5_whisper.py                    ← Whisper 자막 합성
+  ├── long6_youtube.py                    ← YouTube 업로드 + 텔레그램
+  ├── [ 런타임 생성 파일 ]
   ├── article.json
   ├── gpt_result.json
   ├── pexels_result.json
@@ -312,7 +364,13 @@ C:\mochien\
   ├── voice.mp3
   ├── output_video.mp4
   ├── output_video_subtitled.mp4
-  └── output/                        ← 날짜별 gpt_result 보관 (롱폼 연결용)
+  ├── long_script.json
+  ├── long_voice.mp3 / long_voice_intro.mp3 … long_voice_outro.mp3
+  ├── long_bg_main.mp4 / long_bg_issue1~3.mp4
+  ├── long_clip_intro.mp4 … long_clip_outro.mp4
+  ├── long_output_no_sub.mp4
+  ├── long_output.mp4
+  └── output/                             ← 날짜별 gpt_result (롱폼 연결용)
         └── 2026-05-10/
               ├── 09_gpt_result.json
               ├── 13_gpt_result.json
@@ -368,17 +426,33 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
         - 무응답 10분 자동 진행 / ❌ 취소 명시적 구분 (step2_select.py)
         - 배경 쿨 블루 컬러 그레이딩 + 비네팅 (step6_ffmpeg.py)
 
-🔜  13. run_pipeline.py — 전체 파이프라인 통합 실행 스크립트
-🔜  14. emotion 자동 매핑 복원
-🔜  15. 롱폼 파이프라인 구축
+✅  13. run_pipeline.py — 쇼츠 파이프라인 통합 실행 스크립트 (2026-05-10)
 
-실행 순서 (현재):
-  python step2_select.py
-  python step4_pexels.py
-  python step5_tts.py
-  python step6_ffmpeg.py
-  python step7_whisper_subtitle.py
-  python step9_youtube.py
+✅  15. 롱폼 파이프라인 구축 완료 (2026-05-10)
+        - long1_script.py: gpt-4.1 롱폼 스크립트 생성 (5섹션 구조)
+        - long2_tts.py: 섹션별 TTS + FFmpeg concat → long_voice.mp3
+        - long3_pexels.py: 4개 배경 영상 다운로드
+        - long4_ffmpeg.py: 섹션별 클립 생성 + concat → long_output_no_sub.mp4
+        - long5_whisper.py: Whisper 자막 합성 → long_output.mp4
+        - long6_youtube.py: YouTube 업로드 + 텔레그램 완료 알림
+        - run_longform.py: 롱폼 파이프라인 통합 실행
+        - mochien_longform.yml: GitHub Actions 롱폼 워크플로우
+        - Artifact 누적 방식: 쇼츠→롱폼 gpt_result 파일 전달
+
+🔜  14. emotion 자동 매핑 복원
+🔜  16. 롱폼 파이프라인 실제 실행 테스트 (GitHub Actions)
+
+실행 순서 (쇼츠):
+  python run_pipeline.py   ← 통합 실행
+  또는 단계별:
+    python step2_select.py → step4_pexels.py → step5_tts.py
+    → step6_ffmpeg.py → step7_whisper_subtitle.py → step9_youtube.py
+
+실행 순서 (롱폼):
+  python run_longform.py   ← 통합 실행
+  또는 단계별:
+    python long1_script.py → long2_tts.py → long3_pexels.py
+    → long4_ffmpeg.py → long5_whisper.py → long6_youtube.py
 
 
 ================================================================
@@ -435,12 +509,20 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
 - FFmpeg vignette: angle 파라미터 (0~PI/2) / 0.8이 자연스러운 수준
 - step2 타임아웃과 취소 구분: CALLBACK_TIMEOUT (무응답→자동 진행) vs CALLBACK_CANCEL (❌ 버튼)
 - ElevenLabs 잔액: GET /v1/user → subscription.character_limit - character_count = 잔여 캐릭터
+- GITHUB_TOKEN은 별도 Secret 등록 불필요 — GitHub Actions가 모든 워크플로우에 자동 제공
+- GitHub Artifacts: 같은 repo의 다른 워크플로우 간 파일 전달에 활용 가능
+  actions/upload-artifact@v4로 업로드 / dawidd6/action-download-artifact@v6로 크로스 워크플로우 다운로드
+- Artifact 누적 방식: 업로드 전에 기존 artifact를 먼저 다운로드해 병합해야 누적됨
+  (overwrite:true만 하면 마지막 슬롯 파일만 남음)
+- dawidd6/action-download-artifact: if_no_artifact_found: ignore 설정 시 첫 실행 오류 방지
+- 롱폼 파이프라인: 5섹션 구조 (intro + issue1~3 + outro) / 각 섹션 TTS → 클립 → concat
+- 롱폼 ASS 자막: \an2 (하단 중앙) / PlayResX:1920 PlayResY:1080 / 72px / 6단어/줄
+- 롱폼 ChatGPT: gpt-4.1 사용 (심층 분석 품질 확보) / 쇼츠는 gpt-4.1-mini
 
 
 ================================================================
 ## 19. 2단계 예고 (파이프라인 안정화 이후 검토)
 ================================================================
-- 10단계: 전체 파이프라인 통합 테스트 (2~9단계 단일 실행)
 - emotion 자동 매핑 복원 (ChatGPT emotion → 캐릭터 PNG 자동 선택)
 - output 폴더 날짜별 자동 생성 + 30일 이전 자동 삭제
 - 씬별 배경 영상 전환 (4씬 구조 재설계)
