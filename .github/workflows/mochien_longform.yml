@@ -54,13 +54,14 @@ jobs:
           CLIENT_SECRETS: ${{ secrets.CLIENT_SECRETS }}
         run: echo "$CLIENT_SECRETS" > client_secrets.json
 
-      - name: Restore today's gpt_result files
-        env:
-          GPT_RESULTS: ${{ secrets.GPT_RESULTS }}
-        run: |
-          if [ -n "$GPT_RESULTS" ]; then
-            echo "$GPT_RESULTS" | base64 -d | tar -xz
-          fi
+      - name: Download today's gpt_result artifact
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: mochien.yml
+          name: gpt-results
+          path: output/
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          if_no_artifact_found: warn
 
       - name: run_longform — 롱폼 파이프라인 실행
         run: python run_longform.py

@@ -73,3 +73,12 @@ jobs:
 
       - name: step9 — YouTube 업로드
         run: python step9_youtube.py
+
+      - name: Upload gpt_results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpt-results
+          path: output/
+          retention-days: 1
+          overwrite: true
