@@ -1,9 +1,7 @@
 name: Mochien Longform
 
 on:
-  schedule:
-    - cron: '0 10 * * *'  # JST 19:00 트리거 → 목표 21:00
-  workflow_dispatch:       # 수동 실행 허용
+  workflow_dispatch:
 
 jobs:
   publish:
