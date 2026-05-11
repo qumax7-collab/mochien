@@ -462,6 +462,7 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
           scale=-2:H → scale=W:H:force_original_aspect_ratio=increase
         - step5_tts.py: TTS 전송 전 후리가나 괄호 제거 전처리 추가
           re.sub(r"[（(][^）)]*[）)]", "", script) — 全角/半角 모두 제거
+        - long2_tts.py: 동일한 후리가나 괄호 제거 전처리 추가 (5섹션 전체 적용)
         - long1_script.py: 심층 분석 방식으로 전면 재작성
           · 입력: 쇼츠 full script 제거 → title + korean_summary만 사용
           · 3개 토픽의 공통 경제 트렌드·인과관계로 연결 (단순 요약 금지)
@@ -586,7 +587,7 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
 - long4_ffmpeg.py SD 해상도 오류: scale=-2:H 후 crop W:H → 영상 너비 < W면 오류
   수정: scale=W:H:force_original_aspect_ratio=increase → crop W:H (항상 충분한 크기 확보)
 - ElevenLabs TTS 후리가나 읽기 오류: 世界経済(せかいけいざい) → "(せかいけいざい)" 부분도 읽음
-  step5_tts.py에서 전송 전 re.sub(r"[（(][^）)]*[）)]", "", script)로 제거 / 全角・半角 모두 처리
+  step5_tts.py / long2_tts.py 모두 전송 전 re.sub(r"[（(][^）)]*[）)]", "", text)로 제거 / 全角・半角 모두 처리
 - long1_script.py 심층 분석: 쇼츠 스크립트를 그대로 이어붙이면 단순 요약 반복 문제
   title+korean_summary만 입력 → GPT가 3개 토픽을 독립 분석하며 공통 트렌드 연결하게 유도
 
