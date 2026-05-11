@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 10일 (7차 세션)
+최종 업데이트: 2026년 5월 11일 (8차 세션)
 
 ================================================================
 ## 0. 작업 규칙
@@ -79,7 +79,7 @@ RSS (NHK cat6) 최대 5개 수집
 영상 합성        : FFmpeg (Creatomate 대체)
 자동화 실행      : GitHub Actions (Make.com 대체) - 공개 repo 무료 무제한
 스케줄          : 09:00 / 13:00 / 18:00 JST (하루 3회)
-                  ※ GitHub Actions 지연 감안해서 트리거는 2시간 앞당겨 설정
+                  ※ GitHub Actions cron 제거 → GitHub 앱에서 workflow_dispatch 수동 트리거
 로컬 개발 환경   : Windows / C:\mochien 프로젝트 폴더
 
 Make.com 대체 이유   : Python으로 모든 API 직접 호출 가능. $9/월 절감
@@ -281,14 +281,13 @@ repo        : https://github.com/qumax7-collab/mochien (Public)
               .github/workflows/keepalive.yml          (repo 활성 유지 / 주 1회)
 실행 환경   : ubuntu-latest / 공개 repo 무료 무제한
 
-스케줄 cron (UTC 기준 — GitHub Actions는 무조건 UTC):
-  쇼츠 (mochien.yml):
-  "0 22 * * *"  → JST 07:00 트리거 (지연 시 09시 내 업로드)
-  "0 2 * * *"   → JST 11:00 트리거 (지연 시 13시 내 업로드)
-  "0 8 * * *"   → JST 17:00 트리거 (지연 시 18~19시 내 업로드)
+트리거 방식 (8차 세션 변경):
+  cron 스케줄 전면 제거 — GitHub Actions 무료 플랜 지연(1~4시간)으로 사용 불가 판단
+  → GitHub 앱(핸드폰) 또는 PC에서 workflow_dispatch 수동 트리거로 전환
 
-  롱폼 (mochien_longform.yml):
-  "0 10 * * *"  → JST 19:00 트리거 (지연 시 21시 내 업로드)
+  수동 트리거 방법:
+    핸드폰: GitHub 앱 → mochien repo → Actions → 워크플로우 선택 → Run workflow
+    PC: telegram_trigger.py 실행 후 텔레그램 /메뉴 → 버튼 탭 (로컬 상시 실행 필요)
 
   keepalive:
   "0 0 * * 1"   → 매주 월요일 UTC 00:00 / .github/keepalive.txt 타임스탬프 커밋
@@ -296,6 +295,8 @@ repo        : https://github.com/qumax7-collab/mochien (Public)
 쇼츠→롱폼 gpt_result 파일 전달 방식 (Artifact):
   1. 쇼츠 워크플로우 시작 시: 기존 gpt-results artifact 다운로드 (이전 슬롯 복원)
   2. 파이프라인 실행: step2가 output/{날짜}/{슬롯}_gpt_result.json 저장
+     ※ 슬롯명은 시간 기준이 아닌 당일 파일 순서 기준 (09→13→18)
+     → 같은 날 몇 시에 실행해도 09/13/18 순서로 채워짐
   3. step9 이후: output/ 전체를 gpt-results artifact로 업로드 (overwrite)
   → 하루 3회 실행 후 artifact에 09/13/18 파일 누적됨
   4. 롱폼 워크플로우: dawidd6/action-download-artifact로 gpt-results 수신
@@ -339,6 +340,8 @@ C:\mochien\
   │           └── keepalive.yml           ← repo 활성 유지 (주 1회)
   ├── venv\
   ├── [ 쇼츠 파이프라인 ]
+  ├── telegram_trigger.py                 ← 텔레그램 수동 트리거 봇 (PC 로컬 실행용)
+  ├── start_bot.bat                       ← telegram_trigger.py 실행 배치파일
   ├── run_pipeline.py                     ← 쇼츠 전체 실행 (step2→4→5→6→7→9)
   ├── step2_rss_crawler.py
   ├── step2_select.py                     ← RSS + ChatGPT + 텔레그램 선택
@@ -427,6 +430,13 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
         - 배경 쿨 블루 컬러 그레이딩 + 비네팅 (step6_ffmpeg.py)
 
 ✅  13. run_pipeline.py — 쇼츠 파이프라인 통합 실행 스크립트 (2026-05-10)
+
+✅  16a. 수동 트리거 전환 완료 (2026-05-11)
+        - GitHub Actions cron 제거 (무료 플랜 1~4시간 지연으로 사용 불가 판단)
+        - mochien.yml / mochien_longform.yml: workflow_dispatch 전용으로 전환
+        - 트리거 방법: 핸드폰 GitHub 앱 → Actions → Run workflow
+        - telegram_trigger.py: PC 로컬용 텔레그램 봇 (JST 알람 + 버튼 트리거)
+        - step2_select.py: 슬롯 배정 시간 기준 → 당일 파일 순서 기준으로 변경
 
 ✅  15. 롱폼 파이프라인 구축 완료 (2026-05-10)
         - long1_script.py: gpt-4.1 롱폼 스크립트 생성 (5섹션 구조)
@@ -519,6 +529,11 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
 - 롱폼 파이프라인: 5섹션 구조 (intro + issue1~3 + outro) / 각 섹션 TTS → 클립 → concat
 - 롱폼 ASS 자막: \an2 (하단 중앙) / PlayResX:1920 PlayResY:1080 / 72px / 6단어/줄
 - 롱폼 ChatGPT: gpt-4.1 사용 (심층 분석 품질 확보) / 쇼츠는 gpt-4.1-mini
+- GitHub Actions cron 무료 플랜에서 실사용 불가 수준 지연 → workflow_dispatch 수동 트리거로 전환
+- 쇼츠 슬롯 배정: 시간 기준(05~10시→09 등) 폐기 → 당일 output 폴더 파일 순서 기준(09→13→18)
+  → 몇 시에 실행해도 그날 1번째=09, 2번째=13, 3번째=18 / 하루 3개 완성 시 롱폼 가능
+- telegram_trigger.py: PC 켜져 있을 때만 동작 / 핸드폰 트리거는 GitHub 앱 사용
+- GH_PAT: GitHub PAT (workflow 스코프) → .env에 추가 / workflow_dispatch API 호출에 필요
 
 
 ================================================================
