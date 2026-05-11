@@ -1,6 +1,7 @@
 import sys
 import json
 import os
+import re
 import subprocess
 
 import requests
@@ -89,6 +90,7 @@ def main():
     total = len(SECTIONS)
     for i, (filename, key) in enumerate(SECTIONS, 1):
         text = get_section_script(data, key)
+        text = re.sub(r"[（(][^）)]*[）)]", "", text)
         print(f"  [{i}/{total}] {key} ({len(text)}자) → {filename}")
         audio = tts_request(text, voice_id, api_key)
         with open(filename, "wb") as f:
