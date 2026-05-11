@@ -1,6 +1,7 @@
 import sys
 import json
 import os
+import re
 import requests
 from dotenv import load_dotenv
 
@@ -78,6 +79,7 @@ def main():
         gpt = json.load(f)
 
     script = gpt["script"]
+    script = re.sub(r"[（(][^）)]*[）)]", "", script)
     print(f"스크립트 ({len(script)}자):\n{script[:100]}...\n")
 
     print(f"=== TTS 생성 중... (voice_id: {voice_id}) ===")
