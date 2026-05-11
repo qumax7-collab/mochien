@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 11일 (9차 세션)
+최종 업데이트: 2026년 5월 12일 (9차 세션)
 
 ================================================================
 ## 0. 작업 규칙
@@ -240,19 +240,20 @@ sleepy            mochien_sleepy.png        변동 없음
 
 
 ================================================================
-## 11. YouTube 업로드 설정 ← 6차 세션 업데이트
+## 11. YouTube 업로드 설정 ← 9차 세션 업데이트
 ================================================================
 API         : YouTube Data API v3 videos.insert
 채널명      : モチエンのひとこと経済ニュース
 설명란 구성 : 일본어 채널 소개 + hashtags (한국어 제거)
-업로드 방식 : 승인 즉시 public 공개 (예약 공개 제거)
-              ※ private 예약 시 댓글 API 차단 → 즉시 공개로 전환
-업로드 시간 : 09:00 / 13:00 / 18:00 JST
-승인 방식   : 텔레그램 봇 승인 버튼 탭 후 즉시 업로드
-              ※ 10분 무응답 시 자동 업로드 진행
-자동 댓글   : 업로드 직후 hook 필드 (일본어) 자동 댓글 등록
-              ※ 고정댓글: YouTube API 미지원 → YouTube Studio 수동 고정
-              ※ 구독자 5,000명 이후부터 관리 시작해도 충분
+업로드 방식 : 예약 발행 (privacyStatus: private + publishAt RFC 3339)
+              ※ YouTube가 지정 시각에 자동 public 전환
+쇼츠 예약   : 슬롯 09 → 07:00 JST / 슬롯 13 → 12:00 JST / 슬롯 18 → 18:00 JST
+롱폼 예약   : 21:00 JST 고정
+승인 방식   : 텔레그램 봇 기사 선택 후 파이프라인 자동 실행
+              ※ 10분 무응답 시 자동 진행
+자동 댓글   : 제거 (YouTube 예약 발행 상태에서 댓글 API 정상 작동하나, 수동 전환)
+              ※ 고정댓글 내용은 파이프라인 완료 후 텔레그램 합산 알림으로 수신
+              ※ YouTube Studio에서 직접 달 것 (수동)
 
 
 ================================================================
@@ -263,9 +264,12 @@ API         : YouTube Data API v3 videos.insert
               - 기사별 일본어 제목 + 한국어 요약 전송
               - 인라인 버튼: ✅ 이 기사로 진행 / 🔄 다음 기사 / ❌ 취소
               - 선택 후 "⏳ 영상 생성 시작..." 상태 표시
-역할 2      : 업로드 완료 알림
-              - 영상 제목, YouTube URL 전송
-역할 4      : API 잔액 경고
+              - 경제 키워드 없는 날 → "⚠️ 경제 키워드 기사 없어 전체에서 선택" 알림
+역할 2      : 4개 영상 예약 완료 합산 알림 (long6_youtube.py)
+              - 쇼츠 3개 + 롱폼 1개 예약 완료 후 한 번에 전송
+              - 각 영상의 고정댓글 내용(hook 일본어 + hook_korean 한국어) 포함
+              - 롱폼은 intro script + korean_summary 포함
+역할 3      : API 잔액 경고
               - OpenAI $3 이하 / ElevenLabs $2 이하 시 경고 전송
               - 경고만 보내고 파이프라인은 계속 실행
 연동 방식   : Python requests → Telegram Bot API
@@ -440,6 +444,23 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
         - 고급 기능 인증: 구독자 50명 때 진행 예정
         - 비즈니스 이메일: 나중에 추가 예정
 
+✅  17. 9차 세션 기능 추가 (2026-05-12)
+        - step9_youtube.py: 즉시 public → 예약 발행 (07:00/12:00/18:00 JST)
+          자동 댓글 제거 / 텔레그램 알림 제거 (long6에서 합산 전송)
+        - long6_youtube.py: 예약 발행 21:00 JST / 자동 댓글 제거
+          build_combined_notification(): 4개 영상 hook + hook_korean 합산 전송
+        - run_pipeline.py: 쇼츠 3개 완료 시 run_longform.py 자동 호출
+        - step2_select.py:
+          · gpt_result.json에 slot / article_url / hook_korean 필드 추가
+          · SYSTEM_PROMPT: 인명/기업명/직함 정확 표기 지시 추가
+          · USER_PROMPT: 误読 한자 후리가나 병기 지시 추가
+          · RSS 경제 키워드 필터링 (株/円/物価 등 10개) + fallback 전체 선택
+          · 중복 기사 방지: 당일 사용 URL article_url로 추적, 재수집 시 제외
+        - step7_whisper_subtitle.py: correct_proper_nouns() 추가
+          Whisper 세그먼트 고유명사 오타 GPT 교정 (gpt_result.json 참조)
+        - long4_ffmpeg.py: SD 해상도 배경 영상 crop 오류 수정
+          scale=-2:H → scale=W:H:force_original_aspect_ratio=increase
+
 ✅  16a. 수동 트리거 전환 완료 (2026-05-11)
         - GitHub Actions cron 제거 (무료 플랜 1~4시간 지연으로 사용 불가 판단)
         - mochien.yml / mochien_longform.yml: workflow_dispatch 전용으로 전환
@@ -458,7 +479,7 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
         - mochien_longform.yml: GitHub Actions 롱폼 워크플로우
         - Artifact 누적 방식: 쇼츠→롱폼 gpt_result 파일 전달
 
-🔜  16. 롱폼 파이프라인 실제 실행 테스트 (GitHub Actions)
+🔜  18. 롱폼 파이프라인 실제 실행 테스트 (GitHub Actions)
 🔜  17. 워드프레스 REST API 블로그 자동 발행
 🔜  18. emotion 자동 매핑 복원 (블로그 자동발행 이후)
 
@@ -543,6 +564,19 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
   → 몇 시에 실행해도 그날 1번째=09, 2번째=13, 3번째=18 / 하루 3개 완성 시 롱폼 가능
 - telegram_trigger.py: PC 켜져 있을 때만 동작 / 핸드폰 트리거는 GitHub 앱 사용
 - GH_PAT: GitHub PAT (workflow 스코프) → .env에 추가 / workflow_dispatch API 호출에 필요
+- YouTube 예약 발행 API: privacyStatus를 "private"으로 설정 + publishAt(RFC 3339) 필드 추가
+  즉시 public과 달리 댓글 API는 사용 가능 (단, 댓글은 YouTube Studio 수동으로 전환)
+- Whisper 고유명사 교정: [SEP] 토큰으로 세그먼트 배치 처리 → GPT 1회 호출로 전체 교정
+  세그먼트 수 불일치 시 원본 그대로 사용 (안전장치)
+- ChatGPT 스크립트 후리가나 방식: 한자 제거 대신 誤読 한자에 괄호 병기
+  ElevenLabs TTS가 괄호 내용을 읽을 수 있으므로 Whisper 교정으로 보완
+- RSS 키워드 필터: 제목+본문 모두 체크 / 필터 후 0개면 전체 기사 fallback (종료 없음)
+- 중복 기사 방지: article_url을 gpt_result.json에 저장 → 당일 슬롯 파일에서 읽어 제외
+  당일 첫 실행은 슬롯 파일 없으므로 자동으로 중복 체크 없이 진행
+- hook_korean: ChatGPT가 hook 일본어를 한국어로 번역해 출력 / REQUIRED_KEYS 제외
+  (없거나 비어있어도 오류 없이 hook만 표시 — 선택적 필드)
+- long4_ffmpeg.py SD 해상도 오류: scale=-2:H 후 crop W:H → 영상 너비 < W면 오류
+  수정: scale=W:H:force_original_aspect_ratio=increase → crop W:H (항상 충분한 크기 확보)
 
 
 ================================================================

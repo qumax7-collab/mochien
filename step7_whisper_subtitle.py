@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 import subprocess
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -11,12 +12,17 @@ INPUT_AUDIO = "voice.mp3"
 INPUT_VIDEO = "output_no_sub.mp4"
 OUTPUT_VIDEO = "output_video_subtitled.mp4"
 ASS_FILE = "subtitle.ass"
+GPT_RESULT_PATH = "gpt_result.json"
 
 # 자막 스타일
 FONT_SIZE = 132
 OUTLINE_SIZE = 4
 WORDS_PER_LINE = 4       # 한 자막에 최대 단어 수
 GAP_THRESHOLD = 0.4      # 이 시간(초) 이상 공백이면 세그먼트 분리
+
+# 고유명사 교정
+GPT_CORRECTION_MODEL = "gpt-4.1-mini"
+SEP_TOKEN = "[SEP]"
 
 
 def get_font():
@@ -71,6 +77,53 @@ def group_words(words):
                 "end": current[-1]["end"],
             })
             current = []
+
+    return segments
+
+
+def correct_proper_nouns(segments, api_key):
+    """gpt_result.json을 참조해 Whisper 세그먼트의 고유명사 오타를 교정."""
+    if not os.path.exists(GPT_RESULT_PATH):
+        print("  [고유명사 교정 건너뜀] gpt_result.json 없음")
+        return segments
+
+    with open(GPT_RESULT_PATH, encoding="utf-8") as f:
+        gpt_result = json.load(f)
+
+    reference = f"タイトル: {gpt_result.get('title', '')}\nスクリプト: {gpt_result.get('script', '')}"
+    joined = SEP_TOKEN.join(s["text"] for s in segments)
+
+    system_msg = (
+        "あなたは日本語音声認識の後処理AIです。"
+        "参照テキストをもとに、音声認識結果の固有名詞（人名・企業名・地名など）の誤字のみを修正してください。"
+        f"区切り文字{SEP_TOKEN}は絶対に変更・削除しないでください。"
+        "文章の構造・語順は変えないでください。修正が不要な部分はそのまま出力してください。"
+        "出力はテキストのみ。説明不要。"
+    )
+    user_msg = f"【参照テキスト】\n{reference}\n\n【修正対象】\n{joined}"
+
+    try:
+        client = OpenAI(api_key=api_key)
+        resp = client.chat.completions.create(
+            model=GPT_CORRECTION_MODEL,
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user",   "content": user_msg},
+            ],
+            temperature=0,
+        )
+        corrected = resp.choices[0].message.content.strip()
+        corrected_texts = corrected.split(SEP_TOKEN)
+
+        if len(corrected_texts) != len(segments):
+            print(f"  [고유명사 교정 경고] 세그먼트 수 불일치 ({len(corrected_texts)} vs {len(segments)}) → 원본 사용")
+            return segments
+
+        for seg, text in zip(segments, corrected_texts):
+            seg["text"] = text.strip()
+        print(f"  고유명사 교정 완료 ({len(segments)}개 세그먼트)")
+    except Exception as e:
+        print(f"  [고유명사 교정 경고] {e} → 원본 사용")
 
     return segments
 
@@ -142,6 +195,10 @@ def main():
     print("\n=== 2단계: 자막 세그먼트 생성 ===")
     segments = group_words(words)
     print(f"세그먼트 수: {len(segments)}")
+
+    print("\n=== 2-1단계: 고유명사 교정 ===")
+    segments = correct_proper_nouns(segments, api_key)
+
     for s in segments[:5]:
         print(f"  [{s['start']:.2f}s - {s['end']:.2f}s] {s['text']}")
 

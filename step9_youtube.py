@@ -3,7 +3,6 @@ import os
 import sys
 from datetime import datetime, timezone, timedelta
 
-import requests
 from dotenv import load_dotenv
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -30,28 +29,24 @@ YOUTUBE_LANGUAGE = "ja"
 
 JST = timezone(timedelta(hours=9))
 
+# 슬롯별 예약 발행 시간 (JST 시각)
+SLOT_PUBLISH_HOURS = {"09": 7, "13": 12, "18": 18}
+
 CHANNEL_FOOTER = (
     "\n\n━━━━━━━━━━━━━━━━━━\n"
     "毎日3回、経済ニュースをわかりやすくお届け！\n"
     "チャンネル登録よろしくお願いします。"
 )
 
-# ===== 텔레그램 설정 =====
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-
-def tg_notify(text):
-    """완료 알림 전송."""
-    requests.post(
-        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-        json={
-            "chat_id": TELEGRAM_CHAT_ID,
-            "text": text,
-            "parse_mode": "HTML",
-        },
-        timeout=10,
-    )
+def get_publish_at(slot):
+    """슬롯에 해당하는 예약 발행 시각(RFC 3339) 반환. 이미 지난 경우 익일로."""
+    hour = SLOT_PUBLISH_HOURS.get(slot, 18)
+    now_jst = datetime.now(JST)
+    publish_jst = now_jst.replace(hour=hour, minute=0, second=0, microsecond=0)
+    if publish_jst <= now_jst:
+        publish_jst += timedelta(days=1)
+    return publish_jst.isoformat()
 
 
 def authenticate():
@@ -74,7 +69,7 @@ def build_description(hashtags):
     return f"{tags_str}{CHANNEL_FOOTER}"
 
 
-def upload_video(youtube, title, description, tags):
+def upload_video(youtube, title, description, tags, publish_at):
     body = {
         "snippet": {
             "title": title,
@@ -85,7 +80,8 @@ def upload_video(youtube, title, description, tags):
             "defaultAudioLanguage": YOUTUBE_LANGUAGE,
         },
         "status": {
-            "privacyStatus": "public",
+            "privacyStatus": "private",
+            "publishAt": publish_at,
             "selfDeclaredMadeForKids": False,
         },
     }
@@ -101,27 +97,7 @@ def upload_video(youtube, title, description, tags):
     return response["id"]
 
 
-def post_comment(youtube, video_id, text):
-    response = youtube.commentThreads().insert(
-        part="snippet",
-        body={
-            "snippet": {
-                "videoId": video_id,
-                "topLevelComment": {
-                    "snippet": {"textOriginal": text}
-                },
-            }
-        },
-    ).execute()
-    print(f"댓글 등록 완료: {response['id']}")
-    return response["id"]
-
-
 def main():
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("[오류] .env에 TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID를 입력하세요.")
-        sys.exit(1)
-
     if not os.path.exists(VIDEO_PATH):
         print(f"[오류] 영상 파일을 찾을 수 없습니다: {VIDEO_PATH}")
         sys.exit(1)
@@ -130,32 +106,23 @@ def main():
         gpt = json.load(f)
 
     title = gpt["title"]
-    hook = gpt["hook"]
-    korean_summary = gpt["korean_summary"]
     hashtags = gpt["hashtags"]
+    slot = gpt.get("slot", "18")
 
-    now_jst = datetime.now(JST).strftime("%m/%d %H:%M JST")
+    publish_at = get_publish_at(slot)
     description = build_description(hashtags)
 
     print(f"제목      : {title}")
-    print(f"공개 시간 : {now_jst}")
+    print(f"슬롯      : {slot}")
+    print(f"예약 시간 : {publish_at}")
 
     creds = authenticate()
     youtube = build("youtube", "v3", credentials=creds)
-    video_id = upload_video(youtube, title, description, hashtags)
-    post_comment(youtube, video_id, hook)
+    video_id = upload_video(youtube, title, description, hashtags, publish_at)
 
     result_url = f"https://www.youtube.com/watch?v={video_id}"
 
-    tg_notify(
-        f"✅ <b>업로드 완료!</b>\n\n"
-        f"<b>제목:</b> {title}\n"
-        f"<b>공개:</b> {now_jst}\n"
-        f"<b>한국어 요약:</b> {korean_summary}\n\n"
-        f"🎬 {result_url}"
-    )
-
-    print(f"\n업로드 완료!")
+    print(f"\n예약 완료!")
     print(f"동영상 ID : {video_id}")
     print(f"URL       : {result_url}")
 

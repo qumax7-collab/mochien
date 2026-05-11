@@ -19,6 +19,7 @@ LONG_SCRIPT_PATH  = "long_script.json"
 VIDEO_PATH        = "long_output.mp4"
 CLIENT_SECRETS_PATH = "client_secrets.json"
 TOKEN_PATH        = "token.json"
+OUTPUT_DIR        = "output"
 
 # ===== YouTube API 설정 =====
 SCOPES = [
@@ -29,6 +30,10 @@ YOUTUBE_CATEGORY_ID = "25"   # News & Politics
 YOUTUBE_LANGUAGE    = "ja"
 
 JST = timezone(timedelta(hours=9))
+LONGFORM_PUBLISH_HOUR = 21
+
+# 슬롯별 텔레그램 표시 시간
+SLOT_DISPLAY_TIMES = {"09": "07:00", "13": "12:00", "18": "18:00"}
 
 CHANNEL_FOOTER = (
     "\n\n━━━━━━━━━━━━━━━━━━\n"
@@ -47,6 +52,15 @@ def tg_notify(text):
         json={"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML"},
         timeout=10,
     )
+
+
+def get_publish_at():
+    """당일 21:00 JST 예약 시각(RFC 3339) 반환. 이미 지난 경우 익일로."""
+    now_jst = datetime.now(JST)
+    publish_jst = now_jst.replace(hour=LONGFORM_PUBLISH_HOUR, minute=0, second=0, microsecond=0)
+    if publish_jst <= now_jst:
+        publish_jst += timedelta(days=1)
+    return publish_jst.isoformat()
 
 
 def authenticate():
@@ -72,7 +86,7 @@ def build_description(data):
     return f"{hashtags}\n\n【本日の内容】\n{issues}{CHANNEL_FOOTER}"
 
 
-def upload_video(youtube, title, description, tags):
+def upload_video(youtube, title, description, tags, publish_at):
     body = {
         "snippet": {
             "title": title,
@@ -83,7 +97,8 @@ def upload_video(youtube, title, description, tags):
             "defaultAudioLanguage": YOUTUBE_LANGUAGE,
         },
         "status": {
-            "privacyStatus": "public",
+            "privacyStatus": "private",
+            "publishAt": publish_at,
             "selfDeclaredMadeForKids": False,
         },
     }
@@ -99,21 +114,38 @@ def upload_video(youtube, title, description, tags):
     return response["id"]
 
 
-def post_comment(youtube, video_id, data):
-    intro_script = data["intro"]["script"]
-    comment = intro_script[:150] + "..." if len(intro_script) > 150 else intro_script
-    response = youtube.commentThreads().insert(
-        part="snippet",
-        body={
-            "snippet": {
-                "videoId": video_id,
-                "topLevelComment": {
-                    "snippet": {"textOriginal": comment}
-                },
-            }
-        },
-    ).execute()
-    print(f"댓글 등록 완료: {response['id']}")
+def build_combined_notification(long_script_data):
+    """쇼츠 3개 + 롱폼 hook을 합산해 텔레그램 메시지 생성."""
+    now_jst = datetime.now(JST)
+    date_str = now_jst.strftime("%Y-%m-%d")
+    out_dir = os.path.join(OUTPUT_DIR, date_str)
+
+    lines = ["✅ 오늘 영상 4개 예약 완료\n"]
+
+    slot_labels = [("09", "쇼츠1"), ("13", "쇼츠2"), ("18", "쇼츠3")]
+    for slot, label in slot_labels:
+        display_time = SLOT_DISPLAY_TIMES[slot]
+        slot_file = os.path.join(out_dir, f"{slot}_gpt_result.json")
+        if os.path.exists(slot_file):
+            with open(slot_file, encoding="utf-8") as f:
+                gpt = json.load(f)
+            hook = gpt.get("hook", "(데이터 없음)")
+            hook_korean = gpt.get("hook_korean", "")
+        else:
+            hook = "(데이터 없음)"
+            hook_korean = ""
+        kr_line = f"\n🇰🇷 {hook_korean}" if hook_korean else ""
+        lines.append(f"📌 {label} 고정댓글 ({display_time} 업로드):\n{hook}{kr_line}\n")
+
+    intro_script = long_script_data["intro"]["script"]
+    longform_hook = intro_script[:150] + ("..." if len(intro_script) > 150 else "")
+    longform_kr = long_script_data.get("korean_summary", "")
+    kr_line = f"\n🇰🇷 {longform_kr}" if longform_kr else ""
+    lines.append(f"📌 롱폼 고정댓글 (21:00 업로드):\n{longform_hook}{kr_line}\n")
+
+    lines.append("시간날 때 YouTube Studio에서 달아주세요!")
+
+    return "\n".join(lines)
 
 
 def main():
@@ -128,32 +160,25 @@ def main():
     with open(LONG_SCRIPT_PATH, encoding="utf-8") as f:
         data = json.load(f)
 
-    title          = data["title"]
-    korean_summary = data["korean_summary"]
-    hashtags       = data["hashtags"]
+    title    = data["title"]
+    hashtags = data["hashtags"]
 
-    now_jst     = datetime.now(JST).strftime("%m/%d %H:%M JST")
+    publish_at  = get_publish_at()
     description = build_description(data)
 
     print(f"제목      : {title}")
-    print(f"공개 시간 : {now_jst}")
+    print(f"예약 시간 : {publish_at}")
 
     creds   = authenticate()
     youtube = build("youtube", "v3", credentials=creds)
-    video_id = upload_video(youtube, title, description, hashtags)
-    post_comment(youtube, video_id, data)
+    video_id = upload_video(youtube, title, description, hashtags, publish_at)
 
     result_url = f"https://www.youtube.com/watch?v={video_id}"
 
-    tg_notify(
-        f"✅ <b>[롱폼] 업로드 완료!</b>\n\n"
-        f"<b>제목:</b> {title}\n"
-        f"<b>공개:</b> {now_jst}\n"
-        f"<b>한국어 요약:</b> {korean_summary}\n\n"
-        f"🎬 {result_url}"
-    )
+    msg = build_combined_notification(data)
+    tg_notify(msg)
 
-    print(f"\n업로드 완료!")
+    print(f"\n예약 완료!")
     print(f"동영상 ID : {video_id}")
     print(f"URL       : {result_url}")
 

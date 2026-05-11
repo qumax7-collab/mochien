@@ -123,7 +123,8 @@ def build_filter(font_path, mouth_gif):
 
     f = []
     f.append(
-        f"[0:v]scale=-2:{OUTPUT_H},crop={OUTPUT_W}:{OUTPUT_H},setsar=1[bg_raw]"
+        f"[0:v]scale={OUTPUT_W}:{OUTPUT_H}:force_original_aspect_ratio=increase"
+        f",crop={OUTPUT_W}:{OUTPUT_H},setsar=1[bg_raw]"
     )
     f.append(
         f"[bg_raw]colorbalance=rs={CG_RS}:rm={CG_RM}:rh={CG_RH}"

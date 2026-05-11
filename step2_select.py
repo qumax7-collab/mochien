@@ -15,6 +15,8 @@ load_dotenv()
 # ===== RSS =====
 RSS_URL = "https://www3.nhk.or.jp/rss/news/cat6.xml"
 MAX_ARTICLES = 5
+RSS_FETCH_LIMIT = 20
+ECONOMIC_KEYWORDS = ["株", "円", "物価", "金利", "為替", "経済", "GDP", "インフレ", "日銀", "財務"]
 
 # ===== 출력 파일 =====
 ARTICLE_FILE = "article.json"
@@ -46,7 +48,8 @@ SYSTEM_PROMPT = """\
 出力は必ず { で始まり } で終わる純粋なJSONのみ。
 ```json などのマークダウン記号は絶対に使用禁止。
 以下のキー以外は絶対に追加しないこと:
-  title, hook, script, hashtags, korean_summary, emotion, image_prompt, short_title"""
+  title, hook, hook_korean, script, hashtags, korean_summary, emotion, image_prompt, short_title
+人名・企業名・役職名は正確に表記すること。略称・誤字・当て字は絶対禁止。"""
 
 USER_PROMPT_TEMPLATE = """\
 【モチエンキャラクター設定】
@@ -60,8 +63,12 @@ USER_PROMPT_TEMPLATE = """\
   「皆さんはどう思いますか？コメントで教えてください！
    以上、モチエンがお伝えしました！
    チャンネル登録お願いします！」
+- スクリプトの誤読しやすい漢字には、必ずひらがなで読み仮名を括弧内に併記すること。
+  例：世界経済(せかいけいざい)、波及(はきゅう)、溝(みぞ)、核(かく)、拡大(かくだい)
+  （TTS読み上げ用のため）
 
 short_title : 6〜10字の核心キーワード（例:「日越首脳会談」「原油急騰の影響」）
+hook_korean : hookの日本語を自然な韓国語に翻訳（例:「금리가 또 오른다? 당신의 대출에 직격탄!」）
 image_prompt: Pexels検索用英語キーワード（例: "japanese economy stock market"）
 
 emotion許容値:
@@ -233,15 +240,55 @@ def wait_for_callback(message_id):
 # RSS
 # ─────────────────────────────────────────
 
+def contains_keyword(title, body):
+    text = title + body
+    return any(kw in text for kw in ECONOMIC_KEYWORDS)
+
+
+def get_used_urls():
+    """당일 이미 사용한 기사 URL 집합 반환. 첫 실행이면 빈 set."""
+    now_jst = datetime.datetime.now(JST)
+    out_dir = os.path.join(OUTPUT_DIR, now_jst.strftime("%Y-%m-%d"))
+    used = set()
+    for slot in SLOT_ORDER:
+        path = os.path.join(out_dir, f"{slot}_gpt_result.json")
+        if os.path.exists(path):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+                url = data.get("article_url")
+                if url:
+                    used.add(url)
+            except Exception:
+                pass
+    return used
+
+
 def fetch_articles():
     feed = feedparser.parse(RSS_URL)
     if not feed.entries:
         raise Exception("RSS 피드에서 기사를 가져오지 못했습니다.")
-    articles = []
-    for entry in feed.entries[:MAX_ARTICLES]:
+
+    used_urls = get_used_urls()
+    if used_urls:
+        print(f"  당일 사용된 기사 {len(used_urls)}개 제외")
+
+    all_articles = []
+    for entry in feed.entries[:RSS_FETCH_LIMIT]:
+        if entry.link in used_urls:
+            continue
         body = entry.get("summary", "") or entry.get("description", "")
-        articles.append({"title": entry.title, "url": entry.link, "article_body": body})
-    return articles
+        all_articles.append({"title": entry.title, "url": entry.link, "article_body": body})
+
+    filtered = [a for a in all_articles if contains_keyword(a["title"], a["article_body"])]
+
+    if filtered:
+        print(f"경제 키워드 기사 {len(filtered)}개 / 전체 {len(all_articles)}개")
+        return filtered[:MAX_ARTICLES]
+
+    print("경제 키워드 기사 없음 → 전체 기사에서 선택")
+    tg_send("⚠️ 경제 키워드 기사 없어 전체에서 선택")
+    return all_articles[:MAX_ARTICLES]
 
 
 # ─────────────────────────────────────────
@@ -322,15 +369,17 @@ def main():
         if result in (CALLBACK_SELECT, CALLBACK_TIMEOUT):
             label = "⏳ <b>영상 생성 시작...</b>" if result == CALLBACK_SELECT else "⏳ <b>무응답 — 자동 진행...</b>"
             tg_edit(message_id, text + f"\n\n{label}")
-            with open(ARTICLE_FILE, "w", encoding="utf-8") as f:
-                json.dump(article, f, ensure_ascii=False, indent=2)
-            with open(GPT_RESULT_FILE, "w", encoding="utf-8") as f:
-                json.dump(gpt, f, ensure_ascii=False, indent=2)
             now_jst = datetime.datetime.now(JST)
             out_dir = os.path.join(OUTPUT_DIR, now_jst.strftime("%Y-%m-%d"))
             os.makedirs(out_dir, exist_ok=True)
             slot = get_next_slot(out_dir)
+            gpt["slot"] = slot
+            gpt["article_url"] = article["url"]
             out_path = os.path.join(out_dir, f"{slot}_gpt_result.json")
+            with open(ARTICLE_FILE, "w", encoding="utf-8") as f:
+                json.dump(article, f, ensure_ascii=False, indent=2)
+            with open(GPT_RESULT_FILE, "w", encoding="utf-8") as f:
+                json.dump(gpt, f, ensure_ascii=False, indent=2)
             with open(out_path, "w", encoding="utf-8") as f:
                 json.dump(gpt, f, ensure_ascii=False, indent=2)
             print(f"\n선택 완료: {article['title']}")
