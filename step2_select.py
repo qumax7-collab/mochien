@@ -24,15 +24,14 @@ OUTPUT_DIR = "output"
 # ===== 시간대 =====
 JST = datetime.timezone(datetime.timedelta(hours=9))
 
-# JST 시간 → 업로드 슬롯명 (05~10시→"09" / 10~15시→"13" / 15~20시→"18")
-def get_time_slot(hour):
-    if 5 <= hour < 10:
-        return "09"
-    if 10 <= hour < 15:
-        return "13"
-    if 15 <= hour < 20:
-        return "18"
-    return f"{hour:02d}"
+# 오늘 폴더에 파일이 몇 개 있는지 보고 순서대로 슬롯 배정 (09→13→18)
+SLOT_ORDER = ["09", "13", "18"]
+
+def get_next_slot(out_dir):
+    for slot in SLOT_ORDER:
+        if not os.path.exists(os.path.join(out_dir, f"{slot}_gpt_result.json")):
+            return slot
+    return SLOT_ORDER[-1]  # 3개 초과 시 18 덮어씀
 
 # ===== ChatGPT =====
 GPT_MODEL = "gpt-4.1-mini"
@@ -328,9 +327,9 @@ def main():
             with open(GPT_RESULT_FILE, "w", encoding="utf-8") as f:
                 json.dump(gpt, f, ensure_ascii=False, indent=2)
             now_jst = datetime.datetime.now(JST)
-            slot = get_time_slot(now_jst.hour)
             out_dir = os.path.join(OUTPUT_DIR, now_jst.strftime("%Y-%m-%d"))
             os.makedirs(out_dir, exist_ok=True)
+            slot = get_next_slot(out_dir)
             out_path = os.path.join(out_dir, f"{slot}_gpt_result.json")
             with open(out_path, "w", encoding="utf-8") as f:
                 json.dump(gpt, f, ensure_ascii=False, indent=2)
