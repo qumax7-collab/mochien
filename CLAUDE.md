@@ -512,9 +512,14 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
           output/으로 자동 이동하는 보정 스텝 추가 (슬롯 중복 배정 버그 수정)
         - step9_youtube.py: 발행 시각 로직 — 목표 시각 초과 시 익일 동일 시각 예약 (원복)
 
-🔜  19. 롱폼 파이프라인 실제 실행 테스트 (GitHub Actions)
-🔜  20. 워드프레스 REST API 블로그 자동 발행
-🔜  21. emotion 자동 매핑 복원 (블로그 자동발행 이후)
+✅  19. SRT 자막 YouTube 업로드 (2026-05-12)
+        - step7_whisper_subtitle.py: Whisper 세그먼트로 subtitle.srt 생성 (추가 API 호출 없음)
+        - step9_youtube.py: 영상 업로드 후 captions.insert로 subtitle.srt 전송 (ja / 日本語)
+          subtitle.srt 없으면 자동 스킵 / private 예약 상태에서도 captions API 정상 작동
+
+🔜  20. 롱폼 파이프라인 실제 실행 테스트 (GitHub Actions)
+🔜  21. 워드프레스 REST API 블로그 자동 발행
+🔜  22. emotion 자동 매핑 복원 (블로그 자동발행 이후)
 
 실행 순서 (쇼츠):
   python run_pipeline.py   ← 통합 실행
@@ -627,6 +632,9 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
   sys.exit(1)은 "실패" → 파이프라인 즉시 중단. 기사 소진·취소 시 반드시 sys.exit(1) 사용
 - 로컬 밤 11pm 실행 시 → 슬롯 목표 시각 모두 초과 → 익일 동일 시각으로 자동 예약
   → python run_pipeline.py 3회 실행으로 내일 07:00/12:00/18:00 JST 영상 3개 등록 가능
+- YouTube captions.insert: commentThreads와 달리 private/예약 상태 영상에서도 정상 작동
+  subtitle.srt를 영상 업로드 직후 바로 전송해도 무방
+- SRT 생성: Whisper verbose_json 세그먼트를 재활용 → 추가 API 호출 없이 ASS와 동시 생성
 
 
 ================================================================

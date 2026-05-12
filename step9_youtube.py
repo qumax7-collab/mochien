@@ -16,6 +16,7 @@ load_dotenv()
 # ===== 파일 경로 =====
 GPT_RESULT_PATH = "gpt_result.json"
 VIDEO_PATH = "output_video_subtitled.mp4"
+SRT_PATH = "subtitle.srt"
 CLIENT_SECRETS_PATH = "client_secrets.json"
 TOKEN_PATH = "token.json"
 
@@ -26,6 +27,9 @@ SCOPES = [
 ]
 YOUTUBE_CATEGORY_ID = "25"   # News & Politics
 YOUTUBE_LANGUAGE = "ja"
+
+CAPTION_LANGUAGE = "ja"
+CAPTION_NAME = "日本語"
 
 JST = timezone(timedelta(hours=9))
 
@@ -62,6 +66,23 @@ def authenticate():
         with open(TOKEN_PATH, "w", encoding="utf-8") as f:
             f.write(creds.to_json())
     return creds
+
+
+def upload_caption(youtube, video_id):
+    if not os.path.exists(SRT_PATH):
+        print("subtitle.srt 없음 → 자막 업로드 건너뜀")
+        return
+    body = {
+        "snippet": {
+            "videoId": video_id,
+            "language": CAPTION_LANGUAGE,
+            "name": CAPTION_NAME,
+            "isDraft": False,
+        }
+    }
+    media = MediaFileUpload(SRT_PATH, mimetype="application/octet-stream", resumable=False)
+    youtube.captions().insert(part="snippet", body=body, media_body=media).execute()
+    print(f"자막 업로드 완료 ({CAPTION_NAME})")
 
 
 def build_description(hashtags):
@@ -119,6 +140,7 @@ def main():
     creds = authenticate()
     youtube = build("youtube", "v3", credentials=creds)
     video_id = upload_video(youtube, title, description, hashtags, publish_at)
+    upload_caption(youtube, video_id)
 
     result_url = f"https://www.youtube.com/watch?v={video_id}"
 

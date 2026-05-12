@@ -12,6 +12,7 @@ INPUT_AUDIO = "voice.mp3"
 INPUT_VIDEO = "output_no_sub.mp4"
 OUTPUT_VIDEO = "output_video_subtitled.mp4"
 ASS_FILE = "subtitle.ass"
+SRT_FILE = "subtitle.srt"
 GPT_RESULT_PATH = "gpt_result.json"
 
 # 자막 스타일
@@ -128,6 +129,24 @@ def correct_proper_nouns(segments, api_key):
     return segments
 
 
+def to_srt_time(sec):
+    h = int(sec // 3600)
+    m = int((sec % 3600) // 60)
+    s = int(sec % 60)
+    ms = int((sec - int(sec)) * 1000)
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def build_srt(segments):
+    lines = []
+    for i, seg in enumerate(segments, 1):
+        lines.append(str(i))
+        lines.append(f"{to_srt_time(seg['start'])} --> {to_srt_time(seg['end'])}")
+        lines.append(seg["text"])
+        lines.append("")
+    return "\n".join(lines)
+
+
 def to_ass_time(sec):
     h = int(sec // 3600)
     m = int((sec % 3600) // 60)
@@ -209,6 +228,11 @@ def main():
     with open(ASS_FILE, "w", encoding="utf-8") as f:
         f.write(ass_content)
     print(f"{ASS_FILE} 저장 완료")
+
+    srt_content = build_srt(segments)
+    with open(SRT_FILE, "w", encoding="utf-8") as f:
+        f.write(srt_content)
+    print(f"{SRT_FILE} 저장 완료")
 
     print("\n=== 4단계: FFmpeg 자막 합성 ===")
     if not burn_subtitles(font_dir):
