@@ -61,6 +61,15 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           if_no_artifact_found: ignore
 
+      - name: Fix artifact path (dawidd6가 gpt-results/ 서브폴더 생성 시 보정)
+        run: |
+          if [ -d "output/gpt-results" ]; then
+            cp -r output/gpt-results/. output/
+            rm -rf output/gpt-results
+          fi
+          echo "=== output/ 복원 상태 ==="
+          find output/ -type f 2>/dev/null || echo "(비어있음)"
+
       - name: step2 — 기사 선택 (Telegram)
         run: python step2_select.py
 

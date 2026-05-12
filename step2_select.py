@@ -39,7 +39,7 @@ def get_next_slot(out_dir):
 GPT_MODEL = "gpt-4.1-mini"
 GPT_TEMPERATURE = 0.7
 REQUIRED_KEYS = {"title", "hook", "script", "hashtags", "korean_summary",
-                 "emotion", "image_prompt", "short_title"}
+                 "emotion", "image_prompt"}
 VALID_EMOTIONS = {"smile", "happy", "surprised", "shocked", "worried",
                   "angry", "anxious", "sad", "neutral", "shy", "embarrassed", "sleepy"}
 
@@ -310,6 +310,8 @@ def call_chatgpt(title, article_body):
     data = json.loads(raw)
     if data.get("emotion") not in VALID_EMOTIONS:
         data["emotion"] = "neutral"
+    if not data.get("short_title"):
+        data["short_title"] = data.get("title", "")[:8]
     missing = REQUIRED_KEYS - data.keys()
     if missing:
         raise Exception(f"필수 키 누락: {missing}")
@@ -389,13 +391,13 @@ def main():
         if result == CALLBACK_CANCEL:
             tg_edit(message_id, text + "\n\n⛔ <b>취소됨</b>")
             print("취소됨.")
-            sys.exit(0)
+            sys.exit(1)
 
         # CALLBACK_NEXT → 다음 루프로 진행
 
     tg_edit(message_id, "⚠️ 더 이상 기사가 없습니다.")
     print("기사를 모두 확인했습니다.")
-    sys.exit(0)
+    sys.exit(1)
 
 
 if __name__ == "__main__":

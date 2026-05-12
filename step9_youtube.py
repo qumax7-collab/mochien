@@ -31,6 +31,8 @@ JST = timezone(timedelta(hours=9))
 
 # 슬롯별 예약 발행 시간 (JST 시각)
 SLOT_PUBLISH_HOURS = {"09": 7, "13": 12, "18": 18}
+# 목표 시각 초과 시 현재 시각 기준 여유 시간 (분)
+PUBLISH_DELAY_MINUTES = 60
 
 CHANNEL_FOOTER = (
     "\n\n━━━━━━━━━━━━━━━━━━\n"
@@ -40,12 +42,12 @@ CHANNEL_FOOTER = (
 
 
 def get_publish_at(slot):
-    """슬롯에 해당하는 예약 발행 시각(RFC 3339) 반환. 이미 지난 경우 익일로."""
+    """슬롯 목표 시각 반환. 이미 지났으면 현재 시각 + 1시간으로 당일 발행."""
     hour = SLOT_PUBLISH_HOURS.get(slot, 18)
     now_jst = datetime.now(JST)
     publish_jst = now_jst.replace(hour=hour, minute=0, second=0, microsecond=0)
     if publish_jst <= now_jst:
-        publish_jst += timedelta(days=1)
+        publish_jst = now_jst + timedelta(minutes=PUBLISH_DELAY_MINUTES)
     return publish_jst.isoformat()
 
 
