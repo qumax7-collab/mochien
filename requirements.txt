@@ -24,6 +24,7 @@ idna==3.13
 jiter==0.14.0
 openai==2.36.0
 pillow==12.2.0
+pykakasi
 protobuf==7.34.1
 proto-plus==1.28.0
 pyasn1_modules==0.4.2

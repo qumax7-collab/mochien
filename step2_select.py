@@ -13,7 +13,11 @@ sys.stdout.reconfigure(encoding="utf-8")
 load_dotenv()
 
 # ===== RSS =====
-RSS_URL = "https://www3.nhk.or.jp/rss/news/cat6.xml"
+RSS_URLS = [
+    "https://www3.nhk.or.jp/rss/news/cat6.xml",       # NHK 경제
+    "https://www3.nhk.or.jp/rss/news/cat5.xml",       # NHK 비즈니스
+    "https://news.yahoo.co.jp/rss/topics/business.xml", # Yahoo Japan 비즈니스
+]
 MAX_ARTICLES = 5
 RSS_FETCH_LIMIT = 20
 ECONOMIC_KEYWORDS = ["株", "円", "物価", "金利", "為替", "経済", "GDP", "インフレ", "日銀", "財務"]
@@ -49,6 +53,7 @@ SYSTEM_PROMPT = """\
 ```json などのマークダウン記号は絶対に使用禁止。
 以下のキー以外は絶対に追加しないこと:
   title, hook, hook_korean, script, hashtags, korean_summary, emotion, image_prompt, short_title
+hashtagsは必ずJSON配列で出力すること。例: ["#Shorts", "#経済", "#日本"]
 人名・企業名・役職名は正確に表記すること。略称・誤字・当て字は絶対禁止。"""
 
 USER_PROMPT = """
@@ -275,20 +280,27 @@ def get_used_urls():
 
 
 def fetch_articles():
-    feed = feedparser.parse(RSS_URL)
-    if not feed.entries:
-        raise Exception("RSS 피드에서 기사를 가져오지 못했습니다.")
-
     used_urls = get_used_urls()
     if used_urls:
         print(f"  당일 사용된 기사 {len(used_urls)}개 제외")
 
+    seen_urls = set(used_urls)
     all_articles = []
-    for entry in feed.entries[:RSS_FETCH_LIMIT]:
-        if entry.link in used_urls:
-            continue
-        body = entry.get("summary", "") or entry.get("description", "")
-        all_articles.append({"title": entry.title, "url": entry.link, "article_body": body})
+
+    for rss_url in RSS_URLS:
+        try:
+            feed = feedparser.parse(rss_url)
+            for entry in feed.entries[:RSS_FETCH_LIMIT]:
+                if entry.link in seen_urls:
+                    continue
+                seen_urls.add(entry.link)
+                body = entry.get("summary", "") or entry.get("description", "")
+                all_articles.append({"title": entry.title, "url": entry.link, "article_body": body})
+        except Exception as e:
+            print(f"  [RSS 수집 실패] {rss_url}: {e}")
+
+    if not all_articles:
+        raise Exception("모든 RSS 피드에서 기사를 가져오지 못했습니다.")
 
     filtered = [a for a in all_articles if contains_keyword(a["title"], a["article_body"])]
 

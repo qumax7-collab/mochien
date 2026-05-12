@@ -174,6 +174,8 @@ def main():
 
     title = gpt["title"]
     hashtags = gpt["hashtags"]
+    if isinstance(hashtags, str):
+        hashtags = hashtags.split()
     slot = gpt.get("slot", "18")
 
     publish_at = get_publish_at(slot)

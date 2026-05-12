@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 12일 (11차 세션)
+최종 업데이트: 2026년 5월 13일 (12차 세션)
 
 ================================================================
 ## 0. 작업 규칙
@@ -520,8 +520,27 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
         - long6_youtube.py: build_combined_notification() → build_notification() 단순화
           롱폼 단독 알림만 전송 (쇼츠 합산 제거)
 
-🔜  21. 워드프레스 REST API 블로그 자동 발행
-🔜  22. emotion 자동 매핑 복원 (블로그 자동발행 이후)
+✅  21. 12차 세션 품질 개선 (2026-05-13)
+        - step5_tts.py / long2_tts.py: pykakasi 한자→히라가나 변환 추가
+          kanji_to_hiragana() 함수 / re.sub(후리가나 제거) 다음 단계에 적용
+          자막·JSON 원본은 건드리지 않음 — TTS 전송 텍스트에만 적용
+        - step7_whisper_subtitle.py: correct_proper_nouns() 전면 강화
+          SEP_TOKEN 배치 방식 폐기 → 세그먼트 1개씩 개별 GPT 교정으로 전환
+          레퍼런스에 hook 필드 추가 / 교정 범위 확장 (고유명사 + 동음이자 + 음성인식 오류)
+          개별 호출 실패 시 해당 세그먼트만 원본 유지 / 타이밍값 일절 건드리지 않음
+        - step2_select.py:
+          · SYSTEM_PROMPT에 hashtags JSON 배열 형식 명시
+            ("hashtagsは必ずJSON配列で出力すること")
+          · RSS_URL → RSS_URLS 3개 확장
+            NHK cat6(경제) + NHK cat5(비즈니스) + Yahoo Japan 비즈니스
+          · fetch_articles(): 소스별 순회 → URL 중복 제거(seen_urls) → 키워드 필터
+            소스 실패 시 해당 소스만 건너뜀 (파이프라인 계속 진행)
+        - step9_youtube.py: hashtags 문자열→배열 정규화 (.split()) 추가 (안전장치)
+        - requirements.txt: pykakasi 추가
+
+🔜  22. 워드프레스 REST API 블로그 자동 발행
+🔜  23. emotion 자동 매핑 복원 (블로그 자동발행 이후)
+🔜  24. 롱폼 분량 확대 (현재 ~5분 → 목표 7분, long1_script.py 문자수 목표 상향)
 
 실행 순서 (쇼츠):
   python run_pipeline.py   ← 통합 실행
@@ -630,6 +649,16 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
 - YouTube captions.insert: commentThreads와 달리 private/예약 상태 영상에서도 정상 작동
   subtitle.srt를 영상 업로드 직후 바로 전송해도 무방
 - SRT 생성: Whisper verbose_json 세그먼트를 재활용 → 추가 API 호출 없이 ASS와 동시 생성
+- pykakasi: 한자→히라가나 변환 라이브러리 / item["hira"] 필드로 재조합
+  ElevenLabs TTS 한자 오독 방지용 / 히라가나·알파벳·기호는 그대로 반환 / 자막·JSON에는 미적용
+- Whisper 자막 교정 SEP_TOKEN 방식 한계: GPT가 SEP_TOKEN을 병합하여 세그먼트 수 불일치 빈발
+  → 세그먼트 1개씩 개별 GPT 호출 방식으로 전환 / 횟수 40~60회지만 gpt-4.1-mini 기준 ~$0.015
+- GPT JSON 배열 필드: SYSTEM_PROMPT에 형식 미명시 시 문자열로 반환
+  hashtags 등 배열 필드는 반드시 "JSON配列で出力すること" 형태로 명시
+  문자열로 저장된 경우 " ".join(string)이 글자 하나씩 조인되는 버그 발생
+- BOJ RSS (www.boj.or.jp/rss/*.xml): 전 경로 404 — BOJ RSS 서비스 폐지된 것으로 확인
+- NHK cat5 비즈니스 RSS: 정상 (82건) / Yahoo Japan 비즈니스 RSS: 정상 (8건)
+- RSS 다소스 병합: URL 기준 seen_urls set으로 중복 제거 필수 (당일 사용 URL + 소스 간 중복)
 
 
 ================================================================
