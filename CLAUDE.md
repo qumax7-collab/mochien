@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 12일 (10차 세션)
+최종 업데이트: 2026년 5월 12일 (11차 세션)
 
 ================================================================
 ## 0. 작업 규칙
@@ -52,14 +52,13 @@ RSS (NHK cat6) 최대 5개 수집
 [ step4~step7 — 영상 생성 ]
 → Pexels API 배경 영상 취득
 → ElevenLabs TTS (Eleven Flash v2.5) → 일본어 음성 생성
-→ FFmpeg 영상 합성 (1080x1920) + Ken Burns 효과
+→ FFmpeg 영상 합성 (1080x1920) + 쿨 블루 컬러그레이딩 + 비네팅
 → Whisper API 일본어 자막 합성
 
 [ step9 — 업로드 + 알림 ]
-→ 텔레그램 승인 버튼 (10분 무응답 시 자동 진행)
-→ YouTube Data API v3 즉시 public 업로드
-→ hook 일본어 자동 댓글 등록
-→ 텔레그램 완료 알림 (Mochien_Notify_bot)
+→ YouTube Data API v3 예약 발행 (privacyStatus: private + publishAt RFC 3339)
+→ SRT 자막 captions.insert로 YouTube 업로드 (자동번역 활성화용)
+→ 텔레그램 완료 알림 개별 전송 (제목 / 예약시간 / 고정댓글 hook 포함)
 → output/{날짜}/{슬롯}_gpt_result.json을 GitHub Artifact로 업로드
 
 [ 롱폼 파이프라인 (mochien_longform.yml) — JST 21:00 ]
@@ -69,7 +68,7 @@ RSS (NHK cat6) 최대 5개 수집
 → long3_pexels.py: 4개 배경 영상 다운로드
 → long4_ffmpeg.py: 섹션별 클립 생성 → concat → long_output_no_sub.mp4
 → long5_whisper.py: Whisper 자막 합성 → long_output.mp4
-→ long6_youtube.py: YouTube 업로드 + 댓글 + 텔레그램 "[롱폼] 완료" 알림
+→ long6_youtube.py: YouTube 업로드 + 텔레그램 롱폼 완료 알림 개별 전송
 
 
 ================================================================
@@ -225,7 +224,7 @@ API 키명    : Mozzi
 용도        : ElevenLabs 생성 음성(mp3)을 텍스트로 변환 → ASS 자막 생성 → FFmpeg burn-in
 모델        : whisper-1
 언어        : ja (Japanese)
-출력 형식   : ASS (타임스탬프 포함 자막 파일)
+출력 형식   : ASS (FFmpeg burn-in용) + SRT (YouTube captions.insert용)
 가격        : $0.006/분 → 하루 3편 x 1분 x 30일 = 월 ~$0.18
 별도 키     : 불필요 / OPENAI_API_KEY 공용 사용
 
@@ -267,8 +266,8 @@ API         : YouTube Data API v3 videos.insert
 롱폼 예약   : 21:00 JST 고정
 승인 방식   : 텔레그램 봇 기사 선택 후 파이프라인 자동 실행
               ※ 10분 무응답 시 자동 진행
-자동 댓글   : 제거 (YouTube 예약 발행 상태에서 댓글 API 정상 작동하나, 수동 전환)
-              ※ 고정댓글 내용은 파이프라인 완료 후 텔레그램 합산 알림으로 수신
+자동 댓글   : 미구현 (YouTube Studio 수동)
+              ※ 고정댓글 내용은 영상 업로드 완료 시 텔레그램 개별 알림으로 수신
               ※ YouTube Studio에서 직접 달 것 (수동)
 
 
@@ -281,10 +280,11 @@ API         : YouTube Data API v3 videos.insert
               - 인라인 버튼: ✅ 이 기사로 진행 / 🔄 다음 기사 / ❌ 취소
               - 선택 후 "⏳ 영상 생성 시작..." 상태 표시
               - 경제 키워드 없는 날 → "⚠️ 경제 키워드 기사 없어 전체에서 선택" 알림
-역할 2      : 4개 영상 예약 완료 합산 알림 (long6_youtube.py)
-              - 쇼츠 3개 + 롱폼 1개 예약 완료 후 한 번에 전송
-              - 각 영상의 고정댓글 내용(hook 일본어 + hook_korean 한국어) 포함
-              - 롱폼은 intro script + korean_summary 포함
+역할 2      : 영상 업로드 완료 시 개별 알림
+              - 숏폼: step9_youtube.py → 업로드 완료 시 즉시 전송
+                제목 / 예약 시간 / 고정댓글 (hook 일본어 + hook_korean 한국어) 포함
+              - 롱폼: long6_youtube.py → 업로드 완료 시 전송
+                제목 / 예약 시간 / 고정댓글 (intro 앞 150자 + korean_summary) 포함
 역할 3      : API 잔액 경고
               - OpenAI $3 이하 / ElevenLabs $2 이하 시 경고 전송
               - 경고만 보내고 파이프라인은 계속 실행
@@ -461,10 +461,8 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
         - 비즈니스 이메일: 나중에 추가 예정
 
 ✅  17. 9차 세션 기능 추가 (2026-05-12)
-        - step9_youtube.py: 즉시 public → 예약 발행 (07:00/12:00/18:00 JST)
-          자동 댓글 제거 / 텔레그램 알림 제거 (long6에서 합산 전송)
+        - step9_youtube.py: 즉시 public → 예약 발행 (07:00/12:00/18:00 JST) / 자동 댓글 제거
         - long6_youtube.py: 예약 발행 21:00 JST / 자동 댓글 제거
-          build_combined_notification(): 4개 영상 hook + hook_korean 합산 전송
         - run_pipeline.py: 쇼츠 3개 완료 시 run_longform.py 자동 호출
         - step2_select.py:
           · gpt_result.json에 slot / article_url / hook_korean 필드 추가
@@ -517,7 +515,11 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
         - step9_youtube.py: 영상 업로드 후 captions.insert로 subtitle.srt 전송 (ja / 日本語)
           subtitle.srt 없으면 자동 스킵 / private 예약 상태에서도 captions API 정상 작동
 
-🔜  20. 롱폼 파이프라인 실제 실행 테스트 (GitHub Actions)
+✅  20. 텔레그램 알림 개별 발송 전환 (2026-05-12)
+        - step9_youtube.py: 숏폼 업로드 완료 시 즉시 개별 알림 (제목/예약시간/고정댓글)
+        - long6_youtube.py: build_combined_notification() → build_notification() 단순화
+          롱폼 단독 알림만 전송 (쇼츠 합산 제거)
+
 🔜  21. 워드프레스 REST API 블로그 자동 발행
 🔜  22. emotion 자동 매핑 복원 (블로그 자동발행 이후)
 
@@ -539,16 +541,13 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
 ================================================================
 - Pexels API Authorization 헤더: Bearer 없이 키만 입력
 - OpenAI API 키는 platform.openai.com에서 발급 (ChatGPT Plus 구독과 완전히 별개)
-- Creatomate Stroke/Shadow는 알파채널 인식 불가 → PNG에 직접 외곽선 추가 필요
 - ElevenLabs 무료 플랜 API 키: 연결 저장은 되지만 런타임 실패 → 유료 크레딧 필요
 - GitHub Raw URL CDN 캐시 이슈 → 파일 교체 후 브라우저에서 직접 확인 필요
-- Creatomate 트랜스크립션: 일본어 띄어쓰기 미인식 → ZapCap 대체
 - Python 3.12는 Windows 바이너리 설치 파일 미제공 → 3.13 이상 사용
 - FFmpeg PATH 등록: C:\ffmpeg\bin 을 시스템 환경변수 Path에 추가
 - NHK 사이트 Next.js 전환 → 정적 크롤링 불가 → RSS summary 사용
 - .env 파일은 .gitignore 등록 필수 / API 키 노출 시 즉시 삭제 후 재발급
 - Claude Code PowerShell 자동 승인: settings.json에 PowerShell(*) 추가
-- ZapCap API 불안정 + 처리 시간 5~10분 → Whisper API로 대체
 - Whisper API는 별도 키 불필요 / OPENAI_API_KEY 공용 사용
 - YouTube OAuth 인증: 데스크톱 앱 유형으로 생성 / token.json 자동 갱신
 - 텔레그램 봇 토큰 공개 노출 시 즉시 /revoke로 재발급
@@ -571,14 +570,10 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
   → 구독자 5,000명 이후부터 관리 시작해도 충분
 - 텔레그램 승인 버튼 중복 탭 시 파이프라인 중복 실행 → 한 번만 탭할 것
 - 롱폼 심층 분석은 gpt-4.1-mini 한계 → gpt-4.1 모델 사용 권장
-- GitHub Actions cron: 무료 플랜에서 1~4시간 지연 발생 가능 (정상 동작)
-  → repo 최근 활동 없으면 스케줄 트리거 자체가 건너뛰어짐
-  → 더미 커밋 자동화로 repo 활성 유지 필요
-  → 트리거 시간을 목표 시간보다 2시간 앞당겨서 지연 보정
-- GitHub Actions cron은 무조건 UTC 기준 (JST/KST 직접 입력 불가)
-  KST = UTC+9이므로 원하는 시간에서 9시간 빼서 입력
+- GitHub Actions cron: 무료 플랜 1~4시간 지연 / UTC 기준 (JST -9h) / 활동 없으면 트리거 건너뜀
+  → 실사용 불가 판단 → workflow_dispatch 수동 트리거로 전환 / keepalive로 활성 유지
 - 오후 시간대 업로드는 조회수 낮음 (일본 직장인 시청 패턴 고려)
-  → 09시/13시/18시 JST 업로드 목표로 트리거 시간 앞당겨 운용
+  → 07:00/12:00/18:00 JST 예약 발행
 - gpt_result.json 날짜/시간별 저장 → 롱폼 파이프라인에서 당일 3개 파일 읽어 활용
 - .gitignore 작성 시 *.png / *.gif 와일드카드 금지
   mochien_*.png, mochien_talk.gif 캐릭터 에셋이 함께 무시됨 → 파일명 개별 지정
@@ -597,7 +592,6 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
 - 롱폼 파이프라인: 5섹션 구조 (intro + issue1~3 + outro) / 각 섹션 TTS → 클립 → concat
 - 롱폼 ASS 자막: \an2 (하단 중앙) / PlayResX:1920 PlayResY:1080 / 72px / 6단어/줄
 - 롱폼 ChatGPT: gpt-4.1 사용 (심층 분석 품질 확보) / 쇼츠는 gpt-4.1-mini
-- GitHub Actions cron 무료 플랜에서 실사용 불가 수준 지연 → workflow_dispatch 수동 트리거로 전환
 - 쇼츠 슬롯 배정: 시간 기준(05~10시→09 등) 폐기 → 당일 output 폴더 파일 순서 기준(09→13→18)
   → 몇 시에 실행해도 그날 1번째=09, 2번째=13, 3번째=18 / 하루 3개 완성 시 롱폼 가능
 - telegram_trigger.py: PC 켜져 있을 때만 동작 / 핸드폰 트리거는 GitHub 앱 사용
@@ -627,8 +621,8 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
   밤 11시 실행: 슬롯09/13/18 모두 지남 → 각각 익일 07:00/12:00/18:00 예약 (기존과 동일)
 - GitHub Actions 쇼츠 워크플로우는 쇼츠 1개만 처리. 롱폼은 별도로 mochien_longform.yml 수동 트리거 필요
   → run_pipeline.py의 자동 롱폼 실행 로직은 로컬 전용 (GitHub Actions에서는 동작 안 함)
-- 텔레그램 완료 알림은 step9가 아닌 long6_youtube.py에서만 발송 (쇼츠 3개 + 롱폼 합산 1회)
-  → 롱폼까지 완료되어야 알림이 옴. 쇼츠만 올리고 롱폼 미실행 시 알림 없음
+- 텔레그램 완료 알림: step9(숏폼) 개별 발송 + long6(롱폼) 개별 발송 — 총 4번
+  숏폼은 업로드 즉시, 롱폼은 long6 완료 시 전송
 - sys.exit(0)은 "성공" → run_pipeline.py가 다음 스텝 계속 진행
   sys.exit(1)은 "실패" → 파이프라인 즉시 중단. 기사 소진·취소 시 반드시 sys.exit(1) 사용
 - 로컬 밤 11pm 실행 시 → 슬롯 목표 시각 모두 초과 → 익일 동일 시각으로 자동 예약
