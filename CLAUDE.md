@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 12일 (9차 세션)
+최종 업데이트: 2026년 5월 12일 (10차 세션)
 
 ================================================================
 ## 0. 작업 규칙
@@ -488,9 +488,17 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
         - mochien_longform.yml: GitHub Actions 롱폼 워크플로우
         - Artifact 누적 방식: 쇼츠→롱폼 gpt_result 파일 전달
 
-🔜  18. 롱폼 파이프라인 실제 실행 테스트 (GitHub Actions)
-🔜  17. 워드프레스 REST API 블로그 자동 발행
-🔜  18. emotion 자동 매핑 복원 (블로그 자동발행 이후)
+✅  18. 10차 세션 버그 수정 (2026-05-12)
+        - step2_select.py:
+          · short_title 누락 시 title 앞 8자 fallback 추가 (GPT 미출력 대비)
+          · 기사 소진·취소 시 sys.exit(0) → sys.exit(1) 변경 (파이프라인 중단 보장)
+        - mochien.yml: dawidd6 artifact 다운로드 후 output/gpt-results/ 서브폴더 생성 시
+          output/으로 자동 이동하는 보정 스텝 추가 (슬롯 중복 배정 버그 수정)
+        - step9_youtube.py: 발행 시각 로직 — 목표 시각 초과 시 익일 동일 시각 예약 (원복)
+
+🔜  19. 롱폼 파이프라인 실제 실행 테스트 (GitHub Actions)
+🔜  20. 워드프레스 REST API 블로그 자동 발행
+🔜  21. emotion 자동 매핑 복원 (블로그 자동발행 이후)
 
 실행 순서 (쇼츠):
   python run_pipeline.py   ← 통합 실행
@@ -590,6 +598,19 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
   step5_tts.py / long2_tts.py 모두 전송 전 re.sub(r"[（(][^）)]*[）)]", "", text)로 제거 / 全角・半角 모두 처리
 - long1_script.py 심층 분석: 쇼츠 스크립트를 그대로 이어붙이면 단순 요약 반복 문제
   title+korean_summary만 입력 → GPT가 3개 토픽을 독립 분석하며 공통 트렌드 연결하게 유도
+- dawidd6/action-download-artifact@v6: path: output/ 지정해도 내부적으로 output/gpt-results/ 서브폴더를 만들 수 있음
+  → 다운로드 직후 output/gpt-results/ 존재 시 output/으로 복사하는 보정 스텝 필수
+  → 이 버그로 2번째 실행이 항상 slot "09"를 재배정 → 발행 시각이 내일 07:00로 잘못 등록됨
+- step9 발행 시각 로직: 목표 시각 초과 시 "익일 동일 시각" 예약이 올바른 동작
+  → "+1시간(당일)"으로 바꾸면 밤 11시에 실행해 내일 영상 등록하는 시나리오가 깨짐
+- GitHub Actions 쇼츠 워크플로우는 쇼츠 1개만 처리. 롱폼은 별도로 mochien_longform.yml 수동 트리거 필요
+  → run_pipeline.py의 자동 롱폼 실행 로직은 로컬 전용 (GitHub Actions에서는 동작 안 함)
+- 텔레그램 완료 알림은 step9가 아닌 long6_youtube.py에서만 발송 (쇼츠 3개 + 롱폼 합산 1회)
+  → 롱폼까지 완료되어야 알림이 옴. 쇼츠만 올리고 롱폼 미실행 시 알림 없음
+- sys.exit(0)은 "성공" → run_pipeline.py가 다음 스텝 계속 진행
+  sys.exit(1)은 "실패" → 파이프라인 즉시 중단. 기사 소진·취소 시 반드시 sys.exit(1) 사용
+- 로컬 밤 11pm 실행 시 → 슬롯 목표 시각 모두 초과 → 익일 동일 시각으로 자동 예약
+  → python run_pipeline.py 3회 실행으로 내일 07:00/12:00/18:00 JST 영상 3개 등록 가능
 
 
 ================================================================
