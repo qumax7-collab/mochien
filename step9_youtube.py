@@ -3,6 +3,7 @@ import os
 import sys
 from datetime import datetime, timezone, timedelta
 
+import requests
 from dotenv import load_dotenv
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -33,6 +34,13 @@ CAPTION_NAME = "日本語"
 
 JST = timezone(timedelta(hours=9))
 
+# ===== 텔레그램 =====
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
+
+SLOT_LABELS = {"09": "쇼츠1", "13": "쇼츠2", "18": "쇼츠3"}
+SLOT_DISPLAY_TIMES = {"09": "07:00", "13": "12:00", "18": "18:00"}
+
 # 슬롯별 예약 발행 시간 (JST 시각)
 SLOT_PUBLISH_HOURS = {"09": 7, "13": 12, "18": 18}
 SLOT_HOURS_SORTED = sorted(SLOT_PUBLISH_HOURS.values())  # [7, 12, 18]
@@ -42,6 +50,31 @@ CHANNEL_FOOTER = (
     "毎日3回、経済ニュースをわかりやすくお届け！\n"
     "チャンネル登録よろしくお願いします。"
 )
+
+
+def tg_notify(text):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    requests.post(
+        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+        json={"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML"},
+        timeout=10,
+    )
+
+
+def build_notification(gpt, publish_at):
+    slot = gpt.get("slot", "18")
+    label = SLOT_LABELS.get(slot, f"쇼츠({slot})")
+    display_time = SLOT_DISPLAY_TIMES.get(slot, publish_at[:16])
+    hook = gpt.get("hook", "")
+    hook_korean = gpt.get("hook_korean", "")
+    kr_line = f"\n🇰🇷 {hook_korean}" if hook_korean else ""
+    return (
+        f"📹 {label} 예약 완료\n"
+        f"제목: {gpt['title']}\n"
+        f"예약: {display_time} JST\n"
+        f"\n📌 고정댓글:\n{hook}{kr_line}"
+    )
 
 
 def get_publish_at(slot):
@@ -156,6 +189,8 @@ def main():
     upload_caption(youtube, video_id)
 
     result_url = f"https://www.youtube.com/watch?v={video_id}"
+
+    tg_notify(build_notification(gpt, publish_at))
 
     print(f"\n예약 완료!")
     print(f"동영상 ID : {video_id}")

@@ -32,9 +32,6 @@ YOUTUBE_LANGUAGE    = "ja"
 JST = timezone(timedelta(hours=9))
 LONGFORM_PUBLISH_HOUR = 21
 
-# 슬롯별 텔레그램 표시 시간
-SLOT_DISPLAY_TIMES = {"09": "07:00", "13": "12:00", "18": "18:00"}
-
 CHANNEL_FOOTER = (
     "\n\n━━━━━━━━━━━━━━━━━━\n"
     "毎日3回のショーツ＋毎晩21時に深掘り解説！\n"
@@ -114,38 +111,20 @@ def upload_video(youtube, title, description, tags, publish_at):
     return response["id"]
 
 
-def build_combined_notification(long_script_data):
-    """쇼츠 3개 + 롱폼 hook을 합산해 텔레그램 메시지 생성."""
-    now_jst = datetime.now(JST)
-    date_str = now_jst.strftime("%Y-%m-%d")
-    out_dir = os.path.join(OUTPUT_DIR, date_str)
-
-    lines = ["✅ 오늘 영상 4개 예약 완료\n"]
-
-    slot_labels = [("09", "쇼츠1"), ("13", "쇼츠2"), ("18", "쇼츠3")]
-    for slot, label in slot_labels:
-        display_time = SLOT_DISPLAY_TIMES[slot]
-        slot_file = os.path.join(out_dir, f"{slot}_gpt_result.json")
-        if os.path.exists(slot_file):
-            with open(slot_file, encoding="utf-8") as f:
-                gpt = json.load(f)
-            hook = gpt.get("hook", "(데이터 없음)")
-            hook_korean = gpt.get("hook_korean", "")
-        else:
-            hook = "(데이터 없음)"
-            hook_korean = ""
-        kr_line = f"\n🇰🇷 {hook_korean}" if hook_korean else ""
-        lines.append(f"📌 {label} 고정댓글 ({display_time} 업로드):\n{hook}{kr_line}\n")
-
+def build_notification(long_script_data):
+    """롱폼 단독 텔레그램 알림 메시지 생성."""
+    title = long_script_data["title"]
     intro_script = long_script_data["intro"]["script"]
-    longform_hook = intro_script[:150] + ("..." if len(intro_script) > 150 else "")
-    longform_kr = long_script_data.get("korean_summary", "")
-    kr_line = f"\n🇰🇷 {longform_kr}" if longform_kr else ""
-    lines.append(f"📌 롱폼 고정댓글 (21:00 업로드):\n{longform_hook}{kr_line}\n")
-
-    lines.append("시간날 때 YouTube Studio에서 달아주세요!")
-
-    return "\n".join(lines)
+    hook = intro_script[:150] + ("..." if len(intro_script) > 150 else "")
+    korean_summary = long_script_data.get("korean_summary", "")
+    kr_line = f"\n🇰🇷 {korean_summary}" if korean_summary else ""
+    return (
+        f"📹 롱폼 예약 완료\n"
+        f"제목: {title}\n"
+        f"예약: 21:00 JST\n"
+        f"\n📌 고정댓글:\n{hook}{kr_line}\n"
+        f"\nYouTube Studio에서 달아주세요!"
+    )
 
 
 def main():
@@ -175,7 +154,7 @@ def main():
 
     result_url = f"https://www.youtube.com/watch?v={video_id}"
 
-    msg = build_combined_notification(data)
+    msg = build_notification(data)
     tg_notify(msg)
 
     print(f"\n예약 완료!")
