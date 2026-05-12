@@ -51,33 +51,41 @@ SYSTEM_PROMPT = """\
   title, hook, hook_korean, script, hashtags, korean_summary, emotion, image_prompt, short_title
 人名・企業名・役職名は正確に表記すること。略称・誤字・当て字は絶対禁止。"""
 
-USER_PROMPT_TEMPLATE = """\
+USER_PROMPT = """
 【モチエンキャラクター設定】
+- 冒頭の挨拶は禁止。最初の一文は必ずhookの内容から始めること。
 - 落ち着いていて信頼感がある話し方（40〜60代向け）
 - 難しい経済用語はやさしい言葉に言い換える
 - 視聴者を「あなた」と呼ぶ
-- 冒頭の挨拶は禁止。最初の一文は必ずhookの内容から始めること。
-- hookは必ず視聴者の生活・損得・驚きと直結させること。数字・疑問形・「あなたの○○が変わる」形式を優先すること。
-- hashtagsには必ず#Shortsを含めること。hashtagsは必ず日本語または英語のみ。韓国語タグは絶対に含めないこと。
 - スクリプト末尾は必ず下記で締めること:
   「皆さんはどう思いますか？コメントで教えてください！
    以上、モチエンがお伝えしました！
    チャンネル登録お願いします！」
-- スクリプトの誤読しやすい漢字には、必ずひらがなで読み仮名を括弧内に併記すること。
-  例：世界経済(せかいけいざい)、波及(はきゅう)、溝(みぞ)、核(かく)、拡大(かくだい)
-  （TTS読み上げ用のため）
 
-title       : 事実の羅列ではなく、視聴者の利益・損得・驚きに直結する表現にすること。
-  例：✗「アゼルバイジャン産原油到着」→ ✅「ガソリン代安くなる？アゼルバイジャン産原油の力」
-short_title : 6〜10字の核心キーワード（例:「日越首脳会談」「原油急騰の影響」）
-hook_korean : hookの日本語を自然な韓国語に翻訳（例:「금리가 또 오른다? 당신의 대출에 직격탄!」）
-image_prompt: Pexels検索用英語キーワード（例: "japanese economy stock market"）
+【title ルール】
+- 30字以内
+- 事実の羅列ではなく視聴者の損得・驚き・生活への影響に直結すること
+- 数字・疑問形・「あなたの〇〇」形式を優先
+- 例：✗「アゼルバイジャン産原油到着」→ ✅「ガソリン代安くなる？アゼルバイジャン産原油の力」
 
-emotion許容値:
-smile / happy / surprised / shocked / worried / angry / anxious / sad / neutral / shy / embarrassed / sleepy
+【hook ルール】
+- 必ず日本語で生成すること
+- 視聴者の生活・損得・驚きと直結させること
+- 数字・疑問形・「あなたの○○が変わる」形式を優先すること
 
-ニュースタイトル: {title}
-ニュース本文: {article_body}
+【hashtags ルール】
+- 日本語または英語のみ（韓国語タグは絶対に含めないこと）
+- 日本語検索ボリュームが高いタグを優先
+- #Shorts必須
+
+【その他】
+- 誤読しやすい漢字にはふりがなを括弧で併記すること
+- 人名・企業名・役職名は正確に表記すること
+- short_title：6〜10字の核心キーワード
+- image_prompt：Pexels検索用英語キーワード（例："japanese economy stock market"）
+
+ニュースタイトル：{title}
+ニュース本文：{article_body}
 """
 
 # ===== API 잔액 경고 =====
@@ -299,7 +307,7 @@ def fetch_articles():
 
 def call_chatgpt(title, article_body):
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-    user_prompt = USER_PROMPT_TEMPLATE.format(title=title, article_body=article_body)
+    user_prompt = USER_PROMPT.format(title=title, article_body=article_body)
     response = client.chat.completions.create(
         model=GPT_MODEL,
         messages=[
