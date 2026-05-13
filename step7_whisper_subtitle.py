@@ -21,7 +21,7 @@ FONT_SIZE = 132
 OUTLINE_SIZE = 4
 WORDS_PER_LINE = 4       # 한 자막에 최대 단어 수
 GAP_THRESHOLD = 0.4      # 이 시간(초) 이상 공백이면 세그먼트 분리
-MAX_LINE_CHARS = 13      # 자막 한 줄 최대 글자 수 (일본어 기준)
+MAX_LINE_CHARS = 8       # 자막 한 줄 최대 글자 수 (132px × 8 = 1056px, 영상 1080px 이내)
 
 # 고유명사 교정
 GPT_CORRECTION_MODEL = "gpt-4.1-mini"
@@ -65,12 +65,14 @@ def get_font():
 
 def transcribe(api_key):
     client = OpenAI(api_key=api_key)
-    initial_prompt = ""
+    initial_prompt = "モチエン"  # 채널명은 gpt_result.json 없어도 항상 포함
     if os.path.exists(GPT_RESULT_PATH):
         try:
             with open(GPT_RESULT_PATH, encoding="utf-8") as f:
                 gpt = json.load(f)
-            initial_prompt = f"{gpt.get('title', '')} {gpt.get('hook', '')}".strip()
+            title_hook = f"{gpt.get('title', '')} {gpt.get('hook', '')}".strip()
+            if title_hook:
+                initial_prompt = f"モチエン {title_hook}"
         except Exception:
             pass
     print(f"Whisper API 전송 중: {INPUT_AUDIO}")
@@ -123,10 +125,13 @@ KNOWN_ASR_ERRORS = [
     ("隠密に",       "緊密に"),      # 緊密に連携
     ("公私",         "高市"),        # 高市大臣
     ("営業",         "影響"),        # 影響 → 営業 오인식
+    ("教材",         "経済"),        # 経済 → 教材 오인식
     # 고유명사 오인식
     ("公満事務省庁", "コーマン事務総長"),
     ("公満事",       "コーマン事"),       # 세그먼트 분리 시 전반부
     ("務省庁",       "務総長"),           # 세그먼트 분리 시 후반부
+    ("イラン行政",   "イラン情勢"),       # イラン情勢 오인식
+    ("モッチェン",   "モチエン"),         # 채널명 오인식
     # 히라가나 붕괴
     ("こ用",         "雇用"),
     ("つなごある",   "つながる"),

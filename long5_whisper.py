@@ -13,14 +13,62 @@ INPUT_AUDIO     = "long_voice.mp3"
 INPUT_VIDEO     = "long_output_no_sub.mp4"
 OUTPUT_VIDEO    = "long_output.mp4"
 ASS_FILE        = "long_subtitle.ass"
-GLOSSARY_PATH   = "glossary.json"
-GPT_RESULT_PATH = "gpt_result.json"
+GLOSSARY_PATH    = "glossary.json"
+GPT_RESULT_PATH  = "gpt_result.json"
+LONG_SCRIPT_PATH = "long_script.json"
+
+KNOWN_ASR_ERRORS = [
+    # 한자 오인식
+    ("機区",         "機構"),
+    ("安全保証",     "安全保障"),
+    ("確信され",     "確認され"),
+    ("連系",         "連携"),
+    ("隠密に",       "緊密に"),
+    ("公私",         "高市"),
+    ("営業",         "影響"),
+    ("教材",         "経済"),
+    # 고유명사 오인식
+    ("公満事務省庁", "コーマン事務総長"),
+    ("公満事",       "コーマン事"),
+    ("務省庁",       "務総長"),
+    ("イラン行政",   "イラン情勢"),
+    ("モッチェン",   "モチエン"),
+    # 히라가나 붕괴
+    ("こ用",         "雇用"),
+    ("つなごある",   "つながる"),
+    # 자막 잔상·중복
+    ("保障部に",     "保障分野"),
+]
 
 # ===== 자막 스타일 (1920×1080 기준) =====
 FONT_SIZE      = 72    # 쇼츠 132px → 가로형 비율 조정
 OUTLINE_SIZE   = 4
 WORDS_PER_LINE = 6     # 가로 화면이 넓으므로 쇼츠(4)보다 많게
 GAP_THRESHOLD  = 0.4
+
+
+def apply_rule_corrections(segments):
+    """long_script.json 원고를 참조해 알려진 ASR 오류를 규칙 기반 교정."""
+    if not os.path.exists(LONG_SCRIPT_PATH):
+        return segments
+    try:
+        with open(LONG_SCRIPT_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+        script = "".join(
+            data.get(key, {}).get("script", "")
+            for key in ["intro", "issue1", "issue2", "issue3", "outro"]
+        )
+    except Exception:
+        return segments
+    rule_fixed = 0
+    for seg in segments:
+        for wrong, correct in KNOWN_ASR_ERRORS:
+            if wrong in seg["text"] and correct in script:
+                seg["text"] = seg["text"].replace(wrong, correct)
+                rule_fixed += 1
+    if rule_fixed:
+        print(f"  규칙 교정: {rule_fixed}건")
+    return segments
 
 
 def apply_glossary(segments):
@@ -56,12 +104,14 @@ def get_font():
 
 def transcribe(api_key):
     client = OpenAI(api_key=api_key)
-    initial_prompt = ""
+    initial_prompt = "モチエン"  # 채널명은 항상 포함
     if os.path.exists(GPT_RESULT_PATH):
         try:
             with open(GPT_RESULT_PATH, encoding="utf-8") as f:
                 gpt = json.load(f)
-            initial_prompt = f"{gpt.get('title', '')} {gpt.get('hook', '')}".strip()
+            title_hook = f"{gpt.get('title', '')} {gpt.get('hook', '')}".strip()
+            if title_hook:
+                initial_prompt = f"モチエン {title_hook}"
         except Exception:
             pass
     print(f"Whisper API 전송 중: {INPUT_AUDIO}")
@@ -171,6 +221,7 @@ def main():
     segments = group_words(words)
     print(f"세그먼트 수: {len(segments)}")
     segments = apply_glossary(segments)
+    segments = apply_rule_corrections(segments)
     for s in segments[:5]:
         print(f"  [{s['start']:.2f}s - {s['end']:.2f}s] {s['text']}")
 
