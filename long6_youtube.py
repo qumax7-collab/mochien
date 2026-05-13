@@ -15,7 +15,8 @@ sys.stdout.reconfigure(encoding="utf-8")
 load_dotenv()
 
 # ===== 파일 경로 =====
-LONG_SCRIPT_PATH  = "long_script.json"
+LONG_SCRIPT_PATH   = "long_script.json"
+LONG_CHAPTERS_FILE = "long_chapters.json"
 VIDEO_PATH        = "long_output.mp4"
 CLIENT_SECRETS_PATH = "client_secrets.json"
 TOKEN_PATH        = "token.json"
@@ -41,6 +42,29 @@ CHANNEL_FOOTER = (
 # ===== 텔레그램 =====
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
+
+
+def load_chapters():
+    if not os.path.exists(LONG_CHAPTERS_FILE):
+        return []
+    try:
+        with open(LONG_CHAPTERS_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def format_time(seconds):
+    h = seconds // 3600
+    m = (seconds % 3600) // 60
+    s = seconds % 60
+    if h > 0:
+        return f"{h}:{m:02d}:{s:02d}"
+    return f"{m:02d}:{s:02d}"
+
+
+def build_chapter_text(chapters):
+    return "\n".join(f"{format_time(ch['time'])} {ch['label']}" for ch in chapters)
 
 
 def tg_notify(text):
@@ -80,7 +104,12 @@ def build_description(data):
     issues = "\n".join(
         f"▶ {iss['title']}" for iss in data["issues"]
     )
-    return f"{hashtags}\n\n【本日の内容】\n{issues}{CHANNEL_FOOTER}"
+    body = f"{hashtags}\n\n【本日の内容】\n{issues}{CHANNEL_FOOTER}"
+
+    chapters = load_chapters()
+    if chapters:
+        return f"{build_chapter_text(chapters)}\n\n{body}"
+    return body
 
 
 def upload_video(youtube, title, description, tags, publish_at):

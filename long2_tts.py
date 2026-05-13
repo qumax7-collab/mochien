@@ -3,6 +3,7 @@ import json
 import os
 import re
 import subprocess
+import datetime
 
 import requests
 from dotenv import load_dotenv
@@ -11,7 +12,11 @@ sys.stdout.reconfigure(encoding="utf-8")
 load_dotenv()
 
 # ===== 설정 =====
-LONG_SCRIPT_FILE = "long_script.json"
+LONG_SCRIPT_FILE  = "long_script.json"
+LONG_CHAPTERS_FILE = "long_chapters.json"
+OUTPUT_DIR        = "output"
+SLOTS             = ["09", "13", "18"]
+JST               = datetime.timezone(datetime.timedelta(hours=9))
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 TTS_MODEL         = "eleven_flash_v2_5"
 TTS_OUTPUT_FORMAT = "mp3_44100_128"
@@ -26,6 +31,56 @@ SECTIONS = [
     ("long_voice_outro.mp3",  "outro"),
 ]
 VOICE_LONG_FILE = "long_voice.mp3"
+
+
+def ffprobe_duration(path):
+    result = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+         "-of", "csv=p=0", path],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    return float(result.stdout.decode().strip())
+
+
+def build_chapters():
+    now_jst  = datetime.datetime.now(JST)
+    date_dir = os.path.join(OUTPUT_DIR, now_jst.strftime("%Y-%m-%d"))
+
+    short_titles = {}
+    for slot in SLOTS:
+        path = os.path.join(date_dir, f"{slot}_gpt_result.json")
+        try:
+            with open(path, encoding="utf-8") as f:
+                short_titles[slot] = json.load(f).get("short_title", "")
+        except Exception:
+            short_titles[slot] = ""
+
+    nums = ["①", "②", "③"]
+    slot_order = ["09", "13", "18"]
+    labels = {
+        "intro":  "オープニング",
+        "issue1": f"{nums[0]} {short_titles.get(slot_order[0], 'トピック①')}",
+        "issue2": f"{nums[1]} {short_titles.get(slot_order[1], 'トピック②')}",
+        "issue3": f"{nums[2]} {short_titles.get(slot_order[2], 'トピック③')}",
+        "outro":  "まとめ",
+    }
+
+    chapters = []
+    cumulative = 0.0
+    for filename, key in SECTIONS:
+        chapters.append({"time": int(cumulative), "label": labels[key]})
+        try:
+            cumulative += ffprobe_duration(filename)
+        except Exception as e:
+            print(f"  [경고] {filename} 길이 측정 실패: {e}")
+
+    with open(LONG_CHAPTERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(chapters, f, ensure_ascii=False, indent=2)
+
+    print(f"\n=== 챕터 저장 → {LONG_CHAPTERS_FILE} ===")
+    for ch in chapters:
+        m, s = divmod(ch["time"], 60)
+        print(f"  {m:02d}:{s:02d}  {ch['label']}")
 
 
 def get_section_script(data, key):
@@ -101,6 +156,8 @@ def main():
     concat_audio(VOICE_LONG_FILE)
     size_mb = os.path.getsize(VOICE_LONG_FILE) / (1024 * 1024)
     print(f"  연결 완료 ({size_mb:.1f}MB)")
+
+    build_chapters()
 
 
 if __name__ == "__main__":
