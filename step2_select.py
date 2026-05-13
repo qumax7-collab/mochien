@@ -2,6 +2,7 @@ import sys
 import json
 import os
 import time
+import calendar
 import datetime
 
 import feedparser
@@ -20,6 +21,7 @@ RSS_URLS = [
 ]
 MAX_ARTICLES = 5
 RSS_FETCH_LIMIT = 20
+FRESHNESS_HOURS = 6   # 최근 N시간 이내 발행분을 fresh tier로 분류
 ECONOMIC_KEYWORDS = ["株", "円", "物価", "金利", "為替", "経済", "GDP", "インフレ", "日銀", "財務"]
 
 # ===== 출력 파일 =====
@@ -255,6 +257,20 @@ def wait_for_callback(message_id):
 # RSS
 # ─────────────────────────────────────────
 
+def sort_by_freshness(articles):
+    """fresh tier(최근 FRESHNESS_HOURS 이내) → stale tier 순, tier 내부는 pubDate 최신순.
+    calendar.timegm: UTC struct_time → epoch / time.time(): 현재 UTC epoch — 둘 다 UTC 기준."""
+    now = time.time()
+    threshold = FRESHNESS_HOURS * 3600
+
+    def _key(a):
+        pub = a.get("_published", 0)
+        is_stale = 0 if (now - pub) <= threshold else 1  # fresh=0, stale=1
+        return (is_stale, -pub)  # stale 뒤로, pub 내림차순
+
+    return sorted(articles, key=_key)
+
+
 def contains_keyword(title, body):
     text = title + body
     return any(kw in text for kw in ECONOMIC_KEYWORDS)
@@ -295,7 +311,13 @@ def fetch_articles():
                     continue
                 seen_urls.add(entry.link)
                 body = entry.get("summary", "") or entry.get("description", "")
-                all_articles.append({"title": entry.title, "url": entry.link, "article_body": body})
+                pub_struct = getattr(entry, "published_parsed", None) or getattr(entry, "updated_parsed", None)
+                all_articles.append({
+                    "title": entry.title,
+                    "url": entry.link,
+                    "article_body": body,
+                    "_published": calendar.timegm(pub_struct) if pub_struct else 0,
+                })
         except Exception as e:
             print(f"  [RSS 수집 실패] {rss_url}: {e}")
 
@@ -306,11 +328,11 @@ def fetch_articles():
 
     if filtered:
         print(f"경제 키워드 기사 {len(filtered)}개 / 전체 {len(all_articles)}개")
-        return filtered[:MAX_ARTICLES]
+        return sort_by_freshness(filtered)[:MAX_ARTICLES]
 
     print("경제 키워드 기사 없음 → 전체 기사에서 선택")
     tg_send("⚠️ 경제 키워드 기사 없어 전체에서 선택")
-    return all_articles[:MAX_ARTICLES]
+    return sort_by_freshness(all_articles)[:MAX_ARTICLES]
 
 
 # ─────────────────────────────────────────

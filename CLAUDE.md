@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 13일 (12차 세션)
+최종 업데이트: 2026년 5월 13일 (13차 세션)
 
 ================================================================
 ## 0. 작업 규칙
@@ -348,6 +348,7 @@ GitHub Secrets 등록 목록:
 ================================================================
 C:\mochien\
   ├── CLAUDE.md
+  ├── glossary.json                       ← Whisper 오인식 패턴 사전 (코드 밖에서 관리)
   ├── .env
   ├── .gitignore
   ├── requirements.txt
@@ -538,9 +539,35 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
         - step9_youtube.py: hashtags 문자열→배열 정규화 (.split()) 추가 (안전장치)
         - requirements.txt: pykakasi 추가
 
-🔜  22. 워드프레스 REST API 블로그 자동 발행
-🔜  23. emotion 자동 매핑 복원 (블로그 자동발행 이후)
-🔜  24. 롱폼 분량 확대 (현재 ~5분 → 목표 7분, long1_script.py 문자수 목표 상향)
+✅  22b. RSS pubDate 신선도 정렬 (2026-05-13, 13차 세션 추가 작업)
+        - step2_select.py: fetch_articles() 정렬 단계 추가
+          · FRESHNESS_HOURS=6 / fresh tier(최근 6시간 이내) → stale tier 순으로 텔레그램 후보 제시
+          · tier 내부는 pubDate 최신순(내림차순)
+          · pubDate 없는 기사는 stale 끝으로 (epoch 0 처리)
+          · filtered / fallback 두 경로 모두 적용
+          · 외부 API·신규 라이브러리 추가 없음 (feedparser pubDate + calendar.timegm만 활용)
+        - import calendar 추가 / FRESHNESS_HOURS 상수 추가 / sort_by_freshness() 헬퍼 추가
+
+✅  22. 13차 세션 — Whisper 자막 품질 개선 (2026-05-13)
+        - step7_whisper_subtitle.py:
+          · KNOWN_ASR_ERRORS에 부분 매칭 2개 추가
+            ("公満事" → "コーマン事") / ("務省庁" → "務総長")
+            세그먼트 분리로 전체 문자열 매칭 실패 시 대비
+          · apply_glossary() 함수 추가 — 세그먼트 생성 직후 glossary.json 일괄 치환
+          · transcribe(): gpt_result.json의 title+hook을 Whisper initial_prompt로 전달
+            → 고유명사 인식률 향상 (公満事 오인식 사라짐 확인)
+        - long5_whisper.py:
+          · apply_glossary() 함수 추가 (동일 구조)
+          · transcribe(): 동일하게 gpt_result.json initial_prompt 전달
+        - glossary.json 신규 생성
+          · 고유명사 오인식 패턴을 코드 밖 파일로 관리
+          · 등록 기준: 3글자 이상 특수 패턴 위주 / 경제뉴스 일반 명사 등록 금지
+          · 초기 등록: 公満事務省庁 / 公満事 / 務省庁 / 隠密に / 効果果
+          · 영업→影響 / 公私→高市는 KNOWN_ASR_ERRORS에 안전장치 있으므로 glossary 제외
+
+🔜  23. 워드프레스 REST API 블로그 자동 발행
+🔜  24. emotion 자동 매핑 복원 (블로그 자동발행 이후)
+🔜  25. 롱폼 분량 확대 (현재 ~5분 → 목표 7분, long1_script.py 문자수 목표 상향)
 
 실행 순서 (쇼츠):
   python run_pipeline.py   ← 통합 실행
@@ -659,6 +686,17 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
 - BOJ RSS (www.boj.or.jp/rss/*.xml): 전 경로 404 — BOJ RSS 서비스 폐지된 것으로 확인
 - NHK cat5 비즈니스 RSS: 정상 (82건) / Yahoo Japan 비즈니스 RSS: 정상 (8건)
 - RSS 다소스 병합: URL 기준 seen_urls set으로 중복 제거 필수 (당일 사용 URL + 소스 간 중복)
+- Whisper 세그먼트 분리 오인식: 긴 고유명사(コーマン事務総長)가 세그먼트 경계에서 잘리면
+  KNOWN_ASR_ERRORS 전체 문자열 매칭 실패 → 전반부/후반부 부분 패턴을 각각 별도 등록 필요
+- Whisper initial_prompt: gpt_result.json의 title+hook을 전달하면 고유명사 인식률 향상
+  동일 스크립트에서 公満事 오인식이 사라지는 효과 확인 / gpt_result.json 없으면 자동 스킵
+- feedparser published_parsed는 UTC struct_time → calendar.timegm()으로 UTC epoch 변환 후 time.time()과 비교
+  datetime.utcnow()는 Python 3.12+에서 deprecated → time.time() + calendar.timegm() 조합 권장
+- glossary.json 운영 규칙:
+  · 고유명사·특수 오인식 패턴 위주로 등록 (코드 수정 없이 파일만 편집)
+  · 키는 3글자 이상의 특수 패턴으로 — 경제뉴스에서 정상 쓰임 있는 단어(営業·公私 등) 등록 금지
+  · 일반 명사 오인식은 KNOWN_ASR_ERRORS에 "correct in script" 안전장치와 함께 등록하는 게 올바른 위치
+  · glossary는 맥락 무관 무조건 치환 → 짧은 키일수록 오발동 위험 증가
 
 
 ================================================================

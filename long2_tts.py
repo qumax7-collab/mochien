@@ -4,7 +4,6 @@ import os
 import re
 import subprocess
 
-import pykakasi
 import requests
 from dotenv import load_dotenv
 
@@ -29,13 +28,7 @@ SECTIONS = [
 VOICE_LONG_FILE = "long_voice.mp3"
 
 
-def kanji_to_hiragana(text):
-    kks = pykakasi.kakasi()
-    return "".join(item["hira"] for item in kks.convert(text))
-
-
 def get_section_script(data, key):
-    """long_script.json에서 섹션 스크립트 추출."""
     if key == "intro":
         return data["intro"]["script"]
     if key == "outro":
@@ -97,7 +90,6 @@ def main():
     for i, (filename, key) in enumerate(SECTIONS, 1):
         text = get_section_script(data, key)
         text = re.sub(r"[（(][^）)]*[）)]", "", text)
-        text = kanji_to_hiragana(text)
         print(f"  [{i}/{total}] {key} ({len(text)}자) → {filename}")
         audio = tts_request(text, voice_id, api_key)
         with open(filename, "wb") as f:

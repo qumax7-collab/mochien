@@ -7,6 +7,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 PIPELINE = [
     "step2_select.py",
+    "step3_gemini_review.py",
     "step4_pexels.py",
     "step5_tts.py",
     "step6_ffmpeg.py",

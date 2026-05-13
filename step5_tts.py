@@ -3,7 +3,6 @@ import json
 import os
 import re
 import requests
-import pykakasi
 from dotenv import load_dotenv
 
 sys.stdout.reconfigure(encoding="utf-8")
@@ -15,11 +14,6 @@ OUTPUT_FILE = "voice.mp3"
 ELEVENLABS_API = "https://api.elevenlabs.io/v1"
 MODEL_ID = "eleven_flash_v2_5"
 OUTPUT_FORMAT = "mp3_44100_128"
-
-
-def kanji_to_hiragana(text):
-    kks = pykakasi.kakasi()
-    return "".join(item["hira"] for item in kks.convert(text))
 
 
 def get_api_key():
@@ -86,7 +80,6 @@ def main():
 
     script = gpt["script"]
     script = re.sub(r"[（(][^）)]*[）)]", "", script)
-    script = kanji_to_hiragana(script)
     print(f"스크립트 ({len(script)}자):\n{script[:100]}...\n")
 
     print(f"=== TTS 생성 중... (voice_id: {voice_id}) ===")

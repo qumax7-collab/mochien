@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 import subprocess
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -8,16 +9,33 @@ sys.stdout.reconfigure(encoding="utf-8")
 load_dotenv()
 
 # ===== 파일 경로 =====
-INPUT_AUDIO  = "long_voice.mp3"
-INPUT_VIDEO  = "long_output_no_sub.mp4"
-OUTPUT_VIDEO = "long_output.mp4"
-ASS_FILE     = "long_subtitle.ass"
+INPUT_AUDIO     = "long_voice.mp3"
+INPUT_VIDEO     = "long_output_no_sub.mp4"
+OUTPUT_VIDEO    = "long_output.mp4"
+ASS_FILE        = "long_subtitle.ass"
+GLOSSARY_PATH   = "glossary.json"
+GPT_RESULT_PATH = "gpt_result.json"
 
 # ===== 자막 스타일 (1920×1080 기준) =====
 FONT_SIZE      = 72    # 쇼츠 132px → 가로형 비율 조정
 OUTLINE_SIZE   = 4
 WORDS_PER_LINE = 6     # 가로 화면이 넓으므로 쇼츠(4)보다 많게
 GAP_THRESHOLD  = 0.4
+
+
+def apply_glossary(segments):
+    """glossary.json의 오인식 패턴을 세그먼트에 일괄 적용."""
+    if not os.path.exists(GLOSSARY_PATH):
+        return segments
+    try:
+        with open(GLOSSARY_PATH, encoding="utf-8") as f:
+            glossary = json.load(f)
+        for seg in segments:
+            for wrong, correct in glossary.items():
+                seg["text"] = seg["text"].replace(wrong, correct)
+    except Exception:
+        pass
+    return segments
 
 
 def get_font():
@@ -38,15 +56,26 @@ def get_font():
 
 def transcribe(api_key):
     client = OpenAI(api_key=api_key)
+    initial_prompt = ""
+    if os.path.exists(GPT_RESULT_PATH):
+        try:
+            with open(GPT_RESULT_PATH, encoding="utf-8") as f:
+                gpt = json.load(f)
+            initial_prompt = f"{gpt.get('title', '')} {gpt.get('hook', '')}".strip()
+        except Exception:
+            pass
     print(f"Whisper API 전송 중: {INPUT_AUDIO}")
     with open(INPUT_AUDIO, "rb") as f:
-        result = client.audio.transcriptions.create(
+        params = dict(
             model="whisper-1",
             file=f,
             response_format="verbose_json",
             timestamp_granularities=["word"],
             language="ja",
         )
+        if initial_prompt:
+            params["prompt"] = initial_prompt
+        result = client.audio.transcriptions.create(**params)
     words = [{"word": w.word, "start": w.start, "end": w.end} for w in result.words]
     print(f"단어 수: {len(words)}")
     return words
@@ -141,6 +170,7 @@ def main():
     print("\n=== 2단계: 자막 세그먼트 생성 ===")
     segments = group_words(words)
     print(f"세그먼트 수: {len(segments)}")
+    segments = apply_glossary(segments)
     for s in segments[:5]:
         print(f"  [{s['start']:.2f}s - {s['end']:.2f}s] {s['text']}")
 
