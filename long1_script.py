@@ -48,6 +48,9 @@ USER_PROMPT_TEMPLATE = """\
 - 各イシューは「背景・現状→具体的な影響→視聴者へのメッセージ」の3層構造で分析すること
 - 専門用語は平易な言葉で言い換え、具体的な数字・事例・比較を盛り込むこと
 - ショーツとは独立した深掘り内容とし、単なる要約の焼き直しは禁止
+- 日本語原文を事実の根拠として活用すること
+- 数値・引用・固有名詞は原文の記載を正確に反映すること
+- 原文から因果関係・背景・今後の影響を抽出して分析の深みを確保すること
 
 【文字数目安（TTS基準 / 約400字=1分）】
 - intro.script : 約400字（1分）
@@ -94,14 +97,17 @@ USER_PROMPT_TEMPLATE = """\
 ■ トピック①
 タイトル: {title1}
 韓国語要約: {summary1}
+日本語原文: {raw1}
 
 ■ トピック②
 タイトル: {title2}
 韓国語要約: {summary2}
+日本語原文: {raw2}
 
 ■ トピック③
 タイトル: {title3}
 韓国語要約: {summary3}
+日本語原文: {raw3}
 """
 
 
@@ -149,9 +155,9 @@ def call_chatgpt(results):
 
     r1, r2, r3 = results["09"], results["13"], results["18"]
     user_prompt = USER_PROMPT_TEMPLATE.format(
-        title1=r1["title"],   summary1=r1["korean_summary"], script1=r1["script"],
-        title2=r2["title"],   summary2=r2["korean_summary"], script2=r2["script"],
-        title3=r3["title"],   summary3=r3["korean_summary"], script3=r3["script"],
+        title1=r1["title"],  summary1=r1["korean_summary"],  raw1=r1.get("raw_summary_jp", ""),
+        title2=r2["title"],  summary2=r2["korean_summary"],  raw2=r2.get("raw_summary_jp", ""),
+        title3=r3["title"],  summary3=r3["korean_summary"],  raw3=r3.get("raw_summary_jp", ""),
     )
 
     response = client.chat.completions.create(

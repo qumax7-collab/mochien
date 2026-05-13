@@ -421,6 +421,7 @@ def main():
             slot = get_next_slot(out_dir)
             gpt["slot"] = slot
             gpt["article_url"] = article["url"]
+            gpt["raw_summary_jp"] = article["article_body"]
             out_path = os.path.join(out_dir, f"{slot}_gpt_result.json")
             with open(ARTICLE_FILE, "w", encoding="utf-8") as f:
                 json.dump(article, f, ensure_ascii=False, indent=2)
