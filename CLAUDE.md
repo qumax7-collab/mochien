@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 14일 (14차 세션)
+최종 업데이트: 2026년 5월 14일 (15차 세션)
 
 ================================================================
 ## 0. 작업 규칙
@@ -64,7 +64,7 @@ RSS (NHK cat6) 최대 5개 수집
 [ 롱폼 파이프라인 (mochien_longform.yml) — JST 21:00 ]
 → GitHub Artifact에서 당일 gpt_result 3개 파일 복원
 → long1_script.py: gpt-4.1로 롱폼 스크립트 생성 (long_script.json)
-→ long2_tts.py: 5섹션 TTS → long_voice.mp3
+→ long2_tts.py: 5섹션 TTS → long_voice.mp3 + long_chapters.json 생성 (ffprobe 길이 측정)
 → long3_pexels.py: 4개 배경 영상 다운로드
 → long4_ffmpeg.py: 섹션별 클립 생성 → concat → long_output_no_sub.mp4
 → long5_whisper.py: Whisper 자막 합성 → long_output.mp4
@@ -147,7 +147,7 @@ beautifulsoup4            - HTML 파싱
   - short_title：6〜10字の核心キーワード
   - image_prompt：Pexels検索用英語キーワード（例："japanese economy stock market"）
 
-JSON 9필드 상세:
+JSON 9필드 상세 (GPT 출력) + step2에서 3개 추가 = gpt_result.json 총 12필드:
   title          - 영상 제목 (30자 이내 / 시청자 손득·놀라움 직결)
   hook           - 첫 후킹 문장 (일본어 / 생활·손득·驚き 직결)
   hook_korean    - hook 일본어의 자연스러운 한국어 번역 (선택적 필드)
@@ -157,6 +157,10 @@ JSON 9필드 상세:
   emotion        - 영어 감정값 (아래 목록 중 1개)
   image_prompt   - Pexels 검색 영어 키워드
   short_title    - 6~10자 핵심 키워드
+  --- step2_select.py에서 추가 ---
+  slot           - 슬롯 배정 ("09" / "13" / "18")
+  article_url    - 기사 URL (당일 중복 방지용)
+  raw_summary_jp - RSS entry.summary 일본어 원문 본문 (long1_script.py 심층 분석 입력용)
 
 emotion 허용값:
   smile / happy / surprised / shocked / worried /
@@ -296,8 +300,9 @@ API         : YouTube Data API v3 videos.insert
 ## 13. GitHub Actions / 보안 설정 ← 7차 세션 업데이트
 ================================================================
 repo        : https://github.com/qumax7-collab/mochien (Public)
-워크플로우  : .github/workflows/mochien.yml          (쇼츠 / 하루 3회)
-              .github/workflows/mochien_longform.yml  (롱폼 / 하루 1회)
+워크플로우  : .github/workflows/mochien.yml          (쇼츠 / 하루 3회 — 개별 실행용)
+              .github/workflows/mochien_longform.yml  (롱폼 / 하루 1회 — 개별 실행용)
+              .github/workflows/mochien_full.yml       (쇼츠 3편+롱폼 통합 / 하루 1회)
               .github/workflows/keepalive.yml          (repo 활성 유지 / 주 1회)
 실행 환경   : ubuntu-latest / 공개 repo 무료 무제한
 
@@ -356,14 +361,17 @@ C:\mochien\
   ├── token.json
   ├── .github/
   │     └── workflows/
-  │           ├── mochien.yml             ← 쇼츠 파이프라인 (하루 3회)
-  │           ├── mochien_longform.yml    ← 롱폼 파이프라인 (하루 1회)
+  │           ├── mochien.yml             ← 쇼츠 파이프라인 (하루 3회 — 개별 실행용)
+  │           ├── mochien_longform.yml    ← 롱폼 파이프라인 (하루 1회 — 개별 실행용)
+  │           ├── mochien_full.yml        ← 쇼츠 3편+롱폼 통합 워크플로우 (하루 1회)
   │           └── keepalive.yml           ← repo 활성 유지 (주 1회)
   ├── venv\
   ├── [ 쇼츠 파이프라인 ]
   ├── telegram_trigger.py                 ← 텔레그램 수동 트리거 봇 (PC 로컬 실행용)
   ├── start_bot.bat                       ← telegram_trigger.py 실행 배치파일
-  ├── run_pipeline.py                     ← 쇼츠 전체 실행 (step2→4→5→6→7→9)
+  ├── run_all.py                          ← 전체 파이프라인 일괄 실행 (쇼츠 3편+롱폼)
+  ├── run_all.bat                         ← run_all.py 더블클릭 실행파일
+  ├── run_pipeline.py                     ← 쇼츠 1편 실행 (step2→4→5→6→7→9 / 3회 실행 후 롱폼 자동)
   ├── step2_rss_crawler.py
   ├── step2_select.py                     ← RSS + ChatGPT + 텔레그램 선택
   ├── step3_chatgpt.py                    ← step2_select에 통합됨
@@ -394,6 +402,7 @@ C:\mochien\
   ├── long_clip_intro.mp4 … long_clip_outro.mp4
   ├── long_output_no_sub.mp4
   ├── long_output.mp4
+  ├── long_chapters.json                  ← long2_tts.py가 생성 / long6_youtube.py가 소비
   └── output/                             ← 날짜별 gpt_result (롱폼 연결용)
         └── 2026-05-10/
               ├── 09_gpt_result.json
@@ -576,17 +585,43 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
             ("乱行政" → "ラン情勢") — イラン情勢 세그먼트 분리 후반부
             ("岸外務省" → "外務省") — 元外務省 오인식
 
-🔜  24. 워드프레스 REST API 블로그 자동 발행
-🔜  25. emotion 자동 매핑 복원 (블로그 자동발행 이후)
-🔜  26. 롱폼 분량 확대 (현재 ~5분 → 목표 7분, long1_script.py 문자수 목표 상향)
+✅  24. 15차 세션 기능 추가 (2026-05-14)
+        - mochien_full.yml: 쇼츠 3편 + 롱폼 통합 GitHub Actions 워크플로우 신규 생성
+          · workflow_dispatch 단일 트리거로 쇼츠 3슬롯 순차 처리 → 롱폼 자동 이어서 실행
+          · timeout-minutes: 180 / 기존 mochien.yml · mochien_longform.yml은 개별 실행용으로 유지
+        - run_all.py: 로컬 전체 파이프라인 일괄 실행 스크립트 신규 생성
+          · 시작 시 오늘 슬롯 파일 3개 자동 초기화 (clean start / 재실행 시 중복 방지)
+          · 각 슬롯 완료 후 all_slots_done() 체크 → True면 break (롱폼 중복 실행 방지)
+        - run_all.bat: run_all.py 더블클릭 실행파일 신규 생성 (pause로 창 유지)
+        - step2_select.py: gpt_result.json에 raw_summary_jp 필드 추가
+          · 값: RSS entry.summary (일본어 원문 본문)
+          · 총 12개 필드 (GPT 9 + step2 추가: slot / article_url / raw_summary_jp)
+        - long1_script.py: raw_summary_jp를 롱폼 스크립트 생성 프롬프트에 포함
+          · USER_PROMPT_TEMPLATE에 "日本語原文: {raw1/2/3}" 섹션 추가
+          · 【深掘り分析の方針】에 원문 활용 3개 지시 추가
+            "日本語原文を事実の根拠として活用" / "数値・引用・固有名詞は原文基準" / "因果関係・背景・今後の影響を抽出"
+        - long2_tts.py: 5섹션 mp3 생성 후 long_chapters.json 자동 생성
+          · ffprobe_duration()으로 각 섹션 mp3 길이 측정
+          · 누적 시작 시각 계산 → 챕터 라벨 조립
+            intro→"オープニング" / issue1~3→"①②③+short_title" / outro→"まとめ"
+          · short_title은 오늘 날짜 09/13/18 gpt_result.json에서 읽음 (없으면 トピック①②③ fallback)
+        - long6_youtube.py: long_chapters.json 읽어 description 상단에 챕터 타임라인 삽입
+          · 형식: "MM:SS 라벨" (1시간 이상 시 H:MM:SS) / 파일 없으면 기존 description 유지
 
-실행 순서 (쇼츠):
-  python run_pipeline.py   ← 통합 실행
+🔜  25. 워드프레스 REST API 블로그 자동 발행
+🔜  26. emotion 자동 매핑 복원 (블로그 자동발행 이후)
+🔜  27. 롱폼 분량 확대 (현재 ~5분 → 목표 7분, long1_script.py 문자수 목표 상향)
+
+실행 순서 (전체 — 권장):
+  python run_all.py        ← 쇼츠 3편 + 롱폼 통합 실행 (run_all.bat 더블클릭도 가능)
+
+실행 순서 (쇼츠 단독):
+  python run_pipeline.py   ← 1편 실행. 3회 실행 후 롱폼 자동 트리거
   또는 단계별:
     python step2_select.py → step4_pexels.py → step5_tts.py
     → step6_ffmpeg.py → step7_whisper_subtitle.py → step9_youtube.py
 
-실행 순서 (롱폼):
+실행 순서 (롱폼 단독):
   python run_longform.py   ← 통합 실행
   또는 단계별:
     python long1_script.py → long2_tts.py → long3_pexels.py
@@ -713,6 +748,14 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
 - Whisper セグメント 분리 패턴: イラン情勢 → 앞 세그먼트 끝에 "イ" 흡수 → 후반부가 "乱行政"으로 오인식
   부분 패턴 ("乱行政" → "ラン情勢")으로 대응 / 흡수된 "イ"는 교정 불가 (허용 범위)
 - 元外務省 → 岸外務省 오인식: 발음 유사로 Whisper 오변환 / ("岸外務省" → "外務省")으로 대응
+- YouTube 챕터 인식 조건: description에 "MM:SS 라벨" 형식 3개 이상 / 첫 챕터는 반드시 00:00
+  → long2_tts.py가 long_chapters.json 생성 / long6_youtube.py가 description 상단에 삽입
+- long_chapters.json: long2_tts.py → long6_youtube.py 단방향 파일 전달 / 없으면 챕터 없이 스킵
+- ffprobe_duration(): ffprobe -show_entries format=duration -of csv=p=0 / 결과가 초(float)로 반환
+- run_all.py 슬롯 초기화: 실행 시작 시 오늘 슬롯 파일 삭제 → 재실행 시 항상 09부터 clean start
+  오늘 영상 이미 있어도 run_all.py 실행 시 초기화 후 새로 3편 생성 (의도적 설계)
+- raw_summary_jp: RSS entry.summary 원문을 gpt_result.json에 저장
+  long1_script.py 프롬프트에 포함 → GPT가 원문 근거로 수치·고유명사 정확히 반영하며 심층 분석
 
 
 ================================================================
