@@ -273,7 +273,7 @@ def call_claude(gemini_result, script_text, pronunciation_data, glossary_data):
 
     message = client.messages.create(
         model=CLAUDE_MODEL,
-        max_tokens=2048,
+        max_tokens=4096,
         system=CLAUDE_SYSTEM,
         messages=[{"role": "user", "content": user_prompt}],
     )

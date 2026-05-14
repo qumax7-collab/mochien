@@ -16,7 +16,8 @@ OUTPUT_DIR       = "output"
 LONG_SCRIPT_FILE = "long_script.json"
 SLOTS            = ["09", "13", "18"]
 
-JST = datetime.timezone(datetime.timedelta(hours=9))
+JST              = datetime.timezone(datetime.timedelta(hours=9))
+MIN_ISSUE_CHARS  = 700   # 재시도 임계값 (자)
 
 # ===== 공통 시스템 프롬프트 (5회 모두 적용) =====
 SYSTEM_PROMPT = """\
@@ -62,6 +63,7 @@ PROMPT_INTRO = """\
 
 PROMPT_ISSUE = """\
 【トピック{idx}セクション生成】
+このセクション全体で最低700字以上の日本語で書くこと。
 
 必須項目（すべて含めること / 各項目3〜4文）:
 1. 背景: なぜこの出来事が起きたのか
@@ -209,6 +211,28 @@ def call_issue(client, idx, r, prev_summaries):
     return result, usage
 
 
+def call_issue_retry(client, idx, r, prev_summaries, prev_content):
+    """issue 글자수 부족 시 1회 재시도 — 짧았다는 지시를 prepend."""
+    prev_text = "\n".join(prev_summaries) if prev_summaries else "（なし）"
+    retry_prefix = (
+        f"前回の出力は{len(prev_content)}字と短すぎました。"
+        f"各項目を最低5文以上で詳しく書き直してください。\n\n"
+    )
+    prompt = retry_prefix + PROMPT_ISSUE.format(
+        idx=idx,
+        raw=r.get("raw_summary_jp") or r["korean_summary"],
+        prev_summaries=prev_text,
+    )
+    result, usage = call_section(
+        client,
+        [{"role": "system", "content": SYSTEM_PROMPT},
+         {"role": "user",   "content": prompt}],
+        f"issue{idx}_retry",
+    )
+    print(f"      완료 ({len(result.get('content', ''))}자 / 토큰 {usage.total_tokens:,})")
+    return result, usage
+
+
 def call_outro(client, r1, r2, r3, all_summaries):
     print("[5/5] outro 생성 중...")
     prompt = PROMPT_OUTRO.format(
@@ -278,10 +302,26 @@ def main():
     # 2~4/5 issues
     issue_results = []
     for i in range(3):
-        result, u = call_issue(client, i + 1, r_list[i], list(summaries))
+        # 직전 섹션 summary 1개만 전달 (전체 누적 시 GPT가 요약 모드로 전환되는 문제 방지)
+        prev = [summaries[-1]] if summaries else []
+        result, u = call_issue(client, i + 1, r_list[i], prev)
+        total_tokens += u.total_tokens
+
+        content_len = len(result.get("content", ""))
+        if content_len < MIN_ISSUE_CHARS:
+            print(f"  [경고] issue{i+1} 글자수 부족 ({content_len}자 / 목표 {MIN_ISSUE_CHARS}자), 재시도 중...")
+            retry_result, retry_u = call_issue_retry(
+                client, i + 1, r_list[i], prev, result.get("content", "")
+            )
+            total_tokens += retry_u.total_tokens
+            retry_len = len(retry_result.get("content", ""))
+            if retry_len >= MIN_ISSUE_CHARS:
+                result = retry_result
+            else:
+                print(f"  [경고] issue{i+1} 재시도도 짧음 ({retry_len}자), 그대로 사용")
+
         summaries.append(f"トピック{i + 1}要約:\n{result['summary']}")
         issue_results.append(result)
-        total_tokens += u.total_tokens
 
     # 5/5 outro
     outro_result, u = call_outro(client, *r_list, list(summaries))
