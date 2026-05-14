@@ -18,8 +18,10 @@ OUTPUT_DIR        = "output"
 SLOTS             = ["09", "13", "18"]
 JST               = datetime.timezone(datetime.timedelta(hours=9))
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-TTS_MODEL         = "eleven_flash_v2_5"
+TTS_MODEL_ID      = "eleven_multilingual_v2"
 TTS_OUTPUT_FORMAT = "mp3_44100_128"
+PD_ID             = os.getenv("ELEVENLABS_PD_ID", "")
+PD_VERSION_ID     = os.getenv("ELEVENLABS_PD_VERSION_ID", "")
 CONCAT_LIST_FILE  = "long_voice_concat.txt"
 PRONUNCIATION_PATH = "pronunciation.json"
 
@@ -117,9 +119,13 @@ def tts_request(text, voice_id, api_key):
     }
     body = {
         "text": text,
-        "model_id": TTS_MODEL,
+        "model_id": TTS_MODEL_ID,
         "output_format": TTS_OUTPUT_FORMAT,
     }
+    if PD_ID and PD_VERSION_ID:
+        body["pronunciation_dictionary_locators"] = [
+            {"pronunciation_dictionary_id": PD_ID, "version_id": PD_VERSION_ID}
+        ]
     resp = requests.post(url, headers=headers, json=body, timeout=60)
     resp.raise_for_status()
     return resp.content

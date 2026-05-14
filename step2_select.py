@@ -86,7 +86,11 @@ USER_PROMPT = """
 - #Shorts必須
 
 【その他】
-- 誤読しやすい漢字にはふりがなを括弧で併記すること
+- 人名・企業名・役職名・専門経済用語は必ずふりがなを括弧で併記すること
+- ふりがなはひらがなのみで記載（カタカナ・漢字は禁止）
+- 日常漢字（政府・経済・会社・日本・市場など）はふりがな不要
+- 誤読リスクのある固有名詞・複合語のみ対象
+- 例：高市（たかいち）首相、黒字転換（くろじてんかん）、萩生田（はぎうだ）氏
 - 人名・企業名・役職名は正確に表記すること
 - short_title：6〜10字の核心キーワード
 - image_prompt：Pexels検索用英語キーワード（例："japanese economy stock market"）
@@ -359,7 +363,17 @@ def call_chatgpt(title, article_body):
     missing = REQUIRED_KEYS - data.keys()
     if missing:
         raise Exception(f"필수 키 누락: {missing}")
+    _check_furigana(data.get("script", ""))
     return data
+
+
+def _check_furigana(script: str):
+    """3자 이상 연속 한자가 있는데 후리가나 괄호가 0개면 경고 로그 출력 (파이프라인 중단 없음)."""
+    import re as _re
+    has_kanji_run = bool(_re.search(r"[一-鿿]{3,}", script))
+    has_furigana = bool(_re.search(r"[（(][ぁ-ん]{1,}[）)]", script))
+    if has_kanji_run and not has_furigana:
+        print("[경고] 스크립트에 3자 이상 연속 한자가 있지만 후리가나 괄호가 없습니다. GPT 출력 확인 권장.")
 
 
 # ─────────────────────────────────────────

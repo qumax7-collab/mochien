@@ -216,12 +216,16 @@ Query params: query={image_prompt 키워드}, per_page=1
 ================================================================
 ## 8. ElevenLabs TTS 설정
 ================================================================
-모델        : Eleven Flash v2.5
+모델        : Eleven Multilingual v2 (eleven_multilingual_v2) ← 17차 세션 변경
 보이스      : Harune (일본어 여성 / 차분한 뉴스 앵커 스타일)
 API 키명    : Mozzi
 출력 형식   : mp3_44100_128
 연동 방식   : Python requests로 직접 API 호출
 입력 텍스트 : ChatGPT JSON의 script 필드
+발음 사전   : ElevenLabs Pronunciation Dictionary API (alias 규칙 / 일본어 phoneme 미지원)
+              upload_pronunciation_dict.py 실행 → ELEVENLABS_PD_ID / ELEVENLABS_PD_VERSION_ID 취득
+              .env / GitHub Secrets 등록 후 TTS 호출 시 자동 적용
+              미등록 시 자동 스킵 (하위 호환 유지)
 
 
 ================================================================
@@ -639,9 +643,26 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
         - yml 3종: GEMINI_API_KEY / ANTHROPIC_API_KEY Secret 주입 추가
         - requirements.txt: anthropic 추가
 
-🔜  26. 워드프레스 REST API 블로그 자동 발행
-🔜  27. emotion 자동 매핑 복원 (블로그 자동발행 이후)
-🔜  28. 롱폼 분량 확대 (현재 ~5분 → 목표 7분, long1_script.py 문자수 목표 상향)
+✅  26. 17차 세션 — 발음 정확도 개선 (2026-05-15)
+        - step5_tts.py / long2_tts.py: TTS 모델 eleven_flash_v2_5 → eleven_multilingual_v2 변경
+          상수명 TTS_MODEL_ID로 통일 (NO MAGIC NUMBERS 원칙)
+        - pronunciation.json: 초기 사전 71개 등록
+          카테고리: 정치인·관료명(불규칙 독음) / 금융기관 / 기업명 / 경제용어 / 통화·시장 용어
+          복합 키(三菱UFJ銀行)를 단순 키(三菱)보다 앞에 배치 → 부분 치환 오작동 방지
+        - upload_pronunciation_dict.py 신규 생성
+          pronunciation.json → ElevenLabs alias 규칙으로 변환 후 API 업로드
+          결과 ID를 .env / GitHub Secrets에 등록하면 TTS 호출 시 자동 적용
+        - step5_tts.py / long2_tts.py: ELEVENLABS_PD_ID / PD_VERSION_ID 환경변수 연동
+          두 값 모두 있을 때만 pronunciation_dictionary_locators 파라미터 추가 (없으면 스킵)
+        - step2_select.py: USER_PROMPT 후리가나 지시 강화
+          인명·기업명·역직명·전문 경제용어 → 반드시 히라가나 괄호 병기
+          _check_furigana(): 3자 이상 연속 한자 있고 후리가나 0개면 경고 로그 (파이프라인 유지)
+        - step10_gemini_review.py: max_tokens 1024 → 2048 (JSONDecodeError 수정)
+
+🔜  27. 워드프레스 REST API 블로그 자동 발행
+🔜  28. emotion 자동 매핑 복원 (블로그 자동발행 이후)
+🔜  29. 롱폼 분량 확대 (현재 ~5분 → 목표 7분, long1_script.py 문자수 목표 상향)
+🔜  30. run_all.py — 기사 3개 먼저 선택 후 영상 3개 일괄 생성 방식으로 리팩토링
 
 실행 순서 (전체 — 권장):
   python run_all.py        ← 쇼츠 3편 + 롱폼 통합 실행 (run_all.bat 더블클릭도 가능)
@@ -800,6 +821,16 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
   SYSTEM_PROMPT를 한국어로 작성해야 meaning_ko/reason이 한국어로 출력됨
 - step10 notify_telegram() 알림 조건: applied + rejected 합산 1건 이상이면 발송
   applied만 체크하면 rejected(보류) 건수가 있어도 알림이 생략되는 버그 발생
+- step10 max_tokens=1024는 Gemini 오류 후보가 많을 때 Claude JSON 응답이 잘려 JSONDecodeError 발생
+  → 2048로 상향. 복잡한 검수 결과가 예상되면 더 높여야 할 수 있음
+- ElevenLabs Pronunciation Dictionary: 일본어는 phoneme 태그 미지원 → alias 태그만 사용 가능
+  upload_pronunciation_dict.py로 한 번만 업로드 → ID를 .env에 저장 → TTS 호출마다 자동 참조
+  pronunciation.json 자체 치환(apply_pronunciation)과 병용 → 이중 안전망
+- pronunciation.json 키 순서 중요: 복합 키(三菱UFJ銀行)를 단순 키(三菱)보다 앞에 배치해야
+  단순 키가 먼저 치환되어 복합 키가 매칭 실패하는 사고 방지 (json.load는 삽입 순서 보존)
+- pykakasi는 CLAUDE.md 12차 세션에 추가 기록됐으나 실제 코드에 반영되지 않은 상태
+  step5_tts.py / long2_tts.py 어디에도 kanji_to_hiragana() 없음 / requirements.txt에도 미등록
+  ElevenLabs 자체 한자 처리 + pronunciation.json 치환 조합으로 충분히 대응 가능
 
 
 ================================================================

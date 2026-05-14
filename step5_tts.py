@@ -12,9 +12,11 @@ INPUT_FILE = "gpt_result.json"
 OUTPUT_FILE = "voice.mp3"
 
 ELEVENLABS_API = "https://api.elevenlabs.io/v1"
-MODEL_ID = "eleven_flash_v2_5"
+TTS_MODEL_ID = "eleven_multilingual_v2"
 OUTPUT_FORMAT = "mp3_44100_128"
 PRONUNCIATION_PATH = "pronunciation.json"
+PD_ID = os.getenv("ELEVENLABS_PD_ID", "")
+PD_VERSION_ID = os.getenv("ELEVENLABS_PD_VERSION_ID", "")
 
 
 def get_api_key():
@@ -51,12 +53,16 @@ def generate_tts(text, voice_id):
     url = f"{ELEVENLABS_API}/text-to-speech/{voice_id}?output_format={OUTPUT_FORMAT}"
     payload = {
         "text": text,
-        "model_id": MODEL_ID,
+        "model_id": TTS_MODEL_ID,
         "voice_settings": {
             "stability": 0.5,
             "similarity_boost": 0.75,
         },
     }
+    if PD_ID and PD_VERSION_ID:
+        payload["pronunciation_dictionary_locators"] = [
+            {"pronunciation_dictionary_id": PD_ID, "version_id": PD_VERSION_ID}
+        ]
     res = requests.post(
         url,
         headers={"xi-api-key": key, "Content-Type": "application/json"},
