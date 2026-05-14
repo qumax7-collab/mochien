@@ -699,6 +699,16 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
           · image_prompt: 각 슬롯 gpt_result.json에서 재사용 (추가 GPT 호출 없음)
           · emotion 필드 제거 (long2~6·step10 모두 미사용 확인)
           · 섹션별 글자수 + 총 토큰 합산 로깅 추가
+        - 후속 수정 (issue 글자수 부족 + step10 JSONDecodeError):
+          [A] issue prev_summaries 직전 1개만 전달 (전체 누적 시 GPT 요약 모드 전환 방지)
+          [B] PROMPT_ISSUE에 "最低700字以上" 명시 + "titleは必ず日本語のみ（韓国語・英語禁止）" 추가
+          [C] call_issue_retry() — 700자 미만 시 1회 재시도 (실패해도 파이프라인 계속)
+          [D] step10_gemini_review.py max_tokens 2048 → 4096
+          [E] PROMPT_ISSUE title 필드 일본어 강제 (챕터 한국어 제목 출력 버그 수정)
+        - step10_gemini_review.py: call_claude() 발음·자막 2회 분할 호출로 재작성
+          · 기존: 발음+자막 전체 1회 호출 → 후보 87건 시 max_tokens=4096도 초과
+          · 변경: 발음 후보만 1차 호출 / 자막 후보만 2차 호출 → 결과 병합 반환
+          · 외부 시그니처·반환값 구조 유지 → 하위 로직 변경 없음
 
 🔜  29. 워드프레스 REST API 블로그 자동 발행
 🔜  30. emotion 자동 매핑 복원 (블로그 자동발행 이후)
@@ -862,7 +872,12 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
 - step10 notify_telegram() 알림 조건: applied + rejected 합산 1건 이상이면 발송
   applied만 체크하면 rejected(보류) 건수가 있어도 알림이 생략되는 버그 발생
 - step10 max_tokens=1024는 Gemini 오류 후보가 많을 때 Claude JSON 응답이 잘려 JSONDecodeError 발생
-  → 2048로 상향. 복잡한 검수 결과가 예상되면 더 높여야 할 수 있음
+  → 2048→4096 상향해도 롱폼 87건 후보에서 여전히 잘림
+  → 근본 해결: call_claude()를 발음/자막 각각 별도 호출로 분리 (max_tokens=4096×2)
+  → 외부 시그니처·반환값 구조 유지하면 하위 로직 변경 없이 내부만 교체 가능
+- long1_script.py PROMPT_ISSUE의 title 필드에 언어 지시 없으면 GPT가 한국어 제목 출력
+  → 롱폼 챕터(YouTube description)에 한국어 그대로 노출되는 버그
+  → "titleは必ず日本語のみで書くこと（韓国語・英語禁止）" + 포맷에 "日本語のみ・14字以内" 명시로 해결
 - ElevenLabs Pronunciation Dictionary: 일본어는 phoneme 태그 미지원 → alias 태그만 사용 가능
   upload_pronunciation_dict.py로 한 번만 업로드 → ID를 .env에 저장 → TTS 호출마다 자동 참조
   pronunciation.json 자체 치환(apply_pronunciation)과 병용 → 이중 안전망
