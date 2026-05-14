@@ -240,16 +240,15 @@ def call_gemini(audio_bytes, script_text, srt_text, known_pronunc, known_glossar
 
 
 def call_claude(gemini_result, script_text, pronunciation_data, glossary_data):
-    """Claude 2차 검증. 검토 결과 dict 반환."""
+    """Claude 2차 검증. 발음·자막 각각 별도 호출 후 병합."""
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         raise ValueError("ANTHROPIC_API_KEY가 .env에 없습니다.")
 
     client = anthropic.Anthropic(api_key=api_key)
+    combined = {"pronunciation_reviewed": [], "subtitle_reviewed": []}
 
-    user_prompt = f"""\
-【Gemini抽出候補】
-{json.dumps(gemini_result, ensure_ascii=False, indent=2)}
+    context_block = f"""\
 
 【原稿全文】
 {script_text}
@@ -259,31 +258,59 @@ def call_claude(gemini_result, script_text, pronunciation_data, glossary_data):
 
 【現在のglossary.json】
 {json.dumps(glossary_data, ensure_ascii=False, indent=2)}
-
-上記の候補を審査し、以下のスキーマでJSONのみを返してください:
-{{
-  "pronunciation_reviewed": [
-    {{"kanji": "...", "correct_reading": "...", "meaning_ko": "한국어 뜻", "approve": true/false, "reason": "한국어로 이유"}}
-  ],
-  "subtitle_reviewed": [
-    {{"correct": "...", "misheard": "...", "meaning_ko": "한국어 뜻", "approve": true/false, "reason": "한국어로 이유"}}
-  ]
-}}
 """
 
-    message = client.messages.create(
-        model=CLAUDE_MODEL,
-        max_tokens=4096,
-        system=CLAUDE_SYSTEM,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
+    def _parse(text):
+        text = text.strip()
+        if text.startswith("```"):
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+        return json.loads(text.strip())
 
-    text = message.content[0].text.strip()
-    if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
-    return json.loads(text.strip())
+    # 1/2: 발음 검증
+    pron_items = gemini_result.get("pronunciation_errors", [])
+    if pron_items:
+        print("  [1/2] 발음 후보 Claude 검증 중...")
+        prompt = (
+            f"【Gemini抽出候補 — 発音エラー】\n"
+            f"{json.dumps(pron_items, ensure_ascii=False, indent=2)}"
+            f"{context_block}"
+            "上記の候補を審査し、以下のスキーマでJSONのみを返してください:\n"
+            '{{\n  "pronunciation_reviewed": [\n'
+            '    {{"kanji": "...", "correct_reading": "...", "meaning_ko": "한국어 뜻", "approve": true/false, "reason": "한국어로 이유"}}\n'
+            '  ]\n}}'
+        )
+        msg = client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=4096,
+            system=CLAUDE_SYSTEM,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        combined["pronunciation_reviewed"] = _parse(msg.content[0].text).get("pronunciation_reviewed", [])
+
+    # 2/2: 자막 검증
+    sub_items = gemini_result.get("subtitle_errors", [])
+    if sub_items:
+        print("  [2/2] 자막 후보 Claude 검증 중...")
+        prompt = (
+            f"【Gemini抽出候補 — 字幕誤認識】\n"
+            f"{json.dumps(sub_items, ensure_ascii=False, indent=2)}"
+            f"{context_block}"
+            "上記の候補を審査し、以下のスキーマでJSONのみを返してください:\n"
+            '{{\n  "subtitle_reviewed": [\n'
+            '    {{"correct": "...", "misheard": "...", "meaning_ko": "한국어 뜻", "approve": true/false, "reason": "한국어로 이유"}}\n'
+            '  ]\n}}'
+        )
+        msg = client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=4096,
+            system=CLAUDE_SYSTEM,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        combined["subtitle_reviewed"] = _parse(msg.content[0].text).get("subtitle_reviewed", [])
+
+    return combined
 
 
 def apply_approved(claude_result):
