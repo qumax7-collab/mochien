@@ -60,74 +60,9 @@ jobs:
           CLIENT_SECRETS: ${{ secrets.CLIENT_SECRETS }}
         run: echo "$CLIENT_SECRETS" > client_secrets.json
 
-      # ─── 쇼츠 슬롯 1 (09) ───────────────────────────────
-      - name: "[슬롯1] step2 — 기사 선택 (Telegram)"
-        run: python step2_select.py
-
-      - name: "[슬롯1] step4 — Pexels 배경 영상"
-        run: python step4_pexels.py
-
-      - name: "[슬롯1] step5 — ElevenLabs TTS"
-        run: python step5_tts.py
-
-      - name: "[슬롯1] step6 — FFmpeg 합성"
-        run: python step6_ffmpeg.py
-
-      - name: "[슬롯1] step7 — Whisper 자막"
-        run: python step7_whisper_subtitle.py
-
-      - name: "[슬롯1] step9 — YouTube 업로드"
-        run: python step9_youtube.py
-
-      - name: "[슬롯1] step10 — Gemini+Claude 검수"
-        continue-on-error: true
-        run: python step10_gemini_review.py --mode shorts
-
-      # ─── 쇼츠 슬롯 2 (13) ───────────────────────────────
-      - name: "[슬롯2] step2 — 기사 선택 (Telegram)"
-        run: python step2_select.py
-
-      - name: "[슬롯2] step4 — Pexels 배경 영상"
-        run: python step4_pexels.py
-
-      - name: "[슬롯2] step5 — ElevenLabs TTS"
-        run: python step5_tts.py
-
-      - name: "[슬롯2] step6 — FFmpeg 합성"
-        run: python step6_ffmpeg.py
-
-      - name: "[슬롯2] step7 — Whisper 자막"
-        run: python step7_whisper_subtitle.py
-
-      - name: "[슬롯2] step9 — YouTube 업로드"
-        run: python step9_youtube.py
-
-      - name: "[슬롯2] step10 — Gemini+Claude 검수"
-        continue-on-error: true
-        run: python step10_gemini_review.py --mode shorts
-
-      # ─── 쇼츠 슬롯 3 (18) ───────────────────────────────
-      - name: "[슬롯3] step2 — 기사 선택 (Telegram)"
-        run: python step2_select.py
-
-      - name: "[슬롯3] step4 — Pexels 배경 영상"
-        run: python step4_pexels.py
-
-      - name: "[슬롯3] step5 — ElevenLabs TTS"
-        run: python step5_tts.py
-
-      - name: "[슬롯3] step6 — FFmpeg 합성"
-        run: python step6_ffmpeg.py
-
-      - name: "[슬롯3] step7 — Whisper 자막"
-        run: python step7_whisper_subtitle.py
-
-      - name: "[슬롯3] step9 — YouTube 업로드"
-        run: python step9_youtube.py
-
-      - name: "[슬롯3] step10 — Gemini+Claude 검수"
-        continue-on-error: true
-        run: python step10_gemini_review.py --mode shorts
+      # ─── 전체 파이프라인 실행 ────────────────────────────
+      - name: run_all — 기사 일괄 선택 + 쇼츠 3편 + 롱폼
+        run: python run_all.py
 
       # ─── gpt_results artifact 업로드 ────────────────────
       - name: Upload gpt_results artifact
@@ -138,26 +73,3 @@ jobs:
           path: output/
           retention-days: 1
           overwrite: true
-
-      # ─── 롱폼 파이프라인 ────────────────────────────────
-      - name: long1 — 롱폼 스크립트 생성
-        run: python long1_script.py
-
-      - name: long2 — TTS 생성
-        run: python long2_tts.py
-
-      - name: long3 — Pexels 배경 영상 다운로드
-        run: python long3_pexels.py
-
-      - name: long4 — FFmpeg 영상 합성
-        run: python long4_ffmpeg.py
-
-      - name: long5 — Whisper 자막 합성
-        run: python long5_whisper.py
-
-      - name: long6 — YouTube 업로드
-        run: python long6_youtube.py
-
-      - name: step10 — Gemini+Claude 검수 (롱폼)
-        continue-on-error: true
-        run: python step10_gemini_review.py --mode longform

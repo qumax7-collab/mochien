@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 14일 (16차 세션)
+최종 업데이트: 2026년 5월 15일 (18차 세션)
 
 ================================================================
 ## 0. 작업 규칙
@@ -43,15 +43,15 @@
 ## 2. 전체 자동화 플로우
 ================================================================
 [ step2_select.py — 기사 선택 ]
-RSS (NHK cat6) 최대 5개 수집
-→ 기사별 ChatGPT API (gpt-4.1-mini) → 한국어 요약 생성
-→ 텔레그램 기사 선택 (✅ 진행 / 🔄 다음 / ❌ 취소)
-→ article.json + gpt_result.json 저장
-→ gpt_result.json을 output/{날짜}/{시간}_gpt_result.json 에도 복사 (롱폼 연결용)
+RSS (NHK cat6/cat5 + Yahoo Japan 비즈니스) 최대 5개 수집
+→ 기사별 ChatGPT API (gpt-4.1-mini) 병렬 호출 → 한국어 요약 생성
+→ 단독 모드 (기본): 텔레그램 기사 선택 1건 (✅ 진행 / 🔄 다음 / ❌ 취소) → gpt_result.json 저장
+→ 일괄 모드 (--batch): 후보 전체 메시지 전송 → 텔레그램에서 3건 선택 → 09/13/18_gpt_result.json 동시 생성
+→ 슬롯 파일을 output/{날짜}/{슬롯}_gpt_result.json에 저장 (롱폼 연결용)
 
 [ step4~step7 — 영상 생성 ]
 → Pexels API 배경 영상 취득
-→ ElevenLabs TTS (Eleven Flash v2.5) → 일본어 음성 생성
+→ ElevenLabs TTS (Eleven Multilingual v2) + 발음 사전 (pronunciation.json) → 일본어 음성 생성
 → FFmpeg 영상 합성 (1080x1920) + 쿨 블루 컬러그레이딩 + 비네팅
 → Whisper API 일본어 자막 합성
 
@@ -659,10 +659,35 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
           _check_furigana(): 3자 이상 연속 한자 있고 후리가나 0개면 경고 로그 (파이프라인 유지)
         - step10_gemini_review.py: max_tokens 1024 → 2048 (JSONDecodeError 수정)
 
-🔜  27. 워드프레스 REST API 블로그 자동 발행
-🔜  28. emotion 자동 매핑 복원 (블로그 자동발행 이후)
-🔜  29. 롱폼 분량 확대 (현재 ~5분 → 목표 7분, long1_script.py 문자수 목표 상향)
-🔜  30. run_all.py — 기사 3개 먼저 선택 후 영상 3개 일괄 생성 방식으로 리팩토링
+✅  27. 18차 세션 — 기사 일괄 선택 + 파이프라인 구조 변경 (2026-05-15)
+        - step2_select.py: --batch 모드 추가 (전면 재작성)
+          · single_main(): 기존 단독 선택 모드 (--batch 없이 실행 시)
+            RSS 전체 실패 시 TG error 전송 + sys.exit(1)
+          · batch_main(): 신규 일괄 선택 모드 (--batch 플래그)
+            · fetch_articles() try/except → 실패 시 TG error + sys.exit(1)
+            · ThreadPoolExecutor 병렬 GPT 호출 (5개 동시)
+            · 후보 전체를 텔레그램에 카드형 메시지로 전송
+            · sel_{idx}/pas_{idx} 버튼으로 3개 선택 완료 시 저장
+            · 30분 타임아웃 / "취소" 텍스트 입력으로 중단
+            · 선택 순서대로 09/13/18_gpt_result.json 저장
+          · batch_poll(): 복수 메시지 ID + "취소" 텍스트 동시 폴링
+            allowed_updates: ["callback_query", "message"]
+        - run_all.py: 전면 재작성
+          · step2_select.py --batch 1회 실행 → 슬롯 파일 3개 동시 생성
+          · for slot in [09, 13, 18]:
+              shutil.copy({slot}_gpt_result.json → gpt_result.json)
+              step4~9 순차 실행
+              슬롯 실패 시 TG 알림 "⚠️ 슬롯 {slot} 실패 / 나머지 계속" + 다음 슬롯 진행
+              step10 --mode shorts (실패 무시)
+          · 전체 슬롯 실패 시 롱폼 건너뜀 + sys.exit(1)
+          · 롱폼: run_longform.py 호출 (step10 longform 포함)
+        - mochien_full.yml: python run_all.py 단일 호출로 대폭 간소화
+          · 기존: step2 × 3 + step4~9 × 3 + step10 × 3 + long1~6 + step10 longform
+          · 변경: python run_all.py 1줄 → 전체 로직은 run_all.py에서 관리
+
+🔜  28. 워드프레스 REST API 블로그 자동 발행
+🔜  29. emotion 자동 매핑 복원 (블로그 자동발행 이후)
+🔜  30. 롱폼 분량 확대 (현재 ~5분 → 목표 7분, long1_script.py 문자수 목표 상향)
 
 실행 순서 (전체 — 권장):
   python run_all.py        ← 쇼츠 3편 + 롱폼 통합 실행 (run_all.bat 더블클릭도 가능)
@@ -831,6 +856,18 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
 - pykakasi는 CLAUDE.md 12차 세션에 추가 기록됐으나 실제 코드에 반영되지 않은 상태
   step5_tts.py / long2_tts.py 어디에도 kanji_to_hiragana() 없음 / requirements.txt에도 미등록
   ElevenLabs 자체 한자 처리 + pronunciation.json 치환 조합으로 충분히 대응 가능
+- step2_select.py --batch 모드: 선택 완료 시 09/13/18_gpt_result.json 동시 생성
+  run_all.py가 shutil.copy()로 각 슬롯 파일을 gpt_result.json에 덮어쓰는 Approach B 채택
+  step4~9는 gpt_result.json만 읽으므로 수정 없이 그대로 재사용 가능
+- batch_poll(): allowed_updates: ["callback_query", "message"] 로 혼합 폴링
+  callback_data 형식: "sel_{idx}" (선택 토글) / "pas_{idx}" (다음 기사 — 현재 미사용)
+  "취소" 텍스트 메시지도 감지해 중단 가능 (대소문자 무관)
+- run_all.py 슬롯 실패 처리: 해당 슬롯 건너뛰고 나머지 계속 진행 (파이프라인 전체 중단 금지)
+  실패 시 TG 알림: "⚠️ 슬롯 {slot} 영상 생성 실패\n실패 단계: {script}\n나머지 슬롯은 계속 진행합니다."
+  전체 슬롯 실패 시에만 롱폼 건너뛰고 sys.exit(1)
+- mochien_full.yml을 python run_all.py 단일 호출로 간소화하면
+  GitHub Actions UI에서 개별 스텝 가시성은 줄지만 유지보수성 크게 향상
+  로직 변경 시 yml 수정 불필요 — run_all.py만 수정하면 됨
 
 
 ================================================================

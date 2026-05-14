@@ -4,6 +4,8 @@ import os
 import time
 import calendar
 import datetime
+import argparse
+from concurrent import futures
 
 import feedparser
 import requests
@@ -15,39 +17,39 @@ load_dotenv()
 
 # ===== RSS =====
 RSS_URLS = [
-    "https://www3.nhk.or.jp/rss/news/cat6.xml",       # NHK 경제
-    "https://www3.nhk.or.jp/rss/news/cat5.xml",       # NHK 비즈니스
+    "https://www3.nhk.or.jp/rss/news/cat6.xml",        # NHK 경제
+    "https://www3.nhk.or.jp/rss/news/cat5.xml",        # NHK 비즈니스
     "https://news.yahoo.co.jp/rss/topics/business.xml", # Yahoo Japan 비즈니스
 ]
-MAX_ARTICLES = 5
+MAX_ARTICLES   = 5
+MAX_CANDIDATES = 5
 RSS_FETCH_LIMIT = 20
-FRESHNESS_HOURS = 6   # 최근 N시간 이내 발행분을 fresh tier로 분류
+FRESHNESS_HOURS = 6
 ECONOMIC_KEYWORDS = ["株", "円", "物価", "金利", "為替", "経済", "GDP", "インフレ", "日銀", "財務"]
 
 # ===== 출력 파일 =====
-ARTICLE_FILE = "article.json"
+ARTICLE_FILE    = "article.json"
 GPT_RESULT_FILE = "gpt_result.json"
-OUTPUT_DIR = "output"
+OUTPUT_DIR      = "output"
 
 # ===== 시간대 =====
 JST = datetime.timezone(datetime.timedelta(hours=9))
 
-# 오늘 폴더에 파일이 몇 개 있는지 보고 순서대로 슬롯 배정 (09→13→18)
 SLOT_ORDER = ["09", "13", "18"]
 
 def get_next_slot(out_dir):
     for slot in SLOT_ORDER:
         if not os.path.exists(os.path.join(out_dir, f"{slot}_gpt_result.json")):
             return slot
-    return SLOT_ORDER[-1]  # 3개 초과 시 18 덮어씀
+    return SLOT_ORDER[-1]
 
 # ===== ChatGPT =====
-GPT_MODEL = "gpt-4.1-mini"
+GPT_MODEL       = "gpt-4.1-mini"
 GPT_TEMPERATURE = 0.7
-REQUIRED_KEYS = {"title", "hook", "script", "hashtags", "korean_summary",
-                 "emotion", "image_prompt"}
-VALID_EMOTIONS = {"smile", "happy", "surprised", "shocked", "worried",
-                  "angry", "anxious", "sad", "neutral", "shy", "embarrassed", "sleepy"}
+REQUIRED_KEYS   = {"title", "hook", "script", "hashtags", "korean_summary",
+                   "emotion", "image_prompt"}
+VALID_EMOTIONS  = {"smile", "happy", "surprised", "shocked", "worried",
+                   "angry", "anxious", "sad", "neutral", "shy", "embarrassed", "sleepy"}
 
 SYSTEM_PROMPT = """\
 あなたはJSONのみを出力するAIです。
@@ -100,21 +102,22 @@ USER_PROMPT = """
 """
 
 # ===== API 잔액 경고 =====
-OPENAI_BALANCE_WARN = 3.0       # USD
-ELEVENLABS_CHARS_WARN = 10000   # 잔여 캐릭터 수
+OPENAI_BALANCE_WARN   = 3.0
+ELEVENLABS_CHARS_WARN = 10000
 
 # ===== 텔레그램 =====
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-LONG_POLL_SEC = 30
-WAIT_TIMEOUT_SEC = 600  # 10분
+TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
+LONG_POLL_SEC      = 30
+WAIT_TIMEOUT_SEC   = 600   # 단편 모드 10분
+BATCH_TIMEOUT_SEC  = 1800  # 일괄 모드 30분
 
-CALLBACK_SELECT = "select"
-CALLBACK_NEXT = "next"
-CALLBACK_CANCEL = "cancel"
-CALLBACK_TIMEOUT = "timeout"  # 무응답 자동 진행용
+CALLBACK_SELECT  = "select"
+CALLBACK_NEXT    = "next"
+CALLBACK_CANCEL  = "cancel"
+CALLBACK_TIMEOUT = "timeout"
 
-_poll_offset = None  # 세션 내 getUpdates offset 공유
+_poll_offset = None
 
 BUTTONS = {
     "inline_keyboard": [[
@@ -132,7 +135,6 @@ BUTTONS = {
 def check_api_balance():
     warnings = []
 
-    # OpenAI 잔액 확인
     try:
         openai_key = os.getenv("OPENAI_API_KEY", "")
         resp = requests.get(
@@ -147,7 +149,6 @@ def check_api_balance():
     except Exception:
         pass
 
-    # ElevenLabs 잔여 캐릭터 확인
     try:
         el_key = os.getenv("ELEVENLABS_API_KEY", "")
         resp = requests.get(
@@ -224,7 +225,7 @@ def flush_updates():
 
 
 def wait_for_callback(message_id):
-    """버튼 응답 대기. 콜백 데이터 문자열 반환, 타임아웃 시 cancel 반환."""
+    """단편 모드: 버튼 응답 대기. 콜백 데이터 문자열 반환, 타임아웃 시 CALLBACK_TIMEOUT 반환."""
     global _poll_offset
     deadline = time.time() + WAIT_TIMEOUT_SEC
 
@@ -257,6 +258,42 @@ def wait_for_callback(message_id):
     return CALLBACK_TIMEOUT
 
 
+def batch_poll(article_msg_ids, deadline):
+    """일괄 선택 모드 전용 폴러. 복수 메시지 콜백 + "취소" 텍스트 대기.
+    (action, idx) 반환 — action: "sel"|"pas"|"cancel"|"timeout"."""
+    global _poll_offset
+    while time.time() < deadline:
+        poll_sec = min(LONG_POLL_SEC, int(deadline - time.time()))
+        if poll_sec <= 0:
+            break
+        params = {
+            "timeout": poll_sec,
+            "allowed_updates": ["callback_query", "message"],
+        }
+        if _poll_offset is not None:
+            params["offset"] = _poll_offset
+        try:
+            resp = requests.get(_tg("getUpdates"), params=params, timeout=poll_sec + 5)
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            print(f"  [getUpdates 재시도] {e}")
+            continue
+        for update in resp.json().get("result", []):
+            _poll_offset = update["update_id"] + 1
+            msg = update.get("message")
+            if msg and "취소" in msg.get("text", ""):
+                return ("cancel", -1)
+            cb = update.get("callback_query")
+            if not cb:
+                continue
+            if cb["message"]["message_id"] not in article_msg_ids:
+                continue
+            tg_answer(cb["id"])
+            action, idx_str = cb["data"].split("_", 1)
+            return (action, int(idx_str))
+    return ("timeout", -1)
+
+
 # ─────────────────────────────────────────
 # RSS
 # ─────────────────────────────────────────
@@ -269,8 +306,8 @@ def sort_by_freshness(articles):
 
     def _key(a):
         pub = a.get("_published", 0)
-        is_stale = 0 if (now - pub) <= threshold else 1  # fresh=0, stale=1
-        return (is_stale, -pub)  # stale 뒤로, pub 내림차순
+        is_stale = 0 if (now - pub) <= threshold else 1
+        return (is_stale, -pub)
 
     return sorted(articles, key=_key)
 
@@ -371,13 +408,13 @@ def _check_furigana(script: str):
     """3자 이상 연속 한자가 있는데 후리가나 괄호가 0개면 경고 로그 출력 (파이프라인 중단 없음)."""
     import re as _re
     has_kanji_run = bool(_re.search(r"[一-鿿]{3,}", script))
-    has_furigana = bool(_re.search(r"[（(][ぁ-ん]{1,}[）)]", script))
+    has_furigana  = bool(_re.search(r"[（(][ぁ-ん]{1,}[）)]", script))
     if has_kanji_run and not has_furigana:
         print("[경고] 스크립트에 3자 이상 연속 한자가 있지만 후리가나 괄호가 없습니다. GPT 출력 확인 권장.")
 
 
 # ─────────────────────────────────────────
-# 메인
+# 단편 모드 (run_pipeline.py 용 — 기사 1개 선택)
 # ─────────────────────────────────────────
 
 def build_preview(article, gpt, index, total):
@@ -390,15 +427,21 @@ def build_preview(article, gpt, index, total):
     )
 
 
-def main():
+def single_main():
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("[오류] .env에 TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID를 입력하세요.")
         sys.exit(1)
 
     check_api_balance()
     flush_updates()
-    print("=== NHK cat6 RSS 수집 ===")
-    articles = fetch_articles()
+    print("=== RSS 수집 ===")
+    try:
+        articles = fetch_articles()
+    except Exception as e:
+        msg = f"⚠️ RSS 수집 실패 — 모든 소스 응답 없음\n{e}"
+        print(f"[오류] {msg}")
+        tg_send(msg)
+        sys.exit(1)
     print(f"기사 {len(articles)}개 수집 완료\n")
 
     message_id = None
@@ -406,7 +449,6 @@ def main():
     for i, article in enumerate(articles):
         print(f"[{i + 1}/{len(articles)}] ChatGPT 분석 중: {article['title']}")
 
-        # ChatGPT 실행 전 로딩 메시지 먼저 표시
         loading_text = f"⏳ 기사 {i + 1}/{len(articles)} 분석 중..."
         if message_id is None:
             message_id = tg_send(loading_text)
@@ -452,12 +494,150 @@ def main():
             print("취소됨.")
             sys.exit(1)
 
-        # CALLBACK_NEXT → 다음 루프로 진행
-
     tg_edit(message_id, "⚠️ 더 이상 기사가 없습니다.")
     print("기사를 모두 확인했습니다.")
     sys.exit(1)
 
 
+# ─────────────────────────────────────────
+# 일괄 선택 모드 (run_all.py 용 — 기사 3개 동시 선택)
+# ─────────────────────────────────────────
+
+def batch_main():
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("[오류] .env에 TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID를 입력하세요.")
+        sys.exit(1)
+
+    check_api_balance()
+    flush_updates()
+
+    print("=== RSS 수집 ===")
+    try:
+        articles = fetch_articles()
+    except Exception as e:
+        msg = f"⚠️ RSS 수집 실패 — 모든 소스 응답 없음\n{e}"
+        print(f"[오류] {msg}")
+        tg_send(msg)
+        sys.exit(1)
+    print(f"후보 기사 {len(articles)}개 수집\n")
+
+    # GPT 병렬 호출
+    print("=== GPT 병렬 호출 중... ===")
+    loading_msg_id = tg_send("⏳ 기사 분석 중... (최대 5개 병렬 처리)")
+
+    def call_safe(article):
+        try:
+            return call_chatgpt(article["title"], article["article_body"])
+        except Exception as e:
+            print(f"  [GPT 오류] {article['title'][:20]}: {e}")
+            return None
+
+    with futures.ThreadPoolExecutor(max_workers=MAX_CANDIDATES) as ex:
+        gpt_results = list(ex.map(call_safe, articles))
+
+    candidates = [
+        (articles[i], gpt_results[i])
+        for i in range(len(articles))
+        if gpt_results[i] is not None
+    ]
+    print(f"GPT 처리 성공: {len(candidates)}개")
+
+    if len(candidates) < 3:
+        msg = f"⚠️ GPT 처리 성공 기사가 {len(candidates)}개뿐입니다. 최소 3개 필요합니다."
+        print(f"[오류] {msg}")
+        tg_edit(loading_msg_id, msg)
+        sys.exit(1)
+
+    # 후보 메시지 전송
+    tg_edit(loading_msg_id, f"✅ 분석 완료 — {len(candidates)}개 기사\n3개를 선택하세요.")
+
+    article_msg_ids = set()
+    for idx, (article, gpt) in enumerate(candidates):
+        hashtags = " ".join(gpt["hashtags"]) if isinstance(gpt["hashtags"], list) else gpt["hashtags"]
+        text = (
+            f"<b>📰 후보 {idx + 1}/{len(candidates)}</b>\n\n"
+            f"<b>{article['title']}</b>\n\n"
+            f"🇰🇷 {gpt['korean_summary']}\n\n"
+            f"{hashtags}"
+        )
+        buttons = {"inline_keyboard": [[
+            {"text": "✅ 선택", "callback_data": f"sel_{idx}"},
+            {"text": "❌ 패스", "callback_data": f"pas_{idx}"},
+        ]]}
+        mid = tg_send(text, reply_markup=buttons)
+        article_msg_ids.add(mid)
+
+    status_msg_id = tg_send(
+        '선택된 기사: 0/3\n기사를 3개 선택하면 영상 생성이 시작됩니다.\n"취소" 를 보내면 중단됩니다. (30분 타임아웃)'
+    )
+
+    # 선택 루프
+    selected = []  # candidate index 순서대로
+    deadline = time.time() + BATCH_TIMEOUT_SEC
+
+    while len(selected) < 3 and time.time() < deadline:
+        action, idx = batch_poll(article_msg_ids, deadline)
+
+        if action == "cancel":
+            tg_edit(status_msg_id, "⛔ 취소됨")
+            print("취소됨.")
+            sys.exit(1)
+
+        if action == "timeout":
+            tg_edit(status_msg_id, "⏰ 30분 타임아웃 — 기사 선택이 완료되지 않았습니다.")
+            print("타임아웃.")
+            sys.exit(1)
+
+        if action == "sel":
+            if idx in selected:
+                selected.remove(idx)       # 재탭 → 선택 해제
+            elif len(selected) < 3:
+                selected.append(idx)
+            sel_labels = [f"{i + 1}번" for i in selected]
+            status_text = f"선택된 기사: {len(selected)}/3"
+            if selected:
+                status_text += "\n✅ " + ", ".join(sel_labels)
+            if len(selected) < 3:
+                status_text += '\n기사를 3개 선택하면 영상 생성이 시작됩니다.\n"취소" 를 보내면 중단됩니다.'
+            tg_edit(status_msg_id, status_text)
+        # "pas" → 무시
+
+    # 3개 선택 완료 → 슬롯 파일 저장
+    now_jst = datetime.datetime.now(JST)
+    out_dir = os.path.join(OUTPUT_DIR, now_jst.strftime("%Y-%m-%d"))
+    os.makedirs(out_dir, exist_ok=True)
+
+    slot_times    = {"09": "07:00 JST", "13": "12:00 JST", "18": "18:00 JST"}
+    summary_lines = ["✅ 선택 완료! 영상 생성을 시작합니다.\n"]
+
+    for order, cand_idx in enumerate(selected):
+        slot = SLOT_ORDER[order]
+        article, gpt = candidates[cand_idx]
+        gpt["slot"]          = slot
+        gpt["article_url"]   = article["url"]
+        gpt["raw_summary_jp"] = article["article_body"]
+        out_path = os.path.join(out_dir, f"{slot}_gpt_result.json")
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(gpt, f, ensure_ascii=False, indent=2)
+        print(f"저장: {out_path}")
+        summary_lines.append(
+            f"📌 {cand_idx + 1}번 → 슬롯{slot} ({slot_times[slot]})\n{gpt['title']}"
+        )
+
+    tg_edit(status_msg_id, "\n".join(summary_lines))
+    print("=== 3개 기사 선택 완료 ===")
+
+
+# ─────────────────────────────────────────
+# 진입점
+# ─────────────────────────────────────────
+
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--batch", action="store_true", help="3개 일괄 선택 모드 (run_all.py 전용)")
+    args = parser.parse_args()
+
+    if args.batch:
+        batch_main()
+    else:
+        single_main()
