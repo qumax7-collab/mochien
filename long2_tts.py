@@ -21,6 +21,7 @@ ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 TTS_MODEL         = "eleven_flash_v2_5"
 TTS_OUTPUT_FORMAT = "mp3_44100_128"
 CONCAT_LIST_FILE  = "long_voice_concat.txt"
+PRONUNCIATION_PATH = "pronunciation.json"
 
 # 섹션 순서 (파일명, long_script.json 내 위치)
 SECTIONS = [
@@ -92,6 +93,22 @@ def get_section_script(data, key):
     return data["issues"][idx]["script"]
 
 
+def apply_pronunciation(text: str) -> str:
+    """pronunciation.json의 고유명사 발음 치환을 적용한다.
+    파일이 없거나 비어 있으면 원본을 그대로 반환한다."""
+    import json, os
+    if not os.path.exists(PRONUNCIATION_PATH):
+        return text
+    try:
+        with open(PRONUNCIATION_PATH, "r", encoding="utf-8") as f:
+            mapping = json.load(f)
+    except Exception:
+        return text
+    for kanji, hira in mapping.items():
+        text = text.replace(kanji, hira)
+    return text
+
+
 def tts_request(text, voice_id, api_key):
     url = ELEVENLABS_API_URL.format(voice_id=voice_id)
     headers = {
@@ -145,6 +162,7 @@ def main():
     for i, (filename, key) in enumerate(SECTIONS, 1):
         text = get_section_script(data, key)
         text = re.sub(r"[（(][^）)]*[）)]", "", text)
+        text = apply_pronunciation(text)
         print(f"  [{i}/{total}] {key} ({len(text)}자) → {filename}")
         audio = tts_request(text, voice_id, api_key)
         with open(filename, "wb") as f:

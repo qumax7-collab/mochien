@@ -34,6 +34,8 @@ jobs:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           echo "OPENAI_API_KEY=$OPENAI_API_KEY"           >> .env
           echo "ELEVENLABS_API_KEY=$ELEVENLABS_API_KEY"   >> .env
@@ -41,6 +43,8 @@ jobs:
           echo "PEXELS_API_KEY=$PEXELS_API_KEY"           >> .env
           echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN"   >> .env
           echo "TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID"       >> .env
+          echo "GEMINI_API_KEY=$GEMINI_API_KEY"           >> .env
+          echo "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"     >> .env
 
       - name: Restore YouTube token
         env:
@@ -71,6 +75,10 @@ jobs:
       - name: "[슬롯1] step9 — YouTube 업로드"
         run: python step9_youtube.py
 
+      - name: "[슬롯1] step10 — Gemini+Claude 검수"
+        continue-on-error: true
+        run: python step10_gemini_review.py --mode shorts
+
       # ─── 쇼츠 슬롯 2 (13) ───────────────────────────────
       - name: "[슬롯2] step2 — 기사 선택 (Telegram)"
         run: python step2_select.py
@@ -90,6 +98,10 @@ jobs:
       - name: "[슬롯2] step9 — YouTube 업로드"
         run: python step9_youtube.py
 
+      - name: "[슬롯2] step10 — Gemini+Claude 검수"
+        continue-on-error: true
+        run: python step10_gemini_review.py --mode shorts
+
       # ─── 쇼츠 슬롯 3 (18) ───────────────────────────────
       - name: "[슬롯3] step2 — 기사 선택 (Telegram)"
         run: python step2_select.py
@@ -108,6 +120,10 @@ jobs:
 
       - name: "[슬롯3] step9 — YouTube 업로드"
         run: python step9_youtube.py
+
+      - name: "[슬롯3] step10 — Gemini+Claude 검수"
+        continue-on-error: true
+        run: python step10_gemini_review.py --mode shorts
 
       # ─── gpt_results artifact 업로드 ────────────────────
       - name: Upload gpt_results artifact
@@ -137,3 +153,7 @@ jobs:
 
       - name: long6 — YouTube 업로드
         run: python long6_youtube.py
+
+      - name: step10 — Gemini+Claude 검수 (롱폼)
+        continue-on-error: true
+        run: python step10_gemini_review.py --mode longform

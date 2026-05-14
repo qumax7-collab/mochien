@@ -14,6 +14,7 @@ OUTPUT_FILE = "voice.mp3"
 ELEVENLABS_API = "https://api.elevenlabs.io/v1"
 MODEL_ID = "eleven_flash_v2_5"
 OUTPUT_FORMAT = "mp3_44100_128"
+PRONUNCIATION_PATH = "pronunciation.json"
 
 
 def get_api_key():
@@ -66,6 +67,22 @@ def generate_tts(text, voice_id):
     return res.content
 
 
+def apply_pronunciation(text: str) -> str:
+    """pronunciation.json의 고유명사 발음 치환을 적용한다.
+    파일이 없거나 비어 있으면 원본을 그대로 반환한다."""
+    import json, os
+    if not os.path.exists(PRONUNCIATION_PATH):
+        return text
+    try:
+        with open(PRONUNCIATION_PATH, "r", encoding="utf-8") as f:
+            mapping = json.load(f)
+    except Exception:
+        return text
+    for kanji, hira in mapping.items():
+        text = text.replace(kanji, hira)
+    return text
+
+
 def main():
     voice_id = os.environ.get("ELEVENLABS_VOICE_ID")
 
@@ -80,6 +97,7 @@ def main():
 
     script = gpt["script"]
     script = re.sub(r"[（(][^）)]*[）)]", "", script)
+    script = apply_pronunciation(script)
     print(f"스크립트 ({len(script)}자):\n{script[:100]}...\n")
 
     print(f"=== TTS 생성 중... (voice_id: {voice_id}) ===")

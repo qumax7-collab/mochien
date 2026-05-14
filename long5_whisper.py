@@ -13,6 +13,7 @@ INPUT_AUDIO     = "long_voice.mp3"
 INPUT_VIDEO     = "long_output_no_sub.mp4"
 OUTPUT_VIDEO    = "long_output.mp4"
 ASS_FILE        = "long_subtitle.ass"
+SRT_FILE        = "long_subtitle.srt"
 GLOSSARY_PATH    = "glossary.json"
 GPT_RESULT_PATH  = "gpt_result.json"
 LONG_SCRIPT_PATH = "long_script.json"
@@ -42,6 +43,8 @@ KNOWN_ASR_ERRORS = [
     ("保障部に",     "保障分野"),
     # 동음이자 오인식
     ("市立",         "仕事"),           # 仕事の状況 → 市立 오인식
+    ("歯き",         "動き"),           # 動き → 歯き 오인식
+    ("長材",         "地域経済"),       # 地域経済 → 長材 오인식
 ]
 
 # ===== 자막 스타일 (1920×1080 기준) =====
@@ -157,6 +160,25 @@ def group_words(words):
     return segments
 
 
+def to_srt_time(sec):
+    h = int(sec // 3600)
+    m = int((sec % 3600) // 60)
+    s = int(sec % 60)
+    ms = int((sec - int(sec)) * 1000)
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def write_srt(segments, path):
+    lines = []
+    for i, seg in enumerate(segments, 1):
+        lines.append(str(i))
+        lines.append(f"{to_srt_time(seg['start'])} --> {to_srt_time(seg['end'])}")
+        lines.append(seg["text"])
+        lines.append("")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+
 def to_ass_time(sec):
     h = int(sec // 3600)
     m = int((sec % 3600) // 60)
@@ -236,6 +258,9 @@ def main():
     with open(ASS_FILE, "w", encoding="utf-8") as f:
         f.write(ass_content)
     print(f"{ASS_FILE} 저장 완료")
+
+    write_srt(segments, SRT_FILE)
+    print(f"{SRT_FILE} 저장 완료")
 
     print("\n=== 4단계: FFmpeg 자막 합성 ===")
     if not burn_subtitles(font_dir):
