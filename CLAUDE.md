@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 14일 (15차 세션)
+최종 업데이트: 2026년 5월 14일 (16차 세션)
 
 ================================================================
 ## 0. 작업 규칙
@@ -101,6 +101,8 @@ Pillow                    - 이미지 처리 (캐릭터 PNG 오버레이)
 python-dotenv             - .env 파일 로드 (필수 — requirements.txt에 명시)
 python-telegram-bot       - 텔레그램 봇 연동
 beautifulsoup4            - HTML 파싱
+google-genai              - Gemini API (신규 SDK / step10 1차 검수)
+anthropic                 - Claude API (step10 2차 검증)
 
 
 ================================================================
@@ -344,7 +346,8 @@ OAuth 설정:
 GitHub Secrets 등록 목록:
   OPENAI_API_KEY / ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID /
   PEXELS_API_KEY / TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID /
-  YOUTUBE_CREDENTIALS / CLIENT_SECRETS
+  YOUTUBE_CREDENTIALS / CLIENT_SECRETS /
+  GEMINI_API_KEY / ANTHROPIC_API_KEY   ← 16차 세션 추가
   ※ GITHUB_TOKEN은 자동 제공 — 별도 등록 불필요
 
 
@@ -359,6 +362,9 @@ C:\mochien\
   ├── requirements.txt
   ├── client_secrets.json
   ├── token.json
+  ├── pronunciation.json                  ← TTS 발음 교정 사전 (코드 밖에서 관리 / 자막·JSON 미적용)
+  ├── suggested_pronunciation.json        ← Gemini+Claude 검수 발음 후보 누적 (런타임 생성)
+  ├── suggested_glossary.json             ← Gemini+Claude 검수 자막 후보 누적 (런타임 생성)
   ├── .github/
   │     └── workflows/
   │           ├── mochien.yml             ← 쇼츠 파이프라인 (하루 3회 — 개별 실행용)
@@ -380,6 +386,7 @@ C:\mochien\
   ├── step6_ffmpeg.py
   ├── step7_whisper_subtitle.py
   ├── step9_youtube.py
+  ├── step10_gemini_review.py             ← Gemini+Claude 자막·발음 자동 검수 (--mode shorts|longform)
   ├── [ 롱폼 파이프라인 ]
   ├── run_longform.py                     ← 롱폼 전체 실행 (long1→6)
   ├── long1_script.py                     ← gpt-4.1 롱폼 스크립트 생성
@@ -402,6 +409,7 @@ C:\mochien\
   ├── long_clip_intro.mp4 … long_clip_outro.mp4
   ├── long_output_no_sub.mp4
   ├── long_output.mp4
+  ├── long_subtitle.srt                   ← long5_whisper.py가 생성 / 롱폼 SRT (참조용)
   ├── long_chapters.json                  ← long2_tts.py가 생성 / long6_youtube.py가 소비
   └── output/                             ← 날짜별 gpt_result (롱폼 연결용)
         └── 2026-05-10/
@@ -433,9 +441,9 @@ Conoha Wing     정액제 (예정)           ~$5
 ================================================================
 ## 16. AI 구독 정리
 ================================================================
-Claude        유지   - 프로젝트 설계, 디버깅, 프롬프트 최적화 핵심
+Claude        유지   - 프로젝트 설계, 디버깅, 프롬프트 최적화 핵심 + step10 2차 검증
 ChatGPT Plus  선택   - API만으로 대체 가능
-Gemini        해지   - 현재 파이프라인 활용 구간 없음
+Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai SDK)
 
 
 ================================================================
@@ -608,9 +616,32 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
         - long6_youtube.py: long_chapters.json 읽어 description 상단에 챕터 타임라인 삽입
           · 형식: "MM:SS 라벨" (1시간 이상 시 H:MM:SS) / 파일 없으면 기존 description 유지
 
-🔜  25. 워드프레스 REST API 블로그 자동 발행
-🔜  26. emotion 자동 매핑 복원 (블로그 자동발행 이후)
-🔜  27. 롱폼 분량 확대 (현재 ~5분 → 목표 7분, long1_script.py 문자수 목표 상향)
+✅  25. 16차 세션 기능 추가 (2026-05-14)
+        - step10_gemini_review.py 신규 생성
+          · Gemini 2.5 Flash 1차 검수 (발음 오류 + 자막 오인식 후보 추출)
+          · Claude Haiku 2차 검증 (approve/reject 판정 + 한국어 뜻/이유)
+          · approve=true 항목 pronunciation.json / glossary.json 자동 반영
+          · 전체 후보 suggested_*.json 누적 (count/first_seen/last_seen/approved/reason)
+          · 텔레그램 한국어 알림 (한자 뜻 괄호 표시 / ✅ 자동 반영 / ⏸ 보류 구조)
+          · --mode shorts / --mode longform CLI 분기
+          · 실패 시 tg_error 전송 후 sys.exit(0) — 파이프라인 중단 금지
+        - pronunciation.json 신규 생성 (TTS 전용 발음 교정 / 자막·JSON 원본 미적용)
+        - long5_whisper.py: SRT 출력 추가 (long_subtitle.srt)
+          · to_srt_time() + write_srt(segments, path) 함수 추가
+          · apply_glossary/apply_rule_corrections 후 동일 교정 텍스트 적용
+        - step5_tts.py / long2_tts.py: apply_pronunciation() 추가
+          · pronunciation.json 읽어 TTS 전송 직전 치환 / 파일 없으면 원본 반환
+        - run_pipeline.py / run_longform.py: step10 자동 호출 추가
+          · step9/long6 완료 직후 실행 / 실패해도 파이프라인 계속 진행
+        - mochien.yml: step10 --mode shorts 실행 스텝 추가 (continue-on-error: true)
+        - mochien_full.yml: 슬롯1/2/3 step9 직후 shorts × 3 + long6 직후 longform 추가
+        - mochien_longform.yml: GEMINI/ANTHROPIC 키 주입 추가 (run_longform이 step10 auto-call)
+        - yml 3종: GEMINI_API_KEY / ANTHROPIC_API_KEY Secret 주입 추가
+        - requirements.txt: anthropic 추가
+
+🔜  26. 워드프레스 REST API 블로그 자동 발행
+🔜  27. emotion 자동 매핑 복원 (블로그 자동발행 이후)
+🔜  28. 롱폼 분량 확대 (현재 ~5분 → 목표 7분, long1_script.py 문자수 목표 상향)
 
 실행 순서 (전체 — 권장):
   python run_all.py        ← 쇼츠 3편 + 롱폼 통합 실행 (run_all.bat 더블클릭도 가능)
@@ -756,6 +787,19 @@ Gemini        해지   - 현재 파이프라인 활용 구간 없음
   오늘 영상 이미 있어도 run_all.py 실행 시 초기화 후 새로 3편 생성 (의도적 설계)
 - raw_summary_jp: RSS entry.summary 원문을 gpt_result.json에 저장
   long1_script.py 프롬프트에 포함 → GPT가 원문 근거로 수치·고유명사 정확히 반영하며 심층 분석
+- google-generativeai는 일몰 예정 → google-genai (신규 SDK) 사용. `genai.Client(api_key=...)` 패턴
+  response_mime_type="application/json" + response_schema로 구조화 JSON 출력 강제
+- step7/long5의 KNOWN_ASR_ERRORS는 `if __name__ == "__main__":` 가드 + 모듈 레벨 상수
+  → importlib.import_module()로 동적 import 가능 — 부수 작용 없이 상수만 읽을 수 있음
+- mochien.yml / mochien_full.yml은 개별 step을 직접 호출 (run_pipeline.py 미사용)
+  → step10 자동 실행 원하면 명시적 스텝 추가 필요 / continue-on-error: true 필수
+- mochien_longform.yml은 run_longform.py 호출이므로 step10 env 주입만으로 충분
+  (run_longform.py 내부에서 step10_gemini_review.py --mode longform 자동 호출)
+- pronunciation.json: TTS 전송 텍스트에만 적용 / 자막·JSON 원본 미적용 (glossary.json과 동일 원칙)
+- Claude 2차 검증: meaning_ko(한국어 뜻) + reason(한국어) 필드로 텔레그램 알림 한국어화
+  SYSTEM_PROMPT를 한국어로 작성해야 meaning_ko/reason이 한국어로 출력됨
+- step10 notify_telegram() 알림 조건: applied + rejected 합산 1건 이상이면 발송
+  applied만 체크하면 rejected(보류) 건수가 있어도 알림이 생략되는 버그 발생
 
 
 ================================================================
