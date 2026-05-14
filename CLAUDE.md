@@ -63,7 +63,9 @@ RSS (NHK cat6/cat5 + Yahoo Japan 비즈니스) 최대 5개 수집
 
 [ 롱폼 파이프라인 (mochien_longform.yml) — JST 21:00 ]
 → GitHub Artifact에서 당일 gpt_result 3개 파일 복원
-→ long1_script.py: gpt-4.1로 롱폼 스크립트 생성 (long_script.json)
+→ long1_script.py: gpt-4.1로 롱폼 스크립트 생성 (long_script.json) — 5회 순차 호출
+   intro(1) → issue1(2) → issue2(3) → issue3(4) → outro+메타(5)
+   각 섹션이 직전 섹션의 summary를 컨텍스트로 수신해 섹션 간 연결성 유지
 → long2_tts.py: 5섹션 TTS → long_voice.mp3 + long_chapters.json 생성 (ffprobe 길이 측정)
 → long3_pexels.py: 4개 배경 영상 다운로드
 → long4_ffmpeg.py: 섹션별 클립 생성 → concat → long_output_no_sub.mp4
@@ -430,7 +432,7 @@ C:\mochien\
 Make            미사용 (Python 대체)    $0
 Creatomate      미사용 (FFmpeg 대체)    $0
 ZapCap          미사용 (Whisper 대체)   $0
-OpenAI API      gpt-4.1-mini + Whisper  ~$4.18
+OpenAI API      gpt-4.1-mini+Whisper(쇼츠) + gpt-4.1×5(롱폼)  ~$10~14
 ElevenLabs      종량제                  ~$0.30
 Pexels API      무료 플랜               $0
 GitHub Actions  공개 repo 무료          $0
@@ -438,8 +440,8 @@ YouTube API     무료                    $0
 Telegram Bot    무료                    $0
 Conoha Wing     정액제 (예정)           ~$5
 --------------  ----------------------  -----------
-현재 합계                               ~$4.48/월
-롱폼+블로그 추가 후                     ~$10~12/월 (예상)
+현재 합계                               ~$10~14/월
+롱폼 5회 호출 포함 / 블로그 추가 후     ~$15~20/월 (예상)
 
 
 ================================================================
@@ -685,9 +687,22 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
           · 기존: step2 × 3 + step4~9 × 3 + step10 × 3 + long1~6 + step10 longform
           · 변경: python run_all.py 1줄 → 전체 로직은 run_all.py에서 관리
 
-🔜  28. 워드프레스 REST API 블로그 자동 발행
-🔜  29. emotion 자동 매핑 복원 (블로그 자동발행 이후)
-🔜  30. 롱폼 분량 확대 (현재 ~5분 → 목표 7분, long1_script.py 문자수 목표 상향)
+✅  28. 19차 세션 — 롱폼 분량 확대 (2026-05-15)
+        - long1_script.py: 1회 GPT 호출 → 5회 순차 호출로 전면 재작성
+          · 호출 순서: intro → issue1(topic1 raw+intro요약) → issue2(+issue1요약)
+            → issue3(+issue1·2요약) → outro+메타(전체 요약)
+          · 각 섹션 content+summary 동시 출력 → 추가 API 호출 없이 컨텍스트 누적
+          · 섹션별 필수 항목 수 강제:
+            intro 3항목 / issue×3 6항목(각 3~4문) / outro 3항목
+          · 목표 분량: intro 500자 + issue 1,000자×3 + outro 500자 = 약 4,000자 ≈ 7~8분
+          · long_script.json 출력 포맷 기존 유지 → long2~6 수정 불필요
+          · image_prompt: 각 슬롯 gpt_result.json에서 재사용 (추가 GPT 호출 없음)
+          · emotion 필드 제거 (long2~6·step10 모두 미사용 확인)
+          · 섹션별 글자수 + 총 토큰 합산 로깅 추가
+
+🔜  29. 워드프레스 REST API 블로그 자동 발행
+🔜  30. emotion 자동 매핑 복원 (블로그 자동발행 이후)
+🔜  31. 롱폼 추가 개선 (챕터 밀도·섹션 구성 최적화)
 
 실행 순서 (전체 — 권장):
   python run_all.py        ← 쇼츠 3편 + 롱폼 통합 실행 (run_all.bat 더블클릭도 가능)
@@ -868,6 +883,14 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
 - mochien_full.yml을 python run_all.py 단일 호출로 간소화하면
   GitHub Actions UI에서 개별 스텝 가시성은 줄지만 유지보수성 크게 향상
   로직 변경 시 yml 수정 불필요 — run_all.py만 수정하면 됨
+- long1_script.py 5회 순차 호출 비용: gpt-4.1 기준 롱폼 1회 ~$0.10~0.20
+  하루 1회 × 30일 = 월 ~$3~6 추가 → OpenAI 합계 ~$10~14/월
+- 글자수 직접 지시(「約800字」)는 GPT가 잘 따르지 않음
+  항목 수 필수 구조(6항목 × 각 3~4문)로 대체 → 항목 모두 채우면 900~1,100자 자동 확보
+- long1 섹션별 summary 컨텍스트: content와 summary를 같은 응답에서 받아
+  다음 호출에 summary만 전달 → 전체 스크립트를 메시지로 쌓지 않아 토큰 효율 유지
+- long1 image_prompt: issue는 각 슬롯 gpt_result["image_prompt"] 재사용
+  intro·outro는 r_list[0]["image_prompt"] 재사용 — 추가 GPT 호출 없음
 
 
 ================================================================
