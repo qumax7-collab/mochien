@@ -21,6 +21,7 @@ VIDEO_PATH        = "long_output.mp4"
 CLIENT_SECRETS_PATH = "client_secrets.json"
 TOKEN_PATH        = "token.json"
 OUTPUT_DIR        = "output"
+SLOTS             = ["09", "13", "18"]
 
 # ===== YouTube API 설정 =====
 SCOPES = [
@@ -140,18 +141,44 @@ def upload_video(youtube, title, description, tags, publish_at):
     return response["id"]
 
 
+def load_slot_short_titles():
+    """오늘 날짜 슬롯 파일에서 short_title 읽기. 없는 슬롯은 스킵."""
+    today = datetime.now(JST).strftime("%Y-%m-%d")
+    titles = []
+    for slot in SLOTS:
+        path = os.path.join(OUTPUT_DIR, today, f"{slot}_gpt_result.json")
+        try:
+            with open(path, encoding="utf-8") as f:
+                st = json.load(f).get("short_title", "").strip()
+            if st:
+                titles.append(st)
+        except Exception:
+            pass
+    return titles
+
+
 def build_notification(long_script_data):
     """롱폼 단독 텔레그램 알림 메시지 생성."""
     title = long_script_data["title"]
-    intro_script = long_script_data["intro"]["script"]
-    hook = intro_script[:150] + ("..." if len(intro_script) > 150 else "")
-    korean_summary = long_script_data.get("korean_summary", "")
-    kr_line = f"\n🇰🇷 {korean_summary}" if korean_summary else ""
+
+    short_titles = load_slot_short_titles()
+    if short_titles:
+        quoted = "」「".join(short_titles)
+        first_line = f"🍡 今日は「{quoted}」の{len(short_titles)}つの経済ニュースをお届けしました。"
+    else:
+        first_line = "🍡 今日の経済ニュースはいかがでしたか？"
+
+    pin_comment = (
+        f"{first_line}\n"
+        f"皆さんはどう感じましたか？コメント欄で教えてください！😊\n\n"
+        f"※投資判断はご自身の責任でお願いいたします。"
+    )
+
     return (
         f"📹 롱폼 예약 완료\n"
         f"제목: {title}\n"
         f"예약: 21:00 JST\n"
-        f"\n📌 고정댓글:\n{hook}{kr_line}\n"
+        f"\n📌 고정댓글:\n{pin_comment}\n"
         f"\nYouTube Studio에서 달아주세요!"
     )
 

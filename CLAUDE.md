@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 15일 (18차 세션)
+최종 업데이트: 2026년 5월 15일 (20차 세션)
 
 ================================================================
 ## 0. 작업 규칙
@@ -296,7 +296,7 @@ API         : YouTube Data API v3 videos.insert
               - 숏폼: step9_youtube.py → 업로드 완료 시 즉시 전송
                 제목 / 예약 시간 / 고정댓글 (hook 일본어 + hook_korean 한국어) 포함
               - 롱폼: long6_youtube.py → 업로드 완료 시 전송
-                제목 / 예약 시간 / 고정댓글 (intro 앞 150자 + korean_summary) 포함
+                제목 / 예약 시간 / 고정댓글 (당일 슬롯 short_title 3개 기반 일본어 문구) 포함
 역할 3      : API 잔액 경고
               - OpenAI $3 이하 / ElevenLabs $2 이하 시 경고 전송
               - 경고만 보내고 파이프라인은 계속 실행
@@ -710,9 +710,23 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
           · 변경: 발음 후보만 1차 호출 / 자막 후보만 2차 호출 → 결과 병합 반환
           · 외부 시그니처·반환값 구조 유지 → 하위 로직 변경 없음
 
-🔜  29. 워드프레스 REST API 블로그 자동 발행
-🔜  30. emotion 자동 매핑 복원 (블로그 자동발행 이후)
-🔜  31. 롱폼 추가 개선 (챕터 밀도·섹션 구성 최적화)
+✅  29. 20차 세션 — 롱폼 알림 개선 + run_all 임시파일 자동 정리 (2026-05-15)
+        - long6_youtube.py: build_notification() 재작성
+          · load_slot_short_titles(): output/{오늘날짜}/{09|13|18}_gpt_result.json에서 short_title 읽기
+          · 고정댓글 문구: 「short_title1」「short_title2」「short_title3」の3つ 형식
+            슬롯 일부 누락 시 있는 것만 나열 / 전부 없으면 "今日の経済ニュース" fallback
+          · hook 150자 트리밍 로직 및 korean_summary 줄 제거
+          · SLOTS 상수 추가
+        - run_all.py: 임시파일 자동 정리 기능 추가
+          · RETENTION_DAYS = 30 / TEMP_JSON_FILES 상수 추가 / import glob 추가
+          · cleanup_temp_files(): *.mp4 / *.mp3 / 임시 JSON 8종 / 자막 파일 정리
+          · cleanup_old_output_folders(retention_days): output/{YYYY-MM-DD}/ 30일 이전 삭제
+          · main() 구조: cleanup_old_output_folders → clear_today_slots → try(파이프라인) → finally(cleanup_temp_files)
+          · sys.exit() 포함 모든 종료 경로에서 finally 실행 보장
+
+🔜  30. 워드프레스 REST API 블로그 자동 발행
+🔜  31. emotion 자동 매핑 복원 (블로그 자동발행 이후)
+🔜  32. 롱폼 추가 개선 (챕터 밀도·섹션 구성 최적화)
 
 실행 순서 (전체 — 권장):
   python run_all.py        ← 쇼츠 3편 + 롱폼 통합 실행 (run_all.bat 더블클릭도 가능)
@@ -906,6 +920,15 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
   다음 호출에 summary만 전달 → 전체 스크립트를 메시지로 쌓지 않아 토큰 효율 유지
 - long1 image_prompt: issue는 각 슬롯 gpt_result["image_prompt"] 재사용
   intro·outro는 r_list[0]["image_prompt"] 재사용 — 추가 GPT 호출 없음
+- long6 고정댓글: hook 150자 트리밍 방식은 텔레그램에서 잘려 보임
+  → 당일 슬롯 short_title 3개를 「」로 묶은 단문 고정 문구로 교체 (항상 전문 표시)
+  load_slot_short_titles()로 output/{오늘날짜}/ 에서 읽음 / 누락 슬롯은 스킵
+- run_all.py 임시파일 정리: 시작 시 정리는 GitHub Actions 병렬 실행 시 진행 중 파일 삭제 위험
+  → 종료 시(finally)에만 정리 / 시작 시에는 슬롯 파일 초기화(clear_today_slots)만 수행
+- Python try-finally: sys.exit()는 내부적으로 SystemExit 예외 → finally 블록 반드시 실행됨
+  어떤 종료 경로(정상/오류/sys.exit)에서도 정리 코드를 보장하려면 try-finally 사용
+- glob.glob("*.mp4"): 현재 디렉토리 루트만 스캔 → output/ 하위 파일은 비해당
+  mp4·mp3 패턴은 png·gif·py·json과 겹치지 않아 별도 exclusion 불필요
 
 
 ================================================================
