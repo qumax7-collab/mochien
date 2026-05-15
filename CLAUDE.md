@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 15일 (20차 세션)
+최종 업데이트: 2026년 5월 16일 (21차 세션)
 
 ================================================================
 ## 0. 작업 규칙
@@ -724,7 +724,26 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
           · main() 구조: cleanup_old_output_folders → clear_today_slots → try(파이프라인) → finally(cleanup_temp_files)
           · sys.exit() 포함 모든 종료 경로에서 finally 실행 보장
 
-🔜  30. 워드프레스 REST API 블로그 자동 발행
+✅  30. 21차 세션 — 마무리 멘트 1줄화 + bow.gif 인사 오버레이 (2026-05-16)
+        - step2_select.py: USER_PROMPT 스크립트 마무리 3줄 → 1줄로 변경
+          · 변경 전: 「皆さんはどう思いますか？〜 / 以上、モチエンがお伝えしました！ / チャンネル登録お願いします！」
+          · 변경 후: 「以上、モチエンがお伝えしました！」
+        - step6_ffmpeg.py: bow.gif 인사 오버레이 기능 전면 구현
+          · 상수 추가: BOW_GIF / BOW_DURATION(1.5s) / TEMP_MAIN_FILE / TEMP_BOW_FILE
+          · get_bow_gif(): 로컬 파일 존재 시 사용 / 없으면 인사 애니메이션 스킵
+          · detect_speech_end(): silencedetect -30dB으로 trailing silence 직전 발화 종료 시점 감지
+            silenceremove 방식 폐기 (FFmpeg 8.1 filter_complex에서 입력 -t 옵션 미작동 확인)
+            → 출력 옵션 -t로 Pass 1 정확히 자름
+          · build_filter(): overlay에서 shortest=1 제거 → eof_action=repeat으로 마지막 프레임 고정
+          · build_cmd_bow_clip(): bow.gif를 -ignore_loop 0으로 GIF 자체 1회 루프 설정 존중
+          · build_cmd_concat(): Pass 1(본편) + Pass 2(bow 1.5s) → 3-pass concat
+          · main() 3-pass 구조:
+            Pass 1: voice.mp3 발화 종료 시점(-t 출력 옵션)에서 talk.gif 정확히 종료
+            Pass 2: bow.gif 1.5s 단독 클립 생성 (anullsrc 무음)
+            Pass 3: 두 클립 concat → output_no_sub.mp4
+          · mochien_bow.gif 없으면 기존 1-pass 단순 합성으로 fallback (하위 호환)
+
+🔜  31. 워드프레스 REST API 블로그 자동 발행
 🔜  31. emotion 자동 매핑 복원 (블로그 자동발행 이후)
 🔜  32. 롱폼 추가 개선 (챕터 밀도·섹션 구성 최적화)
 
@@ -929,6 +948,15 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
   어떤 종료 경로(정상/오류/sys.exit)에서도 정리 코드를 보장하려면 try-finally 사용
 - glob.glob("*.mp4"): 현재 디렉토리 루트만 스캔 → output/ 하위 파일은 비해당
   mp4·mp3 패턴은 png·gif·py·json과 겹치지 않아 별도 exclusion 불필요
+- FFmpeg -t 입력 옵션 (input side)은 filter_complex + -shortest 조합에서 작동 안 함 (FFmpeg 8.1 확인)
+  → 출력 옵션으로 사용해야 정확히 작동: cmd[-1:-1] = ["-t", str(t)] 로 출력 파일 직전 삽입
+- GIF -ignore_loop 0: GIF 자체 loop count 존중 (loop=0이면 무한루프 / loop=N이면 N회)
+  -ignore_loop 1 (기본값): GIF loop count 무시하고 항상 무한루프
+  bow.gif(1회 루프용): -ignore_loop 0 / talk.gif(무한루프): -ignore_loop 0 + GIF loop=0(무한) 동일 결과
+- overlay filter shortest=1: overlay 출력을 두 입력 중 짧은 쪽에서 종료
+  bow.gif 오버레이에서 제거 시 eof_action=repeat(기본값)으로 마지막 프레임 고정 → -t로 클립 길이 제어
+- silencedetect vs silenceremove: 정확한 trailing silence 위치는 silencedetect로 감지 후 -t 출력 옵션으로 자르는 것이 안전
+  silenceremove stop_periods=-1은 예상보다 많은 구간을 제거하는 케이스 확인 (발화 2s 잘림)
 
 
 ================================================================

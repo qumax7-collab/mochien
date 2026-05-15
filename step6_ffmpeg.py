@@ -38,12 +38,17 @@ FACE_EMOTION_OVERRIDE = "base"  # None으로 바꾸면 gpt_result.json의 emotio
 MOUTH_OFFSET_X = 0
 MOUTH_OFFSET_Y = -60         # face보다 60px 위 (올려서 맞춤)
 
+BOW_GIF = "mochien_bow.gif"
+BOW_DURATION = 1.5  # 인사 GIF 재생 시간 (초)
+
 # 파일 경로
 FONT_DIR = "fonts"
 FONT_PATH = "fonts/NotoSansJP-Bold.ttf"
 FONT_URL = "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansjp/static/NotoSansJP-Bold.ttf"
 ASSETS_BASE = "https://raw.githubusercontent.com/qumax7-collab/mochien-assets/main"
 OUTPUT_FILE = "output_no_sub.mp4"
+TEMP_MAIN_FILE = "output_no_sub_temp.mp4"
+TEMP_BOW_FILE  = "output_no_sub_bow.mp4"
 
 
 def download_file(url, dest):
@@ -112,9 +117,51 @@ def get_mouth_gif():
         return None
 
 
+def get_bow_gif():
+    if os.path.exists(BOW_GIF):
+        return BOW_GIF
+    print(f"  {BOW_GIF} 없음 → 인사 애니메이션 생략")
+    return None
+
+
+def get_audio_duration(audio_file):
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "csv=p=0", audio_file],
+        capture_output=True, text=True,
+    )
+    return float(result.stdout.strip())
+
+
 def ffmpeg_font_path(path):
     # FFmpeg filter 내 폰트 경로: 콜론 이스케이프, 슬래시 통일
     return path.replace("\\", "/").replace(":", "\\\\:")
+
+
+def detect_speech_end(audio_file, silence_db=-30, min_silence=0.2):
+    """trailing silence 직전 발화 종료 시점(초)을 반환. 없으면 None."""
+    import re
+    dur = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", audio_file],
+        capture_output=True, text=True,
+    )
+    file_dur = float(dur.stdout.strip())
+
+    detect = subprocess.run(
+        ["ffmpeg", "-i", audio_file,
+         "-af", f"silencedetect=n={silence_db}dB:d={min_silence}",
+         "-f", "null", "-"],
+        capture_output=True, text=True,
+    )
+    starts = list(map(float, re.findall(r"silence_start: ([0-9.]+)", detect.stderr)))
+    ends   = list(map(float, re.findall(r"silence_end: ([0-9.]+)",   detect.stderr)))
+
+    if starts and ends and abs(ends[-1] - file_dur) < 0.5:
+        cut_t = starts[-1]
+        print(f"  trailing silence 감지: {file_dur:.2f}s → {cut_t:.2f}s ({file_dur - cut_t:.2f}s 제거)")
+        return cut_t
+    print("  trailing silence 없음 → 전체 사용")
+    return None
 
 
 def build_filter(font_path, mouth_gif):
@@ -146,10 +193,9 @@ def build_filter(font_path, mouth_gif):
         f":x=(w-text_w)/2:y={title_y}[bg3]"
     )
     if mouth_gif:
-        gif_idx = 1
         audio_idx = 2
-        f.append(f"[{gif_idx}:v]scale=-2:{FACE_H}[mouth]")
-        f.append(f"[bg3][mouth]overlay=x={mouth_x}:y={mouth_y}:shortest=1[out]")
+        f.append(f"[1:v]scale=-2:{FACE_H}[mouth]")
+        f.append(f"[bg3][mouth]overlay=x={mouth_x}:y={mouth_y}[out]")
     else:
         audio_idx = 1
         f.append("[bg3]copy[out]")
@@ -175,6 +221,39 @@ def build_cmd(mouth_gif, font_path):
     return cmd
 
 
+def build_cmd_bow_clip(bow_gif, font_path):
+    """BOW_DURATION 짜리 bow.gif 전용 클립 생성 (t=0부터 재생, -t로 깔끔하게 자름)."""
+    # build_filter에 bow_gif를 mouth_gif처럼 전달 — 배경 처리 로직 재사용
+    filter_str, audio_idx = build_filter(font_path, bow_gif)
+
+    cmd = ["ffmpeg", "-y"]
+    cmd += ["-stream_loop", "-1", "-i", "background.mp4"]  # [0] 배경
+    cmd += ["-ignore_loop", "0", "-i", bow_gif]              # [1] bow gif (GIF 자체 루프 설정 존중)
+    cmd += ["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]  # [2] 무음
+    cmd += ["-filter_complex", filter_str]
+    cmd += ["-map", "[out]", "-map", f"{audio_idx}:a"]
+    cmd += ["-t", str(BOW_DURATION)]
+    cmd += ["-c:v", "libx264", "-crf", "18", "-preset", "fast", "-pix_fmt", "yuv420p"]
+    cmd += ["-c:a", "aac", "-b:a", "128k"]
+    cmd += ["-r", str(OUTPUT_FPS)]
+    cmd += [TEMP_BOW_FILE]
+    return cmd
+
+
+def build_cmd_concat(main_file, bow_file):
+    """두 H.264 클립을 단순 concat."""
+    cmd = ["ffmpeg", "-y"]
+    cmd += ["-i", main_file]
+    cmd += ["-i", bow_file]
+    cmd += ["-filter_complex", "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]"]
+    cmd += ["-map", "[v]", "-map", "[a]"]
+    cmd += ["-c:v", "libx264", "-crf", "18", "-preset", "fast", "-pix_fmt", "yuv420p"]
+    cmd += ["-c:a", "aac", "-b:a", "128k"]
+    cmd += ["-r", str(OUTPUT_FPS)]
+    cmd += [OUTPUT_FILE]
+    return cmd
+
+
 def main():
     print("=== gpt_result.json 로드 ===")
     with open("gpt_result.json", "r", encoding="utf-8") as f:
@@ -190,25 +269,64 @@ def main():
     print("\n=== 에셋 준비 ===")
     font_path = get_font()
     mouth_gif = get_mouth_gif()
+    bow_gif = get_bow_gif()
 
-    print("\n=== FFmpeg 영상 합성 ===")
-    cmd = build_cmd(mouth_gif, font_path)
-    print("명령어:", " ".join(cmd[:10]), "...")
+    def run_ffmpeg(cmd, label):
+        result = subprocess.run(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        stderr = result.stderr.decode("utf-8", errors="replace")
+        if result.returncode != 0:
+            print(f"[에러] {label} FFmpeg 실패:")
+            print(stderr[-3000:])
+            return False
+        return True
 
-    result = subprocess.run(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-    stderr = result.stderr.decode("utf-8", errors="replace")
+    if bow_gif:
+        # Pass 1 전: trailing silence 감지
+        print("\n=== voice.mp3 trailing silence 감지 ===")
+        speech_end = detect_speech_end("voice.mp3")
 
-    if result.returncode != 0:
-        print("[에러] FFmpeg 실패:")
-        print(stderr[-3000:])
-        return
+        # Pass 1: 본편 (talk.gif + 오디오, -shortest)
+        print("\n=== FFmpeg Pass 1: 본편 영상 합성 ===")
+        cmd1 = build_cmd(mouth_gif, font_path)
+        cmd1[-1] = TEMP_MAIN_FILE
+        if speech_end:
+            # -t를 출력 파일 직전에 삽입 (output option)
+            cmd1[-1:-1] = ["-t", str(speech_end)]
+        print("명령어:", " ".join(cmd1[:8]), "...")
+        if not run_ffmpeg(cmd1, "Pass 1"):
+            return
+
+        # Pass 2: bow 클립 단독 생성 (t=0부터 -t BOW_DURATION으로 깔끔하게 자름)
+        print(f"\n=== FFmpeg Pass 2: 인사 클립 {BOW_DURATION}초 생성 ===")
+        cmd2 = build_cmd_bow_clip(bow_gif, font_path)
+        print("명령어:", " ".join(cmd2[:8]), "...")
+        if not run_ffmpeg(cmd2, "Pass 2"):
+            return
+
+        # Pass 3: 두 클립 concat
+        print("\n=== FFmpeg Pass 3: 본편 + 인사 concat ===")
+        cmd3 = build_cmd_concat(TEMP_MAIN_FILE, TEMP_BOW_FILE)
+        print("명령어:", " ".join(cmd3[:8]), "...")
+        if not run_ffmpeg(cmd3, "Pass 3"):
+            return
+
+        for tmp in (TEMP_MAIN_FILE, TEMP_BOW_FILE):
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+    else:
+        print("\n=== FFmpeg 영상 합성 ===")
+        cmd = build_cmd(mouth_gif, font_path)
+        print("명령어:", " ".join(cmd[:8]), "...")
+        if not run_ffmpeg(cmd, "합성"):
+            return
 
     if os.path.exists(OUTPUT_FILE):
         size_mb = os.path.getsize(OUTPUT_FILE) / (1024 * 1024)
         print(f"\n{OUTPUT_FILE} 생성 완료 ({size_mb:.1f}MB)")
     else:
         print("[에러] 출력 파일이 생성되지 않았습니다.")
-        print(stderr[-2000:])
 
 
 if __name__ == "__main__":
