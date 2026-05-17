@@ -25,6 +25,7 @@ MAX_ARTICLES   = 5
 MAX_CANDIDATES = 5
 RSS_FETCH_LIMIT = 20
 FRESHNESS_HOURS = 6
+RECENT_USED_URL_DAYS = 30
 ECONOMIC_KEYWORDS = ["株", "円", "物価", "金利", "為替", "経済", "GDP", "インフレ", "日銀", "財務"]
 BLOCKED_KEYWORDS = [
     # 종목·주가 예측·추천
@@ -163,6 +164,7 @@ USER_PROMPT = """
 - 人名・企業名・役職名は正確に表記すること
 - short_title：6〜10字の核心キーワード
 - image_prompt：Pexels検索用英語キーワード（例："japanese economy stock market"）
+- korean_summary：記事の要点を必ず韓国語（한국어）で1文にまとめること。例：「일본 GDP가 예상을 웃도는 성장률을 기록했습니다.」
 
 ニュースタイトル：{title}
 ニュース本文：{article_body}
@@ -416,10 +418,41 @@ def get_used_urls():
     return used
 
 
+def load_recent_used_urls(days: int) -> set:
+    """최근 days일 이내 사용한 기사 URL 집합 반환. output 폴더 없거나 비어있으면 빈 set."""
+    used = set()
+    if not os.path.isdir(OUTPUT_DIR):
+        return used
+    now_jst = datetime.datetime.now(JST)
+    cutoff_date = (now_jst - datetime.timedelta(days=days)).date()
+    for folder in os.listdir(OUTPUT_DIR):
+        try:
+            folder_date = datetime.datetime.strptime(folder, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if folder_date < cutoff_date:
+            continue
+        folder_path = os.path.join(OUTPUT_DIR, folder)
+        if not os.path.isdir(folder_path):
+            continue
+        for fname in os.listdir(folder_path):
+            if not fname.endswith("_gpt_result.json"):
+                continue
+            try:
+                with open(os.path.join(folder_path, fname), encoding="utf-8") as f:
+                    data = json.load(f)
+                url = data.get("article_url")
+                if url:
+                    used.add(url)
+            except Exception:
+                pass
+    return used
+
+
 def fetch_articles():
-    used_urls = get_used_urls()
+    used_urls = load_recent_used_urls(RECENT_USED_URL_DAYS)
     if used_urls:
-        print(f"  당일 사용된 기사 {len(used_urls)}개 제외")
+        print(f"  최근 {RECENT_USED_URL_DAYS}일 사용된 기사 {len(used_urls)}개 제외")
 
     seen_urls = set(used_urls)
     all_articles = []

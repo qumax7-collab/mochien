@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 18일 (세션 4)
+최종 업데이트: 2026년 5월 18일 (세션 5)
 
 ================================================================
 ## 0. 작업 규칙
@@ -743,6 +743,19 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
             Pass 3: 두 클립 concat → output_no_sub.mp4
           · mochien_bow.gif 없으면 기존 1-pass 단순 합성으로 fallback (하위 호환)
 
+✅  세션 5 완료 (2026-05-18) — 30일 중복 기사 방지 + 한국어 요약 지시 추가
+        - step2_select.py: RECENT_USED_URL_DAYS = 30 상수 추가
+        - step2_select.py: load_recent_used_urls(days) 신규 함수
+          · output/ 하위 YYYY-MM-DD 폴더를 스캔, days일 이내 폴더만 대상
+          · 각 폴더의 *_gpt_result.json에서 article_url 수집 → set 반환
+          · output 폴더 없거나 파일 없으면 빈 set (예외 없음)
+        - step2_select.py: fetch_articles() 호출부 get_used_urls() → load_recent_used_urls(RECENT_USED_URL_DAYS) 교체
+          · filtered/fallback 양쪽 모두 30일 제외 자동 적용 (all_articles 공유 구조 활용)
+          · 기존 당일 중복 방지 → 30일 이력 방지로 확장
+        - step2_select.py: USER_PROMPT 【その他】에 korean_summary 작성 지시 추가
+          · 한국어 요약 비어있는 버그 원인: 캐릭터 시트 일본어화로 GPT가 한국어 출력 생략
+          · "필ず韓国語（한국어）で1文" 명시로 해결
+
 ✅  세션 4 완료 (2026-05-18) — 영상 설명란 자동 삽입 + 캐릭터 인격 블록 추가
         - step9_youtube.py / long6_youtube.py: INFO_BLOCK 상수 추가
           · 내용: 【参考ソース】NHK / Yahoo Japan + 【このチャンネルについて】 면책 문구
@@ -1008,6 +1021,12 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
   bow.gif 오버레이에서 제거 시 eof_action=repeat(기본값)으로 마지막 프레임 고정 → -t로 클립 길이 제어
 - silencedetect vs silenceremove: 정확한 trailing silence 위치는 silencedetect로 감지 후 -t 출력 옵션으로 자르는 것이 안전
   silenceremove stop_periods=-1은 예상보다 많은 구간을 제거하는 케이스 확인 (발화 2s 잘림)
+- Telegram 409 Conflict: 같은 봇 토큰으로 getUpdates를 동시에 폴링하는 프로세스가 2개 이상이면 발생
+  run_all.py 백그라운드 실행을 여러 번 시도하면 고아 프로세스가 남아 충돌 → 실행 전 python* 프로세스 전체 종료 필수
+  Stop-Process -Name python* -Force 로 일괄 종료
+- GPT korean_summary 빈값: SYSTEM_PROMPT 캐릭터 시트가 일본어 중심으로 강화되면 GPT가 한국어 출력(korean_summary)을 생략
+  USER_PROMPT 【その他】에 "必ず韓国語（한국어）で1文" 명시로 해결 — 필드 설명이 없으면 GPT는 출력하지 않을 수 있음
+- load_recent_used_urls(): output/ 하위 YYYY-MM-DD 폴더를 date() 비교로 스캔 (timedelta+datetime 비교 시 시각까지 비교되어 당일 경계 오차 발생 → .date() 비교 권장)
 
 
 ================================================================
