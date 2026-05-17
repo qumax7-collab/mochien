@@ -46,7 +46,7 @@
 RSS (NHK cat6/cat5 + Yahoo Japan 비즈니스) 최대 5개 수집
 → 기사별 ChatGPT API (gpt-4.1-mini) 병렬 호출 → 한국어 요약 생성
 → 단독 모드 (기본): 텔레그램 기사 선택 1건 (✅ 진행 / 🔄 다음 / ❌ 취소) → gpt_result.json 저장
-→ 일괄 모드 (--batch): 후보 전체 메시지 전송 → 텔레그램에서 3건 선택 → 09/13/18_gpt_result.json 동시 생성
+→ 일괄 모드 (--batch): 후보 전체 메시지 전송 → 텔레그램에서 2건 선택 → 09/18_gpt_result.json 동시 생성
 → 슬롯 파일을 output/{날짜}/{슬롯}_gpt_result.json에 저장 (롱폼 연결용)
 
 [ step4~step7 — 영상 생성 ]
@@ -62,12 +62,12 @@ RSS (NHK cat6/cat5 + Yahoo Japan 비즈니스) 최대 5개 수집
 → output/{날짜}/{슬롯}_gpt_result.json을 GitHub Artifact로 업로드
 
 [ 롱폼 파이프라인 (mochien_longform.yml) — JST 21:00 ]
-→ GitHub Artifact에서 당일 gpt_result 3개 파일 복원
-→ long1_script.py: gpt-4.1로 롱폼 스크립트 생성 (long_script.json) — 5회 순차 호출
-   intro(1) → issue1(2) → issue2(3) → issue3(4) → outro+메타(5)
+→ GitHub Artifact에서 당일 gpt_result 2개 파일 복원
+→ long1_script.py: gpt-4.1로 롱폼 스크립트 생성 (long_script.json) — 4회 순차 호출
+   intro(1) → issue1(2) → issue2(3) → outro+메타(4)
    각 섹션이 직전 섹션의 summary를 컨텍스트로 수신해 섹션 간 연결성 유지
-→ long2_tts.py: 5섹션 TTS → long_voice.mp3 + long_chapters.json 생성 (ffprobe 길이 측정)
-→ long3_pexels.py: 4개 배경 영상 다운로드
+→ long2_tts.py: 4섹션 TTS → long_voice.mp3 + long_chapters.json 생성 (ffprobe 길이 측정)
+→ long3_pexels.py: 3개 배경 영상 다운로드
 → long4_ffmpeg.py: 섹션별 클립 생성 → concat → long_output_no_sub.mp4
 → long5_whisper.py: Whisper 자막 합성 → long_output.mp4
 → long6_youtube.py: YouTube 업로드 + 텔레그램 롱폼 완료 알림 개별 전송
@@ -79,7 +79,7 @@ RSS (NHK cat6/cat5 + Yahoo Japan 비즈니스) 최대 5개 수집
 언어            : Python 3.14
 영상 합성        : FFmpeg (Creatomate 대체)
 자동화 실행      : GitHub Actions (Make.com 대체) - 공개 repo 무료 무제한
-스케줄          : 09:00 / 13:00 / 18:00 JST (하루 3회)
+스케줄          : 09:00 / 18:00 JST (하루 2회)
                   ※ GitHub Actions cron 제거 → GitHub 앱에서 workflow_dispatch 수동 트리거
 로컬 개발 환경   : Windows / C:\mochien 프로젝트 폴더
 
@@ -162,7 +162,7 @@ JSON 9필드 상세 (GPT 출력) + step2에서 3개 추가 = gpt_result.json 총
   image_prompt   - Pexels 검색 영어 키워드
   short_title    - 6~10자 핵심 키워드
   --- step2_select.py에서 추가 ---
-  slot           - 슬롯 배정 ("09" / "13" / "18")
+  slot           - 슬롯 배정 ("09" / "18")
   article_url    - 기사 URL (당일 중복 방지용)
   raw_summary_jp - RSS entry.summary 일본어 원문 본문 (long1_script.py 심층 분석 입력용)
 
@@ -196,9 +196,9 @@ emotion 허용값:
 해상도      : 1920x1080 (YouTube 가로형)
 폰트        : Noto Sans JP Bold / 제목 80px
 배경        : Pexels 스톡 영상 + 동일 컬러 그레이딩 + 비네팅
-섹션 구성   : intro / issue1 / issue2 / issue3 / outro (5섹션 FFmpeg concat)
+섹션 구성   : intro / issue1 / issue2 / outro (4섹션 FFmpeg concat)
 상단 바     : 높이 108px / 네이비 + 빨간 구분선 / 섹션별 라벨 표시
-              intro·outro → short_title / issueN → "①②③ + 이슈 제목 14자"
+              intro·outro → short_title / issueN → "①② + 이슈 제목 14자"
 캐릭터      : 우하단 고정 / FACE_H=300px / mochien_talk.gif 오버레이
 자막        : Whisper ASS \an2 (하단 중앙) / 72px / 6단어/줄
 
@@ -211,7 +211,7 @@ Method      : GET
 Header      : Authorization: {PEXELS_API_KEY}  ※ Bearer 없이 키만
 Query params: query={image_prompt 키워드}, per_page=1
 응답 경로   : response["videos"][0]["video_files"][0]["link"]
-무료 플랜   : 월 200 요청 / 하루 3편x30일=90 요청으로 여유 있음
+무료 플랜   : 월 200 요청 / 하루 2편×쇼츠+3개×롱폼=5req×30일=150 요청으로 여유 있음
 상업적 사용 : 가능 (크레딧 표기 권장)
 
 
@@ -274,7 +274,7 @@ API         : YouTube Data API v3 videos.insert
 설명란 구성 : 일본어 채널 소개 + hashtags (한국어 제거)
 업로드 방식 : 예약 발행 (privacyStatus: private + publishAt RFC 3339)
               ※ YouTube가 지정 시각에 자동 public 전환
-쇼츠 예약   : 슬롯 09 → 07:00 JST / 슬롯 13 → 12:00 JST / 슬롯 18 → 18:00 JST
+쇼츠 예약   : 슬롯 09 → 07:00 JST / 슬롯 18 → 18:00 JST
 롱폼 예약   : 21:00 JST 고정
 승인 방식   : 텔레그램 봇 기사 선택 후 파이프라인 자동 실행
               ※ 10분 무응답 시 자동 진행
@@ -308,9 +308,9 @@ API         : YouTube Data API v3 videos.insert
 ## 13. GitHub Actions / 보안 설정 ← 7차 세션 업데이트
 ================================================================
 repo        : https://github.com/qumax7-collab/mochien (Public)
-워크플로우  : .github/workflows/mochien.yml          (쇼츠 / 하루 3회 — 개별 실행용)
+워크플로우  : .github/workflows/mochien.yml          (쇼츠 / 하루 2회 — 개별 실행용)
               .github/workflows/mochien_longform.yml  (롱폼 / 하루 1회 — 개별 실행용)
-              .github/workflows/mochien_full.yml       (쇼츠 3편+롱폼 통합 / 하루 1회)
+              .github/workflows/mochien_full.yml       (쇼츠 2편+롱폼 통합 / 하루 1회)
               .github/workflows/keepalive.yml          (repo 활성 유지 / 주 1회)
 실행 환경   : ubuntu-latest / 공개 repo 무료 무제한
 
@@ -329,9 +329,9 @@ repo        : https://github.com/qumax7-collab/mochien (Public)
   1. 쇼츠 워크플로우 시작 시: 기존 gpt-results artifact 다운로드 (이전 슬롯 복원)
   2. 파이프라인 실행: step2가 output/{날짜}/{슬롯}_gpt_result.json 저장
      ※ 슬롯명은 시간 기준이 아닌 당일 파일 순서 기준 (09→13→18)
-     → 같은 날 몇 시에 실행해도 09/13/18 순서로 채워짐
+     → 같은 날 몇 시에 실행해도 09/18 순서로 채워짐
   3. step9 이후: output/ 전체를 gpt-results artifact로 업로드 (overwrite)
-  → 하루 3회 실행 후 artifact에 09/13/18 파일 누적됨
+  → 하루 2회 실행 후 artifact에 09/18 파일 누적됨
   4. 롱폼 워크플로우: dawidd6/action-download-artifact로 gpt-results 수신
   ※ GITHUB_TOKEN은 별도 등록 불필요 — GitHub Actions가 자동 제공
 
@@ -373,9 +373,9 @@ C:\mochien\
   ├── suggested_glossary.json             ← Gemini+Claude 검수 자막 후보 누적 (런타임 생성)
   ├── .github/
   │     └── workflows/
-  │           ├── mochien.yml             ← 쇼츠 파이프라인 (하루 3회 — 개별 실행용)
+  │           ├── mochien.yml             ← 쇼츠 파이프라인 (하루 2회 — 개별 실행용)
   │           ├── mochien_longform.yml    ← 롱폼 파이프라인 (하루 1회 — 개별 실행용)
-  │           ├── mochien_full.yml        ← 쇼츠 3편+롱폼 통합 워크플로우 (하루 1회)
+  │           ├── mochien_full.yml        ← 쇼츠 2편+롱폼 통합 워크플로우 (하루 1회)
   │           └── keepalive.yml           ← repo 활성 유지 (주 1회)
   ├── venv\
   ├── [ 쇼츠 파이프라인 ]
@@ -396,8 +396,8 @@ C:\mochien\
   ├── [ 롱폼 파이프라인 ]
   ├── run_longform.py                     ← 롱폼 전체 실행 (long1→6)
   ├── long1_script.py                     ← gpt-4.1 롱폼 스크립트 생성
-  ├── long2_tts.py                        ← 5섹션 TTS + concat
-  ├── long3_pexels.py                     ← 4개 배경 영상 다운로드
+  ├── long2_tts.py                        ← 4섹션 TTS + concat
+  ├── long3_pexels.py                     ← 3개 배경 영상 다운로드
   ├── long4_ffmpeg.py                     ← 섹션별 클립 생성 + concat
   ├── long5_whisper.py                    ← Whisper 자막 합성
   ├── long6_youtube.py                    ← YouTube 업로드 + 텔레그램
@@ -743,9 +743,47 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
             Pass 3: 두 클립 concat → output_no_sub.mp4
           · mochien_bow.gif 없으면 기존 1-pass 단순 합성으로 fallback (하위 호환)
 
-🔜  31. 워드프레스 REST API 블로그 자동 발행
-🔜  31. emotion 자동 매핑 복원 (블로그 자동발행 이후)
-🔜  32. 롱폼 추가 개선 (챕터 밀도·섹션 구성 최적화)
+✅  세션 3 완료 (2026-05-18) — 캐릭터 시트 강화
+        - step2_select.py / long1_script.py: SYSTEM_PROMPT에 【モチエンキャラクターシート】 삽입
+          · 인격·말투: 신뢰감 중심 뉴스캐스터 / 40~60대 / "あなた" 호칭
+          · 배경: 일본 경제 20년 모찌모찌 해설 캐릭터
+          · 감정 표현 규칙 6개:
+            강한 감정표현 금지 / 「!」 최대 1회 / 「!!」 연속 금지 /
+            중립 어미 우선 / 단정 미래예측 금지 / 과잉 동의 어미 최대 1회
+          · 금지 어휘 13개:
+            【지시 7개】 やばい / オワコン / 爆益 / 神回 / 草 / ガチで / マジで
+            【재량 추가 6개】 ぶっちゃけ / めっちゃ / やっぱ / リアルに / ヤバすぎ / すごすぎ
+        - long1_script.py: 기존 【モチエンキャラクター設定】 3행 → 풀 캐릭터 시트로 교체
+          (4회 GPT 호출 전체에 일관 적용 / 【文章スタイル】 블록은 유지)
+
+✅  세션 2 완료 (2026-05-17) — 발행 빈도 축소
+        - 쇼츠 3슬롯 → 2슬롯 (07:00 + 18:00 JST, 12:00 제거)
+          · 슬롯명 "09" / "18" 유지 (내부 식별자)
+          · SELECTION_TARGET=2, SLOT_NAMES=["09","18"] 상수화
+        - 롱폼 5섹션 → 4섹션 (intro / issue1 / issue2 / outro)
+          · 약 7.5분 / issue 1,100자×2
+          · PROMPT_ISSUE 필수 항목 6→8개, "最低1000字以上"
+          · call_issue_retry 임계값 700→1000
+        - 슬롯 1개만 성공한 날 롱폼 스킵 (run_all.py)
+        - long3_pexels.py 배경 영상 4→3개
+        - 변경 파일: step2_select.py, step9_youtube.py, run_all.py,
+                    long1_script.py, long2_tts.py, long3_pexels.py,
+                    long4_ffmpeg.py, long6_youtube.py
+
+✅  세션 1 완료 (2026-05-17) — 투자 주제 전면 차단
+        - step2_select.py:
+          · BLOCKED_KEYWORDS 16개 상수 추가 (종목·추천 8 / 가상화폐 5 / 자산운용상품 5 / 부동산투자 5, 일부 중복)
+          · BlockedArticleError 예외 클래스 신규
+          · contains_blocked_keyword() 헬퍼 추가
+          · fetch_articles() 차단 필터 (filtered·fallback 공통)
+          · SYSTEM_PROMPT 「絶対に扱わないテーマ」 블록 삽입
+          · call_chatgpt() __BLOCKED__ 감지 → BlockedArticleError raise
+          · single_main() / batch_main().call_safe() 별도 캐치 처리
+        - 거시 변수 단독 키워드(金利·為替·円安·円高) 차단어 미포함 (정책 뉴스 정상 통과용)
+
+🔜  32. 워드프레스 REST API 블로그 자동 발행
+🔜  33. emotion 자동 매핑 복원 (블로그 자동발행 이후)
+🔜  34. 롱폼 추가 개선 (챕터 밀도·섹션 구성 최적화)
 
 실행 순서 (전체 — 권장):
   python run_all.py        ← 쇼츠 3편 + 롱폼 통합 실행 (run_all.bat 더블클릭도 가능)
@@ -800,8 +838,8 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
 - GitHub Actions cron: 무료 플랜 1~4시간 지연 / UTC 기준 (JST -9h) / 활동 없으면 트리거 건너뜀
   → 실사용 불가 판단 → workflow_dispatch 수동 트리거로 전환 / keepalive로 활성 유지
 - 오후 시간대 업로드는 조회수 낮음 (일본 직장인 시청 패턴 고려)
-  → 07:00/12:00/18:00 JST 예약 발행
-- gpt_result.json 날짜/시간별 저장 → 롱폼 파이프라인에서 당일 3개 파일 읽어 활용
+  → 07:00/18:00 JST 예약 발행
+- gpt_result.json 날짜/슬롯별 저장 → 롱폼 파이프라인에서 당일 2개 파일 읽어 활용
 - .gitignore 작성 시 *.png / *.gif 와일드카드 금지
   mochien_*.png, mochien_talk.gif 캐릭터 에셋이 함께 무시됨 → 파일명 개별 지정
 - Telegram getUpdates: flush_updates() 세션 시작 시 필수 (stale 콜백 재처리 방지)
@@ -816,11 +854,11 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
 - Artifact 누적 방식: 업로드 전에 기존 artifact를 먼저 다운로드해 병합해야 누적됨
   (overwrite:true만 하면 마지막 슬롯 파일만 남음)
 - dawidd6/action-download-artifact: if_no_artifact_found: ignore 설정 시 첫 실행 오류 방지
-- 롱폼 파이프라인: 5섹션 구조 (intro + issue1~3 + outro) / 각 섹션 TTS → 클립 → concat
+- 롱폼 파이프라인: 4섹션 구조 (intro + issue1~2 + outro) / 각 섹션 TTS → 클립 → concat
 - 롱폼 ASS 자막: \an2 (하단 중앙) / PlayResX:1920 PlayResY:1080 / 72px / 6단어/줄
 - 롱폼 ChatGPT: gpt-4.1 사용 (심층 분석 품질 확보) / 쇼츠는 gpt-4.1-mini
-- 쇼츠 슬롯 배정: 시간 기준(05~10시→09 등) 폐기 → 당일 output 폴더 파일 순서 기준(09→13→18)
-  → 몇 시에 실행해도 그날 1번째=09, 2번째=13, 3번째=18 / 하루 3개 완성 시 롱폼 가능
+- 쇼츠 슬롯 배정: 시간 기준(05~10시→09 등) 폐기 → 당일 output 폴더 파일 순서 기준(09→18)
+  → 몇 시에 실행해도 그날 1번째=09, 2번째=18 / 하루 2개 완성 시 롱폼 가능
 - telegram_trigger.py: PC 켜져 있을 때만 동작 / 핸드폰 트리거는 GitHub 앱 사용
 - GH_PAT: GitHub PAT (workflow 스코프) → .env에 추가 / workflow_dispatch API 호출에 필요
 - YouTube 예약 발행 API: privacyStatus를 "private"으로 설정 + publishAt(RFC 3339) 필드 추가
@@ -931,10 +969,10 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
 - mochien_full.yml을 python run_all.py 단일 호출로 간소화하면
   GitHub Actions UI에서 개별 스텝 가시성은 줄지만 유지보수성 크게 향상
   로직 변경 시 yml 수정 불필요 — run_all.py만 수정하면 됨
-- long1_script.py 5회 순차 호출 비용: gpt-4.1 기준 롱폼 1회 ~$0.10~0.20
-  하루 1회 × 30일 = 월 ~$3~6 추가 → OpenAI 합계 ~$10~14/월
+- long1_script.py 4회 순차 호출 비용: gpt-4.1 기준 롱폼 1회 ~$0.08~0.16
+  하루 1회 × 30일 = 월 ~$2~5 추가 → OpenAI 합계 ~$10~14/월
 - 글자수 직접 지시(「約800字」)는 GPT가 잘 따르지 않음
-  항목 수 필수 구조(6항목 × 각 3~4문)로 대체 → 항목 모두 채우면 900~1,100자 자동 확보
+  항목 수 필수 구조(8항목 × 각 3~4문)로 대체 → 항목 모두 채우면 1,000~1,200자 자동 확보
 - long1 섹션별 summary 컨텍스트: content와 summary를 같은 응답에서 받아
   다음 호출에 summary만 전달 → 전체 스크립트를 메시지로 쌓지 않아 토큰 효율 유지
 - long1 image_prompt: issue는 각 슬롯 gpt_result["image_prompt"] 재사용

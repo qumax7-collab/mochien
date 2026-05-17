@@ -15,7 +15,7 @@ load_dotenv()
 LONG_SCRIPT_FILE  = "long_script.json"
 LONG_CHAPTERS_FILE = "long_chapters.json"
 OUTPUT_DIR        = "output"
-SLOTS             = ["09", "13", "18"]
+SLOTS             = ["09", "18"]
 JST               = datetime.timezone(datetime.timedelta(hours=9))
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 TTS_MODEL_ID      = "eleven_multilingual_v2"
@@ -30,7 +30,6 @@ SECTIONS = [
     ("long_voice_intro.mp3",  "intro"),
     ("long_voice_issue1.mp3", "issue1"),
     ("long_voice_issue2.mp3", "issue2"),
-    ("long_voice_issue3.mp3", "issue3"),
     ("long_voice_outro.mp3",  "outro"),
 ]
 VOICE_LONG_FILE = "long_voice.mp3"
@@ -58,13 +57,11 @@ def build_chapters():
         except Exception:
             short_titles[slot] = ""
 
-    nums = ["①", "②", "③"]
-    slot_order = ["09", "13", "18"]
+    nums = ["①", "②"]
     labels = {
         "intro":  "オープニング",
-        "issue1": f"{nums[0]} {short_titles.get(slot_order[0], 'トピック①')}",
-        "issue2": f"{nums[1]} {short_titles.get(slot_order[1], 'トピック②')}",
-        "issue3": f"{nums[2]} {short_titles.get(slot_order[2], 'トピック③')}",
+        "issue1": f"{nums[0]} {short_titles.get(SLOTS[0], 'トピック①')}",
+        "issue2": f"{nums[1]} {short_titles.get(SLOTS[1], 'トピック②')}",
         "outro":  "まとめ",
     }
 

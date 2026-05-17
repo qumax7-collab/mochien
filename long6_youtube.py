@@ -21,7 +21,7 @@ VIDEO_PATH        = "long_output.mp4"
 CLIENT_SECRETS_PATH = "client_secrets.json"
 TOKEN_PATH        = "token.json"
 OUTPUT_DIR        = "output"
-SLOTS             = ["09", "13", "18"]
+SLOTS             = ["09", "18"]
 
 # ===== YouTube API 설정 =====
 SCOPES = [
@@ -36,7 +36,7 @@ LONGFORM_PUBLISH_HOUR = 21
 
 CHANNEL_FOOTER = (
     "\n\n━━━━━━━━━━━━━━━━━━\n"
-    "毎日3回のショーツ＋毎晩21時に深掘り解説！\n"
+    "毎日2回のショーツ＋毎晩21時に深掘り解説！\n"
     "チャンネル登録よろしくお願いします。"
 )
 

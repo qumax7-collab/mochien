@@ -14,10 +14,10 @@ GPT_MODEL        = "gpt-4.1"
 GPT_TEMPERATURE  = 0.7
 OUTPUT_DIR       = "output"
 LONG_SCRIPT_FILE = "long_script.json"
-SLOTS            = ["09", "13", "18"]
+SLOTS            = ["09", "18"]
 
 JST              = datetime.timezone(datetime.timedelta(hours=9))
-MIN_ISSUE_CHARS  = 700   # 재시도 임계값 (자)
+MIN_ISSUE_CHARS  = 1000  # 재시도 임계값 (자)
 
 # ===== 공통 시스템 프롬프트 (5회 모두 적용) =====
 SYSTEM_PROMPT = """\
@@ -25,10 +25,30 @@ SYSTEM_PROMPT = """\
 出力は必ず { で始まり } で終わる純粋なJSONのみ。
 ```json などのマークダウン記号は絶対に使用禁止。
 
-【モチエンキャラクター設定】
-- 落ち着いていて信頼感がある話し方（40〜60代向け）
-- 難しい経済用語はやさしい言葉に言い換える
-- 視聴者を「あなた」と呼ぶ
+【モチエンキャラクターシート】
+
+■ 人格・話し方
+- 落ち着いた口調で経済ニュースを整理して伝える、信頼感重視のニュースキャスター。
+- 40〜60代の視聴者に向けて、難しい経済用語はやさしい言葉に言い換える。
+- 視聴者を「あなた」と呼ぶ。
+- 個人的な感情の起伏は出さず、事実を整理して落ち着いて伝える。
+
+■ 背景設定
+- 日本経済を20年見続けてきた、もちもち系経済ニュース解説キャラ。
+
+■ 感情表現ルール
+- 驚き・怒り・興奮などの強い感情表現は使わない。
+- 「!」の多用禁止（1スクリプトに最大1回まで）。
+- 「!」を2つ以上連続して使わないこと（「大変です！！」禁止）。
+- 「〜と言われています」「〜という見方があります」など中立的な語尾を優先。
+- 断定的な未来予測（「絶対に〜なります」「必ず〜になる」）は使わないこと。
+- 「〜ですよね？」「〜じゃないですか」などの過剰な同意を求める語尾は多用しないこと（最大1回/スクリプト）。
+
+■ 禁止語彙（絶対に使用しないこと）
+- やばい / オワコン / 爆益 / 神回 / 草 / ガチで / マジで
+- ぶっちゃけ / めっちゃ / やっぱ / リアルに / ヤバすぎ / すごすぎ
+- その他、ネットスラング・若者言葉・投資扇動的な強調語彙はすべて禁止。
+- 落ち着いたニュースキャスターの語彙のみ使用すること。
 
 【文章スタイル】
 - 項目番号や見出しを出力に含めないこと
@@ -40,19 +60,18 @@ SYSTEM_PROMPT = """\
 # ===== 섹션별 유저 프롬프트 =====
 PROMPT_INTRO = """\
 【イントロセクション生成】
-以下の3つのトピックを紹介するイントロを書いてください。
+以下の2つのトピックを紹介するイントロを書いてください。
 
 必須項目（すべて含めること / 各項目3〜4文）:
 1. フック: 視聴者を引き込む冒頭の一文（数字・疑問・生活への影響）
-2. 今日の3つのトピック紹介: 各トピックを1〜2文で予告
-3. 共通テーマの提示: 3つを貫く経済トレンドを一言で
+2. 今日の2つのトピック紹介: 各トピックを1〜2文で予告
+3. 共通テーマの提示: 2つを貫く経済トレンドを一言で
 
-末尾は必ず「今日は3つのニュースを深掘りしていきます。」で締めること。
+末尾は必ず「今日は2つのニュースを深掘りしていきます。」で締めること。
 
 【本日のトピック】
 ■ トピック①: {title1}（{summary1}）
 ■ トピック②: {title2}（{summary2}）
-■ トピック③: {title3}（{summary3}）
 
 出力フォーマット（このJSONのみ）:
 {{
@@ -63,16 +82,18 @@ PROMPT_INTRO = """\
 
 PROMPT_ISSUE = """\
 【トピック{idx}セクション生成】
-このセクション全体で最低700字以上の日本語で書くこと。
+このセクション全体で最低1000字以上の日本語で書くこと。
 titleは必ず日本語のみで書くこと（韓国語・英語禁止）。
 
 必須項目（すべて含めること / 各項目3〜4文）:
 1. 背景: なぜこの出来事が起きたのか
 2. 現状の事実: 数値・固有名詞・引用を原文から正確に
 3. データの読み解き: 数字が示す本当の意味
-4. 影響分析: 誰が得をして誰が損をするか
-5. 今後の見通し: 短期（1〜3ヶ月）と中期（半年〜1年）
-6. 視聴者へのメッセージ: 日常生活・家計への具体的アドバイス
+4. 影響分析①: 誰が得をして誰が損をするか
+5. 影響分析②: 産業・市場への具体的な波及効果
+6. 今後の見通し（短期）: 1〜3ヶ月の動向予測
+7. 今後の見通し（中期）: 半年〜1年の構造的変化
+8. 視聴者へのメッセージ: 日常生活・家計への具体的アドバイス
 
 【トピック{idx} 原文（日本語）】
 {raw}
@@ -90,10 +111,10 @@ titleは必ず日本語のみで書くこと（韓国語・英語禁止）。
 
 PROMPT_OUTRO = """\
 【アウトロセクション生成】
-以下の3つのトピックをまとめるアウトロを書いてください。
+以下の2つのトピックをまとめるアウトロを書いてください。
 
 必須項目（すべて含めること / 各項目3〜4文）:
-1. 3つのトピックの要約: 各核心を1文で
+1. 2つのトピックの要約: 各核心を1文で
 2. 共通する教訓: 視聴者が持ち帰るべきインサイト
 3. CTA: チャンネル登録・コメント誘導
 
@@ -102,7 +123,6 @@ PROMPT_OUTRO = """\
 【本日のトピック】
 ■ トピック①: {title1}
 ■ トピック②: {title2}
-■ トピック③: {title3}
 
 【全セクション要約】
 {all_summaries}
@@ -144,9 +164,9 @@ def load_today_results():
             missing.append(slot)
             print(f"  ⚠️  {slot}_gpt_result.json 없음")
 
-    if len(results) < 3:
+    if len(results) < 2:
         raise Exception(
-            f"쇼츠 결과 파일이 부족합니다. 필요: 3개, 현재: {len(results)}개 "
+            f"쇼츠 결과 파일이 부족합니다. 필요: 2개, 현재: {len(results)}개 "
             f"(없는 슬롯: {missing})"
         )
 
@@ -177,12 +197,11 @@ def call_section(client, messages, name):
     sys.exit(1)
 
 
-def call_intro(client, r1, r2, r3):
-    print("[1/5] intro 생성 중...")
+def call_intro(client, r1, r2):
+    print("[1/4] intro 생성 중...")
     prompt = PROMPT_INTRO.format(
         title1=r1["title"], summary1=r1["korean_summary"],
         title2=r2["title"], summary2=r2["korean_summary"],
-        title3=r3["title"], summary3=r3["korean_summary"],
     )
     result, usage = call_section(
         client,
@@ -195,7 +214,7 @@ def call_intro(client, r1, r2, r3):
 
 
 def call_issue(client, idx, r, prev_summaries):
-    print(f"[{idx + 1}/5] issue{idx} 생성 중...")
+    print(f"[{idx + 1}/4] issue{idx} 생성 중...")
     prev_text = "\n".join(prev_summaries) if prev_summaries else "（なし）"
     prompt = PROMPT_ISSUE.format(
         idx=idx,
@@ -234,10 +253,10 @@ def call_issue_retry(client, idx, r, prev_summaries, prev_content):
     return result, usage
 
 
-def call_outro(client, r1, r2, r3, all_summaries):
-    print("[5/5] outro 생성 중...")
+def call_outro(client, r1, r2, all_summaries):
+    print("[4/4] outro 생성 중...")
     prompt = PROMPT_OUTRO.format(
-        title1=r1["title"], title2=r2["title"], title3=r3["title"],
+        title1=r1["title"], title2=r2["title"],
         all_summaries="\n".join(all_summaries),
     )
     result, usage = call_section(
@@ -271,7 +290,7 @@ def assemble_result(intro_result, issue_results, outro_result, r_list):
                 "script":       issue_results[i]["content"],
                 "image_prompt": r_list[i].get("image_prompt", fallback_img),
             }
-            for i in range(3)
+            for i in range(2)
         ],
         "outro": {
             "script":       outro_result["content"],
@@ -287,22 +306,22 @@ def assemble_result(intro_result, issue_results, outro_result, r_list):
 def main():
     print("=== 당일 쇼츠 gpt_result 로드 ===")
     results = load_today_results()
-    r_list = [results["09"], results["13"], results["18"]]
+    r_list = [results["09"], results["18"]]
 
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
     total_tokens = 0
     summaries = []
 
-    print("\n=== ChatGPT gpt-4.1 롱폼 스크립트 5회 순차 생성 ===")
+    print("\n=== ChatGPT gpt-4.1 롱폼 스크립트 4회 순차 생성 ===")
 
-    # 1/5 intro
-    intro_result, u = call_intro(client, *r_list)
+    # 1/4 intro
+    intro_result, u = call_intro(client, r_list[0], r_list[1])
     summaries.append(f"イントロ要約:\n{intro_result['summary']}")
     total_tokens += u.total_tokens
 
-    # 2~4/5 issues
+    # 2~3/4 issues
     issue_results = []
-    for i in range(3):
+    for i in range(2):
         # 직전 섹션 summary 1개만 전달 (전체 누적 시 GPT가 요약 모드로 전환되는 문제 방지)
         prev = [summaries[-1]] if summaries else []
         result, u = call_issue(client, i + 1, r_list[i], prev)
@@ -324,8 +343,8 @@ def main():
         summaries.append(f"トピック{i + 1}要約:\n{result['summary']}")
         issue_results.append(result)
 
-    # 5/5 outro
-    outro_result, u = call_outro(client, *r_list, list(summaries))
+    # 4/4 outro
+    outro_result, u = call_outro(client, r_list[0], r_list[1], list(summaries))
     total_tokens += u.total_tokens
 
     data = assemble_result(intro_result, issue_results, outro_result, r_list)
@@ -337,7 +356,6 @@ def main():
         "intro":  len(data["intro"]["script"]),
         "issue1": len(data["issues"][0]["script"]),
         "issue2": len(data["issues"][1]["script"]),
-        "issue3": len(data["issues"][2]["script"]),
         "outro":  len(data["outro"]["script"]),
     }
     total_chars = sum(section_chars.values())
@@ -348,7 +366,7 @@ def main():
     print(f"섹션별 글자수:")
     for sec, chars in section_chars.items():
         print(f"  {sec:<8}: {chars}자")
-    print(f"합계       : {total_chars}자 (목표: 4,000자)")
+    print(f"합계       : {total_chars}자 (목표: 3,200자)")
     print(f"총 토큰    : {total_tokens:,}")
     print(f"\n{LONG_SCRIPT_FILE} 저장 완료")
 

@@ -18,7 +18,6 @@ BACKGROUNDS = [
     ("long_bg_main.mp4",   "intro"),    # 인트로 + 아웃트로 공용
     ("long_bg_issue1.mp4", "issue1"),
     ("long_bg_issue2.mp4", "issue2"),
-    ("long_bg_issue3.mp4", "issue3"),
 ]
 
 
@@ -72,7 +71,7 @@ def main():
         url = search_video(query, api_key)
         download_video(url, filename)
 
-    print("\n배경 영상 4개 다운로드 완료")
+    print("\n배경 영상 3개 다운로드 완료")
 
 
 if __name__ == "__main__":

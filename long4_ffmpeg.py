@@ -48,7 +48,6 @@ SECTIONS = [
     {"key": "intro",  "audio": "long_voice_intro.mp3",  "bg": "long_bg_main.mp4",   "clip": "long_clip_intro.mp4"},
     {"key": "issue1", "audio": "long_voice_issue1.mp3", "bg": "long_bg_issue1.mp4", "clip": "long_clip_issue1.mp4"},
     {"key": "issue2", "audio": "long_voice_issue2.mp3", "bg": "long_bg_issue2.mp4", "clip": "long_clip_issue2.mp4"},
-    {"key": "issue3", "audio": "long_voice_issue3.mp3", "bg": "long_bg_issue3.mp4", "clip": "long_clip_issue3.mp4"},
     {"key": "outro",  "audio": "long_voice_outro.mp3",  "bg": "long_bg_main.mp4",   "clip": "long_clip_outro.mp4"},
 ]
 
@@ -185,7 +184,7 @@ def get_section_label(data, key):
     if key in ("intro", "outro"):
         return data["short_title"]
     idx = int(key[-1]) - 1
-    nums = ["①", "②", "③"]
+    nums = ["①", "②"]
     title = data["issues"][idx]["title"]
     return f"{nums[idx]} {title[:14]}"  # 상단 바에 맞게 14자 제한
 

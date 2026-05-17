@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 sys.stdout.reconfigure(encoding="utf-8")
 
-SLOTS          = ["09", "13", "18"]
+SLOTS          = ["09", "18"]
 OUTPUT_DIR     = "output"
 JST            = datetime.timezone(datetime.timedelta(hours=9))
 RETENTION_DAYS = 30
@@ -174,9 +174,17 @@ def main():
 
             print(f"\n✅ 슬롯 {slot} 완료")
 
-        if len(failed_slots) == len(SLOTS):
+        succeeded = len(SLOTS) - len(failed_slots)
+
+        if succeeded == 0:
             print("\n[실패] 전체 슬롯 실패 — 롱폼 파이프라인 건너뜀.")
             sys.exit(1)
+
+        if succeeded < len(SLOTS):
+            msg = "⚠️ 쇼츠 1편만 성공 / 롱폼 스킵 (품질 보호)"
+            print(f"\n{msg}")
+            tg_notify(msg)
+            sys.exit(0)
 
         # ── 3. 롱폼 파이프라인 ───────────────────────────────────────────
         print(f"\n{'='*50}")
@@ -188,7 +196,7 @@ def main():
             sys.exit(rc)
 
         print(f"\n{'='*50}")
-        print("✅ 전체 파이프라인 완료 (쇼츠 3편 + 롱폼)")
+        print("✅ 전체 파이프라인 완료 (쇼츠 2편 + 롱폼)")
         print(f"{'='*50}")
     finally:
         cleanup_temp_files()

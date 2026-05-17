@@ -38,16 +38,16 @@ JST = timezone(timedelta(hours=9))
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
 
-SLOT_LABELS = {"09": "쇼츠1", "13": "쇼츠2", "18": "쇼츠3"}
-SLOT_DISPLAY_TIMES = {"09": "07:00", "13": "12:00", "18": "18:00"}
+SLOT_LABELS = {"09": "쇼츠1", "18": "쇼츠2"}
+SLOT_DISPLAY_TIMES = {"09": "07:00", "18": "18:00"}
 
 # 슬롯별 예약 발행 시간 (JST 시각)
-SLOT_PUBLISH_HOURS = {"09": 7, "13": 12, "18": 18}
-SLOT_HOURS_SORTED = sorted(SLOT_PUBLISH_HOURS.values())  # [7, 12, 18]
+SLOT_PUBLISH_HOURS = {"09": 7, "18": 18}
+SLOT_HOURS_SORTED = sorted(SLOT_PUBLISH_HOURS.values())  # [7, 18]
 
 CHANNEL_FOOTER = (
     "\n\n━━━━━━━━━━━━━━━━━━\n"
-    "毎日3回、経済ニュースをわかりやすくお届け！\n"
+    "毎日2回、経済ニュースをわかりやすくお届け！\n"
     "チャンネル登録よろしくお願いします。"
 )
 

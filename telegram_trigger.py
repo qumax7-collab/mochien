@@ -167,10 +167,6 @@ def setup_scheduler():
         CronTrigger(hour=9,  minute=0, timezone=JST),
     )
     scheduler.add_job(
-        lambda: send_shorts_alarm("13"),
-        CronTrigger(hour=13, minute=0, timezone=JST),
-    )
-    scheduler.add_job(
         lambda: send_shorts_alarm("18"),
         CronTrigger(hour=18, minute=0, timezone=JST),
     )

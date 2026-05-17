@@ -61,5 +61,194 @@
     "approved": false,
     "reason": "원문에서 '国内の仕事が守られる면もある'로 '仕事が'가 정확히 사용되었으나, 이는 한 글자 차이의 일회성 오류로 보이며 패턴으로 안정적인 오류로 판단하기 어렵습니다.",
     "examples": []
+  },
+  "時価": {
+    "suggested": "週",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": true,
+    "reason": "원문에 '3週連続'이라는 정확한 표현이 있으며, '時価'는 일반적인 일본어 단어이지만 이 문맥에서는 명백한 오인식입니다. 안정적인 패턴으로 보입니다.",
+    "examples": []
+  },
+  "がり": {
+    "suggested": "せさがり",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": false,
+    "reason": "원문에 '値下がり'이 있으며, 이는 '下がり'의 일부이지 'せさがり'이라는 표현은 존재하지 않습니다. 오류가 있는 후보입니다.",
+    "examples": []
+  },
+  "お伝": {
+    "suggested": "お伝えしました",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": false,
+    "reason": "원문에 'お伝えしました'라는 완전한 형태가 있으며, 'お伝'만 등록하면 정상 단어를 오치환할 위험이 있습니다. 일회성 오인식으로 보입니다.",
+    "examples": []
+  },
+  "初価": {
+    "suggested": "株価",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": true,
+    "reason": "원문에 '株価'가 명확히 포함되어 있고, '初価'는 일반적인 일본어 단어가 아니며, 음성 인식 오류의 안정적인 패턴입니다.",
+    "examples": []
+  },
+  "相乗": {
+    "suggested": "向上",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": false,
+    "reason": "'相乗'은 '상승'이라는 의미의 정상적인 일본어 단어로 재정의 텍스트에서도 사용될 수 있어 오치환 위험이 있습니다.",
+    "examples": []
+  },
+  "物品": {
+    "suggested": "部品",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": false,
+    "reason": "'物品'은 '물품'이라는 의미의 정상적인 일본어 단어로, 다른 문맥에서도 자주 사용되어 오치환 위험이 높습니다.",
+    "examples": []
+  },
+  "種": {
+    "suggested": "株",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": false,
+    "reason": "'種'은 '종류'라는 의미의 매우 흔한 일본어 단어로, 정상 텍스트를 오치환할 위험이 매우 큽니다.",
+    "examples": []
+  },
+  "株にはリスク 株にもありますが": {
+    "suggested": "株にはリスクもありますが",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": false,
+    "reason": "이는 구절 수준의 오인식으로, 사전 항목으로 등록하기에 부적절하며 안정적인 패턴이 아닙니다.",
+    "examples": []
+  },
+  "ンクとは": {
+    "suggested": "バンクとは",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": false,
+    "reason": "원문에 '3メガバンク（さんめがばんく）とは'로 명확히 존재하며, 일회성 오인식이 아닌 안정적 패턴이 필요함",
+    "examples": []
+  },
+  "シャルグ ループ": {
+    "suggested": "グループ",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": false,
+    "reason": "원문에서 정상적으로 사용되는 단어이며, 일회성 오인식 가능성이 높음",
+    "examples": []
+  },
+  "水穂": {
+    "suggested": "みずほ",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": true,
+    "reason": "고유명사로 원문에 'みずほフィナンシャルグループ'로 명확히 존재하며, 한자 誤認識이 안정적 패턴임",
+    "examples": []
+  },
+  "フィ ナンシャ": {
+    "suggested": "フィナンシャル",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": false,
+    "reason": "공백으로 인한 분할 오인식으로 보이며, 정상적 日本語 단어임",
+    "examples": []
+  },
+  "預金": {
+    "suggested": "融資",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": false,
+    "reason": "완전히 다른 금융용어로 치환되며, 정상적으로 사용되는 단어임. 높은 오류 위험",
+    "examples": []
+  },
+  "過去最高 最高益": {
+    "suggested": "過去最高",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": false,
+    "reason": "원문에 정상적으로 존재하며, 반복 오인식으로 보여 일회성 가능성이 높음",
+    "examples": []
+  },
+  "ため からです": {
+    "suggested": "からです",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": false,
+    "reason": "일상적인 정상 일본어 표현으로 일회성 오인식 가능성이 높음",
+    "examples": []
+  },
+  "協議の関 利息収入": {
+    "suggested": "経済の先行き",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": false,
+    "reason": "완전히 다른 내용으로 치환되며, 정상 문구임. 높은 오류 위험",
+    "examples": []
+  },
+  "預けている": {
+    "suggested": "なっている",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": false,
+    "reason": "일상적 정상 표현으로 다른 맥락에서도 정상 사용됨",
+    "examples": []
+  },
+  "陰党暇": {
+    "suggested": "引当金",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": true,
+    "reason": "금융용어로 원문에 명확히 존재하며, 한자 오인식이 안정적 패턴임",
+    "examples": []
+  },
+  "損失にこ 備える": {
+    "suggested": "損失に備える",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": false,
+    "reason": "정상적 일본어 표현으로 일회성 공백 오인식 가능성이 높음",
+    "examples": []
+  },
+  "動向 稿には": {
+    "suggested": "動向には",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": false,
+    "reason": "정상 표현으로 일회성 오인식의 가능성이 높음",
+    "examples": []
+  },
+  "もちえん": {
+    "suggested": "モチエン",
+    "count": 1,
+    "first_seen": "2026-05-16",
+    "last_seen": "2026-05-16",
+    "approved": true,
+    "reason": "고유명사이며 원문에 명확히 존재, glossary.json에 이미 유사 항목('モッチェン': 'モチエン')이 등록되어 있음. 안정적 패턴임",
+    "examples": []
   }
 }
