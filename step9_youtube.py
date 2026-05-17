@@ -51,6 +51,14 @@ CHANNEL_FOOTER = (
     "チャンネル登録よろしくお願いします。"
 )
 
+INFO_BLOCK = (
+    "【参考ソース】NHK ニュース / Yahoo Japan ビジネス\n"
+    "【このチャンネルについて】\n"
+    "経済ニュースをモチエンキャラクターが解説するチャンネルです。\n"
+    "一人で運営しています。\n"
+    "個別銘柄や投資商品の推奨は行いません。"
+)
+
 
 def tg_notify(text):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
@@ -133,7 +141,7 @@ def upload_caption(youtube, video_id):
 
 def build_description(hashtags):
     tags_str = " ".join(hashtags)
-    return f"{tags_str}{CHANNEL_FOOTER}"
+    return f"{INFO_BLOCK}\n\n{tags_str}{CHANNEL_FOOTER}"
 
 
 def upload_video(youtube, title, description, tags, publish_at):

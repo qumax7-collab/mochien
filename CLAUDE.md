@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 16일 (21차 세션)
+최종 업데이트: 2026년 5월 18일 (세션 4)
 
 ================================================================
 ## 0. 작업 규칙
@@ -742,6 +742,19 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
             Pass 2: bow.gif 1.5s 단독 클립 생성 (anullsrc 무음)
             Pass 3: 두 클립 concat → output_no_sub.mp4
           · mochien_bow.gif 없으면 기존 1-pass 단순 합성으로 fallback (하위 호환)
+
+✅  세션 4 완료 (2026-05-18) — 영상 설명란 자동 삽입 + 캐릭터 인격 블록 추가
+        - step9_youtube.py / long6_youtube.py: INFO_BLOCK 상수 추가
+          · 내용: 【参考ソース】NHK / Yahoo Japan + 【このチャンネルについて】 면책 문구
+          · 쇼츠(step9): INFO_BLOCK → hashtags → CHANNEL_FOOTER 순 (hashtags 위에 삽입)
+          · 롱폼(long6): hashtags → 【本日の内容】 → INFO_BLOCK → CHANNEL_FOOTER 순
+            (CHANNEL_FOOTER에 채널소개·구독호소 포함이므로 앞에 배치, 중복 방지)
+        - step2_select.py / long1_script.py: SYSTEM_PROMPT에 신규 인격 고정 블록 삽입
+          · 삽입 위치: JSON 출력 지시 뒤, 기존 【モチエンキャラクターシート】 앞
+          · 【モチエンの人格】: 一人称「モチエン」/ 중성적 어조 / 「あなた」호칭 /
+            수치 해설 습관 / 생활 번역 역할 / 정치 중립 / 마무리 고정 멘트
+          · 【モチエンが繰り返し使うフレーズ】: 4개 고정 표현
+          · 【モチエンが絶対に言わないこと】: 투자 추천·정치인 평가·간섭·직접 손익 표현 금지
 
 ✅  세션 3 완료 (2026-05-18) — 캐릭터 시트 강화
         - step2_select.py / long1_script.py: SYSTEM_PROMPT에 【モチエンキャラクターシート】 삽입

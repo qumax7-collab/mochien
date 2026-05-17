@@ -40,6 +40,14 @@ CHANNEL_FOOTER = (
     "チャンネル登録よろしくお願いします。"
 )
 
+INFO_BLOCK = (
+    "【参考ソース】NHK ニュース / Yahoo Japan ビジネス\n"
+    "【このチャンネルについて】\n"
+    "経済ニュースをモチエンキャラクターが解説するチャンネルです。\n"
+    "一人で運営しています。\n"
+    "個別銘柄や投資商品の推奨は行いません。"
+)
+
 # ===== 텔레그램 =====
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
@@ -105,7 +113,7 @@ def build_description(data):
     issues = "\n".join(
         f"▶ {iss['title']}" for iss in data["issues"]
     )
-    body = f"{hashtags}\n\n【本日の内容】\n{issues}{CHANNEL_FOOTER}"
+    body = f"{hashtags}\n\n【本日の内容】\n{issues}\n\n{INFO_BLOCK}{CHANNEL_FOOTER}"
 
     chapters = load_chapters()
     if chapters:
