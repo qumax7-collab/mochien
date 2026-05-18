@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Query
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -191,12 +191,12 @@ async def api_save_gpt(slot: str):
 
 # ── API: 배경 영상 ────────────────────────────────────────
 @app.get("/api/shorts/{slot}/pexels")
-async def api_pexels(slot: str):
+async def api_pexels(slot: str, page: int = Query(default=1, ge=1)):
     validate_slot(slot)
     gpt   = SLOT_STATE[slot].get("gpt") or {}
     query = gpt.get("image_prompt", "japanese economy news")
-    candidates = await asyncio.to_thread(fetch_pexels_candidates, query, 6)
-    return {"candidates": candidates, "query": query}
+    candidates = await asyncio.to_thread(fetch_pexels_candidates, query, 6, page)
+    return {"candidates": candidates, "query": query, "page": page}
 
 @app.post("/api/shorts/{slot}/select-bg")
 async def api_select_bg(slot: str, request: Request):
@@ -245,6 +245,19 @@ async def api_shorts_stream(slot: str):
 
 
 # ── API: 롱폼 ─────────────────────────────────────────────
+@app.get("/api/longform/script/exists")
+async def api_longform_script_exists():
+    """long_script.json 존재 여부 확인 (기존 스크립트 재사용용)."""
+    path = BASE / "long_script.json"
+    if not path.exists():
+        return {"exists": False}
+    try:
+        script = json.loads(path.read_text(encoding="utf-8"))
+        LONGFORM_STATE["script"] = script
+        return {"exists": True, "title": script.get("title", "")}
+    except Exception:
+        return {"exists": False}
+
 @app.post("/api/longform/script")
 async def api_longform_script():
     script = await asyncio.to_thread(run_long1_script)
@@ -252,17 +265,15 @@ async def api_longform_script():
     return script
 
 @app.get("/api/longform/pexels/{idx}")
-async def api_longform_pexels(idx: int):
+async def api_longform_pexels(idx: int, page: int = Query(default=1, ge=1)):
     script   = LONGFORM_STATE.get("script") or {}
     fallback = "japanese economy news"
     if idx == 0:
         query = script.get("intro", {}).get("image_prompt", fallback)
-    elif idx == 3:
-        query = script.get("outro", {}).get("image_prompt", fallback)
     else:
         issues = script.get("issues", [])
         query  = issues[idx - 1].get("image_prompt", fallback) if idx - 1 < len(issues) else fallback
-    candidates = await asyncio.to_thread(fetch_pexels_candidates, query, 6)
+    candidates = await asyncio.to_thread(fetch_pexels_candidates, query, 6, page)
     return {"candidates": candidates, "idx": idx}
 
 @app.post("/api/longform/select-bg")

@@ -25,7 +25,7 @@
 
   <div id="loading" class="loading-box" style="display:none">
     <div class="spinner"></div>
-    <p>RSS 수집 + 차단 필터 적용 중...</p>
+    <p>RSS 수집 + 한국어 번역 중...<br><small>약 5~10초 소요</small></p>
   </div>
 
   <div id="article-list" style="display:none">
@@ -87,8 +87,8 @@ function renderArticles(articles) {
         <span class="source-badge">NHK</span>
         ${a.published ? `<span class="pub-time">${formatDate(a.published)}</span>` : ""}
       </div>
-      <h3 class="article-title">${escHtml(a.title)}</h3>
-      <p class="article-body">${escHtml((a.article_body||"").slice(0,200))}${(a.article_body||"").length>200?"…":""}</p>
+      <h3 class="article-title">${escHtml(a.korean_title || a.title)}</h3>
+      <p class="article-jp-title">${escHtml(a.title)}</p>
       <div class="article-url"><a href="${escHtml(a.url)}" target="_blank" rel="noopener">↗ 원문 보기</a></div>
       <button class="btn btn-primary btn-sm" onclick="selectArticle(${i})">✅ 이 기사로 대본 생성</button>
     </div>

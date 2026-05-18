@@ -1,12 +1,21 @@
 """모찌엔 웹 UI — 파이프라인 단계별 실행 래퍼 + SSE 제너레이터"""
+import os
 import sys
 import json
 import asyncio
 import shutil
+import subprocess
 import requests
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from typing import AsyncGenerator
+
+from dotenv import load_dotenv
+from openai import OpenAI
+
+load_dotenv()
+
+TRANSLATE_MODEL = "gpt-4.1-mini"
 
 # step2_select 함수 직접 import (모듈 레벨 코드는 harmless)
 from step2_select import fetch_articles as _fetch_articles, call_chatgpt as _call_chatgpt
@@ -50,7 +59,9 @@ def _ev(step: str, pct: int, msg: str, **extra) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 def _err(step: str, detail: str) -> str:
-    return _ev("Error", -1, f"[{step}] {detail[:400]}")
+    # 트레이스백 끝부분(실제 에러 메시지)이 보이도록 마지막 800자 사용
+    tail = detail.strip()[-800:] if len(detail) > 800 else detail.strip()
+    return _ev("Error", -1, f"[{step}] {tail}")
 
 
 # ── 배경 영상 다운로드 ─────────────────────────────────────
@@ -64,8 +75,38 @@ def download_video(url: str, dest: str, chunk: int = 1 << 20):
 
 
 # ── RSS 기사 수집 ─────────────────────────────────────────
+def translate_titles_korean(articles: list) -> list:
+    """기사 제목 일본어 → 한국어 배치 번역 (GPT 1회 호출). 실패 시 원본 유지."""
+    if not articles:
+        return articles
+    try:
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+        numbered = "\n".join(f"{i+1}. {a['title']}" for i, a in enumerate(articles))
+        resp = client.chat.completions.create(
+            model=TRANSLATE_MODEL,
+            messages=[
+                {"role": "system", "content": "일본어 뉴스 제목을 자연스러운 한국어로 번역하세요. 번호를 그대로 유지하고 '번호. 한국어제목' 형식만 출력하세요."},
+                {"role": "user", "content": numbered},
+            ],
+            max_tokens=400,
+            temperature=0,
+        )
+        trans: dict = {}
+        for line in resp.choices[0].message.content.strip().splitlines():
+            line = line.strip()
+            if ". " in line:
+                try:
+                    num, text = line.split(". ", 1)
+                    trans[int(num) - 1] = text.strip()
+                except Exception:
+                    pass
+        return [{**a, "korean_title": trans.get(i, a["title"])} for i, a in enumerate(articles)]
+    except Exception:
+        return [{**a, "korean_title": a["title"]} for a in articles]
+
+
 def run_fetch_articles() -> list:
-    """step2_select.fetch_articles() 호출 → 직렬화 가능한 dict 리스트 반환."""
+    """step2_select.fetch_articles() 호출 → 한국어 제목 포함 dict 리스트 반환."""
     raw = _fetch_articles()
     result = []
     for a in raw:
@@ -75,7 +116,7 @@ def run_fetch_articles() -> list:
             "article_body": a.get("article_body", ""),
             "published":    str(a.get("_published", "")),
         })
-    return result
+    return translate_titles_korean(result)
 
 
 # ── GPT 호출 ──────────────────────────────────────────────
@@ -105,16 +146,19 @@ def save_slot_gpt_result(slot: str, gpt: dict, article: dict | None = None):
 
 
 # ── 서브프로세스 실행 (공용) ───────────────────────────────
+# Windows SelectorEventLoop에서 asyncio.create_subprocess_exec이 NotImplementedError를
+# 발생시키므로 subprocess.run + run_in_executor 방식으로 대체
+def _run_sync(script: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, script],
+        capture_output=True, cwd=str(BASE),
+    )
+
 async def _run_proc(script: str) -> tuple[int, bytes, bytes]:
     """venv Python으로 스크립트 실행 → (returncode, stdout, stderr)."""
-    proc = await asyncio.create_subprocess_exec(
-        sys.executable, script,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        cwd=str(BASE),
-    )
-    stdout, stderr = await proc.communicate()
-    return proc.returncode, stdout, stderr
+    loop = asyncio.get_event_loop()
+    r = await loop.run_in_executor(None, _run_sync, script)
+    return r.returncode, r.stdout, r.stderr
 
 
 async def _run_with_ticks(
@@ -127,25 +171,15 @@ async def _run_with_ticks(
 ) -> AsyncGenerator[str, None]:
     """
     서브프로세스를 실행하면서 의사 진행률(tick) SSE 이벤트를 yield하는 내부 헬퍼.
-    성공이면 마지막 이벤트로 end_pct 를 yield하고 반환(rc=0).
-    실패이면 Error 이벤트를 yield하고 반환(rc≠0).
-    호출부에서 실패 여부를 알 수 있도록 async generator 내부에 플래그 노출은 못하므로,
-    호출부는 마지막 이벤트에 "Error" 가 포함됐는지로 판단한다.
+    성공이면 end_pct 이벤트를 yield. 실패이면 Error 이벤트를 yield.
+    호출부는 마지막 이벤트에 "Error"가 포함됐는지로 판단한다.
     """
     eta = ETA.get(step, "")
     yield _ev(step, start_pct, f"{msg} ({eta})")
 
-    proc = await asyncio.create_subprocess_exec(
-        sys.executable, script,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        cwd=str(BASE),
-    )
-    stdout_task = asyncio.create_task(proc.stdout.read())
-    stderr_task = asyncio.create_task(proc.stderr.read())
-    wait_task   = asyncio.create_task(proc.wait())
+    loop    = asyncio.get_event_loop()
+    future  = loop.run_in_executor(None, _run_sync, script)
 
-    # tick 2~3회 (start ~ end 구간 균등 분할)
     n_ticks  = max(2, int((end_pct - start_pct) // 10))
     tick_pts = [
         start_pct + (end_pct - start_pct) * (i + 1) // (n_ticks + 1)
@@ -153,18 +187,15 @@ async def _run_with_ticks(
     ]
 
     for tp in tick_pts:
-        done, _ = await asyncio.wait({wait_task}, timeout=tick_sec)
+        done, _ = await asyncio.wait({future}, timeout=tick_sec)
         if done:
             break
         yield _ev(step, tp, msg)
 
-    await asyncio.gather(stdout_task, stderr_task, wait_task)
-    rc     = wait_task.result()
-    stderr = stderr_task.result()
+    r = await future
 
-    if rc != 0:
-        err_text = stderr.decode(errors="replace").strip()
-        yield _err(step, err_text)
+    if r.returncode != 0:
+        yield _err(step, r.stderr.decode(errors="replace").strip())
         return
 
     yield _ev(step, end_pct, f"{step} 완료 ✓")
@@ -221,28 +252,21 @@ async def run_shorts_stream(slot: str, gpt: dict, bg_url: str) -> AsyncGenerator
 
     # ── 5. YouTube 업로드 (긴 단계 — 의사 진행률) ─────────
     yield _ev("Upload", 85, f"YouTube 업로드 중... ({ETA['Upload']})")
-    proc = await asyncio.create_subprocess_exec(
-        sys.executable, "step9_youtube.py",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        cwd=str(BASE),
-    )
-    stdout_t = asyncio.create_task(proc.stdout.read())
-    stderr_t = asyncio.create_task(proc.stderr.read())
-    wait_t   = asyncio.create_task(proc.wait())
+    loop     = asyncio.get_event_loop()
+    upload_f = loop.run_in_executor(None, _run_sync, "step9_youtube.py")
 
     for tp in [88, 93]:
-        done, _ = await asyncio.wait({wait_t}, timeout=TICK_Upload)
+        done, _ = await asyncio.wait({upload_f}, timeout=TICK_Upload)
         if done:
             break
         yield _ev("Upload", tp, "업로드 진행 중...")
 
-    await asyncio.gather(stdout_t, stderr_t, wait_t)
-    rc  = wait_t.result()
-    out = stdout_t.result().decode(errors="replace")
+    r   = await upload_f
+    rc  = r.returncode
+    out = r.stdout.decode(errors="replace")
 
     if rc != 0:
-        yield _err("Upload", stderr_t.result().decode(errors="replace"))
+        yield _err("Upload", r.stderr.decode(errors="replace"))
         return
 
     # stdout에서 YouTube URL 파싱 (step9가 "URL       : https://..." 형식으로 출력)
@@ -256,13 +280,17 @@ async def run_shorts_stream(slot: str, gpt: dict, bg_url: str) -> AsyncGenerator
                 yt_url = url_candidate
                 break
 
+    # step10 검수: 백그라운드 실행 (완료를 기다리지 않음 — 텔레그램으로 결과 수신)
+    asyncio.get_event_loop().run_in_executor(None, lambda: subprocess.run(
+        [sys.executable, "step10_gemini_review.py", "--mode", "shorts"],
+        capture_output=True, cwd=str(BASE),
+    ))
     yield _ev("Done", 100, "영상 생성 및 업로드 완료! 🎉", url=yt_url)
 
 
 # ── 롱폼: long1 실행 ──────────────────────────────────────
 def run_long1_script() -> dict:
     """long1_script.py를 서브프로세스 실행 → long_script.json 반환."""
-    import subprocess
     result = subprocess.run(
         [sys.executable, "long1_script.py"],
         capture_output=True, text=True,
@@ -279,34 +307,25 @@ async def run_longform_stream(bg_urls: dict) -> AsyncGenerator[str, None]:
     bg_urls: {0: {url, thumb}, 1: {url, thumb}, 2: {url, thumb}}
     """
 
-    # ── 배경 영상 다운로드 (선택된 것만 / 없으면 long3 로 대체) ──
-    dl_targets = {
-        0: "long_bg_main.mp4",
-        1: "long_bg_issue1.mp4",
-        2: "long_bg_issue2.mp4",
-    }
-    has_custom_bg = bool(bg_urls)
+    # ── 배경 영상: long3로 3개 자동 선택 후, 인트로·아웃트로는 사용자 선택으로 덮어쓰기 ──
+    yield _ev("Long3", 2, f"배경 영상 준비 중... ({ETA['BG']})")
 
-    if has_custom_bg:
-        yield _ev("Long3", 2, f"배경 영상 다운로드 중... ({ETA['BG']})")
-        for idx, fname in dl_targets.items():
-            entry = bg_urls.get(idx)
-            if not entry:
-                continue
-            try:
-                await asyncio.to_thread(download_video, entry["url"], str(BASE / fname))
-            except Exception as e:
-                yield _err("Long3", f"{fname}: {e}")
-                return
-        yield _ev("Long3", 8, "배경 영상 다운로드 완료 ✓")
-    else:
-        # 사용자가 Pexels 선택을 건너뜀 → long3 자동 실행
-        yield _ev("Long3", 2, f"배경 영상 자동 선택 중... ({ETA['BG']})")
-        rc, _, stderr = await _run_proc("long3_pexels.py")
-        if rc != 0:
-            yield _err("Long3", stderr.decode(errors="replace"))
+    # long3: 이슈1·2·인트로 자동 선택 (인트로는 나중에 교체)
+    rc, _, stderr = await _run_proc("long3_pexels.py")
+    if rc != 0:
+        yield _err("Long3", stderr.decode(errors="replace"))
+        return
+
+    # 사용자가 인트로·아웃트로 배경을 선택한 경우 덮어쓰기
+    main_bg = bg_urls.get(0)
+    if main_bg:
+        try:
+            await asyncio.to_thread(download_video, main_bg["url"], str(BASE / "long_bg_main.mp4"))
+        except Exception as e:
+            yield _err("Long3", f"long_bg_main.mp4: {e}")
             return
-        yield _ev("Long3", 8, "배경 영상 준비 완료 ✓")
+
+    yield _ev("Long3", 8, "배경 영상 준비 완료 ✓")
 
     # ── long2: TTS ──────────────────────────────────────────
     failed = False
@@ -337,28 +356,21 @@ async def run_longform_stream(bg_urls: dict) -> AsyncGenerator[str, None]:
 
     # ── long6: YouTube 업로드 ──────────────────────────────
     yield _ev("Long6", 86, f"롱폼 YouTube 업로드 중... ({ETA['Long6']})")
-    proc = await asyncio.create_subprocess_exec(
-        sys.executable, "long6_youtube.py",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        cwd=str(BASE),
-    )
-    stdout_t = asyncio.create_task(proc.stdout.read())
-    stderr_t = asyncio.create_task(proc.stderr.read())
-    wait_t   = asyncio.create_task(proc.wait())
+    loop   = asyncio.get_event_loop()
+    long6_f = loop.run_in_executor(None, _run_sync, "long6_youtube.py")
 
     for tp in [90, 95]:
-        done, _ = await asyncio.wait({wait_t}, timeout=TICK_Upload)
+        done, _ = await asyncio.wait({long6_f}, timeout=TICK_Upload)
         if done:
             break
         yield _ev("Long6", tp, "롱폼 업로드 진행 중...")
 
-    await asyncio.gather(stdout_t, stderr_t, wait_t)
-    rc  = wait_t.result()
-    out = stdout_t.result().decode(errors="replace")
+    r   = await long6_f
+    rc  = r.returncode
+    out = r.stdout.decode(errors="replace")
 
     if rc != 0:
-        yield _err("Long6", stderr_t.result().decode(errors="replace"))
+        yield _err("Long6", r.stderr.decode(errors="replace"))
         return
 
     yt_url = "https://studio.youtube.com/channel/videos"
@@ -369,4 +381,9 @@ async def run_longform_stream(bg_urls: dict) -> AsyncGenerator[str, None]:
                 yt_url = url_candidate
                 break
 
+    # step10 검수: 백그라운드 실행 (롱폼 모드)
+    asyncio.get_event_loop().run_in_executor(None, lambda: subprocess.run(
+        [sys.executable, "step10_gemini_review.py", "--mode", "longform"],
+        capture_output=True, cwd=str(BASE),
+    ))
     yield _ev("Done", 100, "롱폼 영상 생성 및 업로드 완료! 🎉", url=yt_url)

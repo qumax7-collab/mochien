@@ -160,8 +160,9 @@ def detect_speech_end(audio_file, silence_db=-30, min_silence=0.2):
         cut_t = starts[-1]
         print(f"  trailing silence 감지: {file_dur:.2f}s → {cut_t:.2f}s ({file_dur - cut_t:.2f}s 제거)")
         return cut_t
-    print("  trailing silence 없음 → 전체 사용")
-    return None
+    # trailing silence 없음 — file_dur 반환으로 -t 항상 적용 (-shortest 단독 사용 시 무한루프 방지)
+    print(f"  trailing silence 없음 → 전체 길이 {file_dur:.2f}s 사용")
+    return file_dur
 
 
 def build_filter(font_path, mouth_gif):

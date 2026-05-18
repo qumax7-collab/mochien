@@ -27,8 +27,8 @@
   <div id="bg-grid" class="bg-grid" style="display:none"></div>
 
   <div id="btn-refresh-zone" style="display:none; text-align:center; margin-top:1rem;">
-    <button class="btn btn-ghost" onclick="loadCandidates()">🔄 후보 다시 받기</button>
-    <p class="hint">같은 쿼리로 재검색합니다.</p>
+    <button class="btn btn-ghost" onclick="refreshCandidates()">🔄 다른 영상 보기</button>
+    <p class="hint" id="refresh-hint">새로고침 시 다른 영상 세트를 가져옵니다.</p>
   </div>
 </main>
 
@@ -42,18 +42,25 @@
 
 <script>
 const SLOT = "{{ slot }}";
+let _pageCount = 1;
 
-async function loadCandidates() {
+async function loadCandidates(page = 1) {
   document.getElementById("loading").style.display = "flex";
   document.getElementById("bg-grid").style.display = "none";
   document.getElementById("btn-refresh-zone").style.display = "none";
 
-  const r = await fetch(`/api/shorts/${SLOT}/pexels`);
+  const r = await fetch(`/api/shorts/${SLOT}/pexels?page=${page}`);
   document.getElementById("loading").style.display = "none";
 
   if (!r.ok) { alert("Pexels 로드 실패"); return; }
   const data = await r.json();
   renderCandidates(data.candidates);
+}
+
+function refreshCandidates() {
+  _pageCount++;
+  document.getElementById("refresh-hint").textContent = `세트 ${_pageCount} / 검색어: {{ image_prompt }}`;
+  loadCandidates(_pageCount);
 }
 
 function fmtDur(sec) {

@@ -97,7 +97,8 @@ PROMPT_INTRO = """\
 出力フォーマット（このJSONのみ）:
 {{
   "content": "イントロスクリプト本文",
-  "summary": "次のセクションへ渡す要点3行（日本語）"
+  "summary": "次のセクションへ渡す要点3行（日本語）",
+  "image_prompt": "Pexels検索用英語キーワード（場所・時間帯・素材を具体的に / 例: 'tokyo cityscape dawn' / 'japanese office workers meeting'）"
 }}\
 """
 
@@ -151,7 +152,8 @@ PROMPT_OUTRO = """\
   "title": "動画タイトル（40字以内 / 数字・インパクトある表現を含む）",
   "short_title": "6〜10字の核心キーワード",
   "hashtags": ["#経済ニュース", "#モチエン", "...（#Shortsは含めないこと）"],
-  "korean_summary": "한국어 1줄 요약"
+  "korean_summary": "한국어 1줄 요약",
+  "image_prompt": "Pexels検索用英語キーワード（イントロと異なる場所・素材を指定 / 例: 'japanese people commuting evening' / 'bank building exterior morning'）"
 }}\
 """
 
@@ -300,7 +302,7 @@ def assemble_result(intro_result, issue_results, outro_result, r_list):
         "korean_summary": outro_result["korean_summary"],
         "intro": {
             "script":       intro_result["content"],
-            "image_prompt": fallback_img,
+            "image_prompt": intro_result.get("image_prompt", fallback_img),
         },
         "issues": [
             {
@@ -312,7 +314,7 @@ def assemble_result(intro_result, issue_results, outro_result, r_list):
         ],
         "outro": {
             "script":       outro_result["content"],
-            "image_prompt": fallback_img,
+            "image_prompt": outro_result.get("image_prompt", fallback_img),
         },
     }
 

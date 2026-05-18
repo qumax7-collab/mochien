@@ -149,7 +149,7 @@ def build_filter(font_path, mouth_gif):
         audio_idx = 2
         f.append(f"[{gif_idx}:v]scale=-2:{FACE_H}[mouth]")
         f.append(
-            f"[bg3][mouth]overlay=x={mouth_x}:y={mouth_y}:shortest=1[out]"
+            f"[bg3][mouth]overlay=x={mouth_x}:y={mouth_y}[out]"
         )
     else:
         audio_idx = 1
@@ -158,8 +158,18 @@ def build_filter(font_path, mouth_gif):
     return ";".join(f), audio_idx
 
 
+def get_audio_duration(audio_file):
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "csv=p=0", audio_file],
+        capture_output=True, text=True,
+    )
+    return float(result.stdout.strip())
+
+
 def build_clip_cmd(section, font_path, mouth_gif):
     filter_str, audio_idx = build_filter(font_path, mouth_gif)
+    duration = get_audio_duration(section["audio"])
 
     cmd = ["ffmpeg", "-y"]
     cmd += ["-stream_loop", "-1", "-i", section["bg"]]
@@ -168,7 +178,7 @@ def build_clip_cmd(section, font_path, mouth_gif):
     cmd += ["-i", section["audio"]]
     cmd += ["-filter_complex", filter_str]
     cmd += ["-map", "[out]", "-map", f"{audio_idx}:a"]
-    cmd += ["-shortest"]
+    cmd += ["-t", str(duration)]   # -shortest 대신 명시적 길이로 무한루프 방지
     cmd += ["-c:v", "libx264", "-crf", "18", "-preset", "fast", "-pix_fmt", "yuv420p"]
     cmd += ["-c:a", "aac", "-b:a", "128k"]
     cmd += ["-r", str(OUTPUT_FPS)]

@@ -7,6 +7,8 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -71,3 +73,14 @@ jobs:
 
       - name: run_longform — 롱폼 파이프라인 실행
         run: python run_longform.py
+
+      - name: Commit used_videos.json
+        if: always()
+        continue-on-error: true
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "github-actions"
+          git pull --rebase
+          git add used_videos.json
+          git diff --staged --quiet || git commit -m "chore: update used_videos.json [skip ci]"
+          git push

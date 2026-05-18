@@ -743,6 +743,31 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
             Pass 3: 두 클립 concat → output_no_sub.mp4
           · mochien_bow.gif 없으면 기존 1-pass 단순 합성으로 fallback (하위 호환)
 
+✅  세션 5b 완료 (2026-05-18) — 로컬 웹 UI 구축 (FastAPI + SSE) → 상세: CLAUDE.md 섹션 20 참조
+
+✅  웹 UI 버그 수정 + 롱폼 개선 (2026-05-19)
+        - long4_ffmpeg.py: get_audio_duration() + -t 출력 옵션 추가 (step6와 동일 무한루프 방지)
+          overlay filter shortest=1 제거 / -shortest 제거
+        - step10_gemini_review.py: Gemini 오류 0건 시에도 "검수 완료" 텔레그램 발송
+          기존: 0건이면 알림 없음 → step10 실행 여부 확인 불가 문제 수정
+        - webui_pexels.py: save_used_video() ts(unix) → used_at(date str) 형식으로 전환
+          _entry_is_recent() 추가로 기존 ts 항목 하위 호환 처리
+          step4_pexels.py / long3_pexels.py도 동일 헬퍼로 webui 형식 항목 방어 처리
+        - templates/longform.html: 4단계 → 3단계 (스크립트 확인 제거)
+          페이지 로드 시 long_script.json 존재 확인 → "기존 스크립트 사용" 버튼 표시
+        - templates/longform.html: 배경 선택 슬롯 3개 → 1개 (인트로·아웃트로만 수동 선택)
+          이슈1·2 배경은 long3_pexels.py 자동 선택
+        - webui_runner.py: long3 먼저 실행 후 사용자 선택(long_bg_main.mp4)으로 덮어쓰기
+        - webui.py: /api/longform/pexels/{idx}에 page 파라미터 추가
+                    /api/longform/script/exists 신규 (기존 스크립트 재사용용)
+
+✅  세션 6 (Pexels 다양화) 완료 (2026-05-18) — per_page 10 / used_videos.json 30일 누적 / image_prompt 다양성 강화
+        - step4_pexels.py / long3_pexels.py: per_page 1→10 / select_best_video() / load/save_used_video()
+        - used_videos.json: 30일 누적 / repo 커밋으로 GitHub Actions 간 공유
+        - step2_select.py: image_prompt 다양성 지시 강화 (장소·시간대·앵글·소재 명시)
+        - long1_script.py: intro·outro image_prompt를 GPT 생성값으로 교체 (기존 r_list[0] 재사용 폐기)
+        - yml 3종: permissions:contents:write + Commit used_videos.json 스텝 추가
+
 ✅  세션 6 완료 (2026-05-18) — 롱폼 영상 길이 조정 (10분 → 7.5분 목표)
         - long1_script.py: MIN_ISSUE_CHARS 1000 → 700
         - long1_script.py: PROMPT_ISSUE 분량·항목 축소
@@ -818,6 +843,12 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
           · call_chatgpt() __BLOCKED__ 감지 → BlockedArticleError raise
           · single_main() / batch_main().call_safe() 별도 캐치 처리
         - 거시 변수 단독 키워드(金利·為替·円安·円高) 차단어 미포함 (정책 뉴스 정상 통과용)
+
+🔜  세션 7 — 워드프레스 자동 연재 (long7_wordpress.py)
+⬜  세션 8 — E: AI 공시 + 정체성 명시
+⬜  세션 9 — F: 댓글 반자동 응답 봇
+⬜  세션 10 — B: 캐스터 3명 구도
+⬜  세션 11 — C: 시리즈물 구조 (기획 단계)
 
 🔜  32. 워드프레스 REST API 블로그 자동 발행
 🔜  33. emotion 자동 매핑 복원 (블로그 자동발행 이후)
@@ -1039,6 +1070,18 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
 - GPT korean_summary 빈값: SYSTEM_PROMPT 캐릭터 시트가 일본어 중심으로 강화되면 GPT가 한국어 출력(korean_summary)을 생략
   USER_PROMPT 【その他】에 "必ず韓国語（한국어）で1文" 명시로 해결 — 필드 설명이 없으면 GPT는 출력하지 않을 수 있음
 - load_recent_used_urls(): output/ 하위 YYYY-MM-DD 폴더를 date() 비교로 스캔 (timedelta+datetime 비교 시 시각까지 비교되어 당일 경계 오차 발생 → .date() 비교 권장)
+- long4_ffmpeg.py도 -stream_loop -1 + -shortest 조합 → step6_ffmpeg.py와 동일 FFmpeg 무한루프 위험
+  ffprobe로 섹션 오디오 길이 측정 후 -t 출력 옵션 사용 / overlay shortest=1도 제거
+- step10 Gemini 0건 감지 시 텔레그램 미발송 → 사용자가 step10 실행 여부를 알 수 없음
+  0건이어도 "✅ 검수 완료 / 오류 없음" 텔레그램 발송으로 항상 실행 확인 가능하게 변경
+- used_videos.json 혼합 형식: webui_pexels.py(ts/unix)와 step4/long3(used_at/date)가 같은 파일 공유
+  → _entry_is_recent()로 양쪽 형식 처리. webui도 used_at으로 통일하면 충돌 없음
+- 롱폼 배경 선택 UI: long3_pexels.py가 long_bg_main.mp4도 항상 다운로드
+  → 사용자 선택을 long3 실행 후 덮어쓰는 순서로 구현해야 사용자 선택이 최종 반영됨
+- Windows asyncio + uvicorn: asyncio.create_subprocess_exec는 ProactorEventLoop 필요
+  uvicorn이 SelectorEventLoop으로 실행 시 NotImplementedError 발생
+  → subprocess.run (블로킹) + loop.run_in_executor(None, fn)으로 대체
+  asyncio.wait({future}, timeout=tick_sec)으로 틱 진행률 구현 가능
 
 
 ================================================================

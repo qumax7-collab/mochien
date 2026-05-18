@@ -164,6 +164,8 @@ USER_PROMPT = """
 - 人名・企業名・役職名は正確に表記すること
 - short_title：6〜10字の核心キーワード
 - image_prompt：Pexels検索用英語キーワード（例："japanese economy stock market"）
+  場所・時間帯・アングル・素材（工場/オフィス/街並み/人物など）が毎回異なるよう
+  具体的なシーンを英語で記述すること（例："factory workers morning shift" / "tokyo street evening crowd" / "office desk financial charts"）
 - korean_summary：記事の要点を必ず韓国語（한국어）で1文にまとめること。例：「일본 GDP가 예상을 웃도는 성장률을 기록했습니다.」
 
 ニュースタイトル：{title}

@@ -240,9 +240,10 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   margin-bottom: .4rem;
   line-height: 1.4;
 }
-.article-body  { font-size: .85rem; color: var(--text-sub); margin-bottom: .6rem; line-height: 1.5; }
-.article-url   { font-size: .78rem; margin-bottom: .75rem; }
-.article-url a { color: var(--text-sub); text-decoration: underline; }
+.article-body     { font-size: .85rem; color: var(--text-sub); margin-bottom: .6rem; line-height: 1.5; }
+.article-jp-title { font-size: .78rem; color: var(--text-sub); margin-bottom: .6rem; font-style: italic; }
+.article-url      { font-size: .78rem; margin-bottom: .75rem; }
+.article-url a    { color: var(--text-sub); text-decoration: underline; }
 
 .empty { color: var(--text-sub); text-align: center; padding: 2rem; }
 

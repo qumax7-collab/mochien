@@ -439,7 +439,8 @@ def main():
         print(f"  발음 오류 후보: {n_p}건 / 자막 오인식 후보: {n_s}건")
 
         if n_p + n_s == 0:
-            print("  후보 없음. 텔레그램 알림 생략 후 종료.")
+            print("  후보 없음.")
+            tg_notify(f"✅ step10 검수 완료 (mode={args.mode})\n발음·자막 오류 없음")
             return
 
         pronunciation_data = load_json_safe(PRONUNCIATION_PATH)
