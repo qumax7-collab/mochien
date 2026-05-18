@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>롱폼 생성</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="back-btn" href="/">← 홈</a>
+  <span class="logo">롱폼 생성</span>
+  <span class="date-badge">{{ today }}</span>
+</header>
+
+<main class="container">
+{% if not both_done %}
+  <div class="alert alert-error">슬롯 09·18이 모두 완성된 후 롱폼 생성이 가능합니다.</div>
+  <div style="text-align:center;margin-top:2rem">
+    <a href="/" class="btn btn-primary">← 홈으로</a>
+  </div>
+{% else %}
+
+  <!-- 단계 표시 탭 -->
+  <div class="wizard-tabs">
+    <div class="wizard-tab active" id="tab-1">① 스크립트 생성</div>
+    <div class="wizard-tab"        id="tab-2">② 스크립트 확인</div>
+    <div class="wizard-tab"        id="tab-3">③ 배경 영상 선택</div>
+    <div class="wizard-tab"        id="tab-4">④ 영상 생성</div>
+  </div>
+
+  <!-- ① 스크립트 생성 -->
+  <div id="step-1" class="wizard-step active">
+    <div class="fetch-zone">
+      <p class="hint">당일 슬롯 09·18 결과를 기반으로 GPT-4.1이 7~8분 롱폼 스크립트를 생성합니다.<br>
+      4회 순차 GPT 호출 — 예상 3~5분 소요.</p>
+      <button id="btn-gen-script" class="btn btn-primary btn-lg" onclick="genScript()">
+        📄 롱폼 스크립트 생성
+      </button>
+    </div>
+    <div id="script-loading" class="loading-box" style="display:none">
+      <div class="spinner spinner-lg"></div>
+      <p>GPT-4.1 스크립트 생성 중...<br><small>4회 순차 호출 / 약 3~5분 소요</small></p>
+    </div>
+  </div>
+
+  <!-- ② 스크립트 확인 -->
+  <div id="step-2" class="wizard-step">
+    <div id="script-review"></div>
+    <div class="action-row" style="margin-top:1.5rem">
+      <button class="btn btn-primary btn-lg" onclick="goStep(3)">✅ 확인 → 배경 영상 선택</button>
+      <button class="btn btn-ghost btn-lg" onclick="goStep(1)">← 다시 생성</button>
+    </div>
+  </div>
+
+  <!-- ③ 배경 영상 선택 (3개 슬롯) -->
+  <div id="step-3" class="wizard-step">
+    <div class="section-title">
+      <h2>배경 영상 선택</h2>
+      <p class="hint">인트로·이슈1·이슈2 각 슬롯에 배경 영상을 선택해주세요.</p>
+    </div>
+    <div id="bg-slots">
+      <div class="bg-slot-section" id="slot-section-0">
+        <h3>🎬 인트로 &amp; 아웃트로 배경 <span id="slot-done-0"></span></h3>
+        <div id="bg-loading-0" class="loading-box" style="display:none"><div class="spinner"></div></div>
+        <div id="bg-grid-0" class="bg-grid-sm"></div>
+        <button class="btn btn-ghost btn-sm" onclick="loadLFBg(0)">🔄 다시 받기</button>
+      </div>
+      <div class="bg-slot-section" id="slot-section-1">
+        <h3>🎬 이슈 1 배경 <span id="slot-done-1"></span></h3>
+        <div id="bg-loading-1" class="loading-box" style="display:none"><div class="spinner"></div></div>
+        <div id="bg-grid-1" class="bg-grid-sm"></div>
+        <button class="btn btn-ghost btn-sm" onclick="loadLFBg(1)">🔄 다시 받기</button>
+      </div>
+      <div class="bg-slot-section" id="slot-section-2">
+        <h3>🎬 이슈 2 배경 <span id="slot-done-2"></span></h3>
+        <div id="bg-loading-2" class="loading-box" style="display:none"><div class="spinner"></div></div>
+        <div id="bg-grid-2" class="bg-grid-sm"></div>
+        <button class="btn btn-ghost btn-sm" onclick="loadLFBg(2)">🔄 다시 받기</button>
+      </div>
+    </div>
+
+    <div class="action-row" style="margin-top:1.5rem">
+      <button id="btn-start-lf" class="btn btn-primary btn-lg" onclick="goStep(4)" disabled>
+        ▶ 롱폼 영상 생성 시작
+      </button>
+      <p class="hint" id="bg-status-hint">3개 슬롯 모두 선택 후 버튼이 활성화됩니다.</p>
+    </div>
+  </div>
+
+  <!-- ④ 영상 생성 -->
+  <div id="step-4" class="wizard-step">
+    <div class="progress-wrap">
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fg" id="lf-pbar" style="width:0%"></div>
+      </div>
+      <span class="progress-pct" id="lf-pct-label">0%</span>
+    </div>
+
+    <div class="step-list" id="lf-step-list">
+      <!-- JS 삽입 -->
+    </div>
+
+    <div class="current-msg" id="lf-current-msg">대기 중...</div>
+
+    <div id="lf-done-panel" style="display:none">
+      <div class="done-card">
+        <div class="done-icon">🎉</div>
+        <h2>롱폼 업로드 완료!</h2>
+        <a id="lf-yt-link" href="#" target="_blank" rel="noopener" class="btn btn-primary btn-lg">
+          ▶ YouTube에서 확인
+        </a>
+        <a href="https://studio.youtube.com/channel/videos" target="_blank" rel="noopener"
+           class="btn btn-ghost btn-lg">YouTube Studio</a>
+        <a href="/" class="btn btn-ghost btn-lg">← 홈으로</a>
+      </div>
+    </div>
+    <div id="lf-error-panel" style="display:none">
+      <div class="error-card">
+        <div class="done-icon">❌</div>
+        <h2>오류 발생</h2>
+        <pre id="lf-error-msg" class="error-pre"></pre>
+        <a href="/longform" class="btn btn-primary">다시 시도</a>
+        <a href="/" class="btn btn-ghost">← 홈으로</a>
+      </div>
+    </div>
+  </div>
+
+{% endif %}
+</main>
+
+<script>
+let scriptData = null;
+const selectedBgs = {};   // {0: {url, thumb}, 1:..., 2:...}
+
+const LF_STEPS = [
+  {key:"Long3", label:"배경 영상 준비",    icon:"🎥"},
+  {key:"Long2", label:"롱폼 음성 생성",    icon:"🎙️"},
+  {key:"Long4", label:"롱폼 영상 합성",    icon:"🎬"},
+  {key:"Long5", label:"롱폼 자막 생성",    icon:"📝"},
+  {key:"Long6", label:"YouTube 업로드",    icon:"📤"},
+];
+
+function goStep(n) {
+  document.querySelectorAll(".wizard-step").forEach(el => el.classList.remove("active"));
+  document.querySelectorAll(".wizard-tab").forEach(el => el.classList.remove("active"));
+  document.getElementById(`step-${n}`).classList.add("active");
+  document.getElementById(`tab-${n}`).classList.add("active");
+  if (n === 3) { loadLFBg(0); loadLFBg(1); loadLFBg(2); }
+  if (n === 4) startLongform();
+}
+
+async function genScript() {
+  document.getElementById("btn-gen-script").style.display = "none";
+  document.getElementById("script-loading").style.display = "flex";
+
+  const r = await fetch("/api/longform/script", {method:"POST"});
+  document.getElementById("script-loading").style.display = "none";
+
+  if (!r.ok) {
+    document.getElementById("btn-gen-script").style.display = "block";
+    alert("스크립트 생성 실패: " + (await r.json().catch(()=>({detail:"오류"})).then(e=>e.detail)));
+    return;
+  }
+  scriptData = await r.json();
+  renderScript(scriptData);
+  goStep(2);
+}
+
+function renderScript(s) {
+  const el = document.getElementById("script-review");
+  const sections = [
+    {label:"📌 인트로", content: s.intro?.script || ""},
+    {label:"① " + (s.issues?.[0]?.title || "이슈 1"), content: s.issues?.[0]?.script || ""},
+    {label:"② " + (s.issues?.[1]?.title || "이슈 2"), content: s.issues?.[1]?.script || ""},
+    {label:"🎯 아웃트로", content: s.outro?.script || ""},
+  ];
+
+  el.innerHTML = `
+    <div class="script-meta">
+      <strong>${escHtml(s.title || "")}</strong>
+      <span class="chip chip-navy">${escHtml(s.short_title || "")}</span>
+    </div>
+    ${sections.map(sec => `
+      <div class="script-block">
+        <label>${sec.label}</label>
+        <pre class="script-pre">${escHtml(sec.content)}</pre>
+      </div>
+    `).join("")}
+  `;
+}
+
+async function loadLFBg(idx) {
+  document.getElementById(`bg-loading-${idx}`).style.display = "flex";
+  document.getElementById(`bg-grid-${idx}`).innerHTML = "";
+
+  const r = await fetch(`/api/longform/pexels/${idx}`);
+  document.getElementById(`bg-loading-${idx}`).style.display = "none";
+
+  if (!r.ok) { document.getElementById(`bg-grid-${idx}`).innerHTML = '<p class="empty">Pexels 로드 실패</p>'; return; }
+  const data = await r.json();
+  renderLFGrid(idx, data.candidates);
+}
+
+function renderLFGrid(idx, candidates) {
+  const grid = document.getElementById(`bg-grid-${idx}`);
+  if (!candidates.length) { grid.innerHTML = '<p class="empty">결과 없음</p>'; return; }
+  grid.innerHTML = candidates.map((c, i) => `
+    <div class="bg-card-sm ${selectedBgs[idx]?.url === c.url ? 'selected' : ''}"
+         id="lfcard-${idx}-${i}">
+      <div class="bg-thumb-wrap"
+           onmouseenter="playLFVid(${idx},${i})"
+           onmouseleave="stopLFVid(${idx},${i})">
+        <img src="${c.thumb}" class="bg-thumb" id="lfimg-${idx}-${i}" alt="">
+        <video id="lfvid-${idx}-${i}" class="bg-video" muted loop playsinline
+               src="${c.url}" preload="none"></video>
+        <div class="dur-badge">${fmtDur(c.duration)}</div>
+      </div>
+      <button class="btn btn-primary btn-sm" style="margin-top:.4rem"
+              onclick="selectLFBg(${idx},${i},'${escQ(c.url)}','${escQ(c.thumb)}')">✅ 선택</button>
+    </div>
+  `).join("");
+}
+
+function playLFVid(idx, i) {
+  const vid = document.getElementById(`lfvid-${idx}-${i}`);
+  const img = document.getElementById(`lfimg-${idx}-${i}`);
+  if (!vid) return;
+  vid.style.display = "block"; img.style.display = "none";
+  vid.play().catch(()=>{});
+}
+function stopLFVid(idx, i) {
+  const vid = document.getElementById(`lfvid-${idx}-${i}`);
+  const img = document.getElementById(`lfimg-${idx}-${i}`);
+  if (!vid) return;
+  vid.pause(); vid.style.display = "none"; img.style.display = "block";
+}
+
+async function selectLFBg(idx, i, url, thumb) {
+  const r = await fetch("/api/longform/select-bg", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({idx, url, thumb}),
+  });
+  if (!r.ok) { alert("저장 실패"); return; }
+  selectedBgs[idx] = {url, thumb};
+
+  // 선택 표시
+  document.querySelectorAll(`[id^="lfcard-${idx}-"]`).forEach(el => el.classList.remove("selected"));
+  document.getElementById(`lfcard-${idx}-${i}`)?.classList.add("selected");
+  document.getElementById(`slot-done-${idx}`).textContent = "✅";
+
+  // 3개 모두 선택 시 버튼 활성화
+  if (Object.keys(selectedBgs).length >= 3) {
+    document.getElementById("btn-start-lf").disabled = false;
+    document.getElementById("bg-status-hint").textContent = "3개 슬롯 선택 완료 — 생성을 시작할 수 있습니다.";
+  }
+}
+
+function startLongform() {
+  renderLFStepList();
+  const es = new EventSource("/api/longform/stream");
+  es.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    if (d.step === "Error") { es.close(); showLFError(d.msg); return; }
+    if (d.step === "Done")  { es.close(); showLFDone(d.url);  return; }
+    updateLFProgress(d);
+  };
+  es.onerror = () => { showLFError("서버 연결 끊김. 페이지를 새로고침하세요."); es.close(); };
+}
+
+function renderLFStepList() {
+  document.getElementById("lf-step-list").innerHTML = LF_STEPS.map(s => `
+    <div class="step-item" id="lf-si-${s.key}">
+      <span class="step-icon">${s.icon}</span>
+      <span class="step-label">${s.label}</span>
+      <span class="step-status" id="lf-ss-${s.key}">대기</span>
+    </div>
+  `).join("");
+}
+
+function updateLFProgress(d) {
+  const pct = Math.max(0, Math.min(100, d.pct || 0));
+  document.getElementById("lf-pbar").style.width      = pct + "%";
+  document.getElementById("lf-pct-label").textContent = pct + "%";
+  document.getElementById("lf-current-msg").textContent = d.msg || "";
+  LF_STEPS.forEach(s => {
+    const el = document.getElementById(`lf-ss-${s.key}`);
+    if (!el) return;
+    const curIdx  = LF_STEPS.findIndex(x=>x.key===d.step);
+    const thisIdx = LF_STEPS.findIndex(x=>x.key===s.key);
+    if (s.key === d.step) { el.textContent="진행 중 ⏳"; el.className="step-status running"; document.getElementById(`lf-si-${s.key}`)?.classList.add("active"); }
+    else if (curIdx > thisIdx) { el.textContent="완료 ✓"; el.className="step-status done"; }
+  });
+}
+
+function showLFDone(url) {
+  document.getElementById("lf-done-panel").style.display = "block";
+  document.getElementById("lf-pbar").style.width = "100%";
+  document.getElementById("lf-pct-label").textContent = "100%";
+  const link = document.getElementById("lf-yt-link");
+  link.href = url;
+  if (url.includes("studio.youtube.com")) link.textContent = "YouTube Studio에서 확인";
+}
+
+function showLFError(msg) {
+  document.getElementById("lf-error-panel").style.display = "block";
+  document.getElementById("lf-error-msg").textContent = msg;
+}
+
+function fmtDur(sec) {
+  const m = Math.floor(sec/60), s = sec%60;
+  return `${m}:${String(s).padStart(2,"0")}`;
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+function escQ(s) { return String(s).replace(/'/g,"\\'"); }
+</script>
+</body>
+</html>

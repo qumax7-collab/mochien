@@ -27,3 +27,6 @@ subtitle.txt
 
 # 폰트 (Actions에서 런타임 다운로드)
 fonts/
+
+# 웹 UI 런타임 파일
+used_videos.json

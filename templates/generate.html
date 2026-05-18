@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>영상 생성 — 슬롯 {{ slot }}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="back-btn" href="/shorts/{{ slot }}/background" id="back-link">← 배경 선택</a>
+  <span class="logo">영상 생성</span>
+  <span class="slot-chip">슬롯 {{ slot }}</span>
+</header>
+
+<main class="container">
+
+  <!-- 요약 패널 -->
+  <div class="summary-panel">
+    {% if bg_thumb %}
+    <img src="{{ bg_thumb }}" class="summary-thumb" alt="배경 썸네일">
+    {% endif %}
+    <div class="summary-info">
+      <div class="summary-row"><label>제목</label><span>{{ gpt.title }}</span></div>
+      <div class="summary-row"><label>슬롯</label><span>{{ slot }} ({% if slot == "09" %}07:00{% else %}18:00{% endif %} JST 예약)</span></div>
+      <div class="summary-row"><label>감정</label><span class="chip chip-red">{{ gpt.emotion }}</span></div>
+      <div class="summary-row"><label>short_title</label><span class="chip chip-navy">{{ gpt.short_title }}</span></div>
+    </div>
+  </div>
+
+  <!-- 생성 시작 버튼 -->
+  <div style="text-align:center; margin:2rem 0" id="start-zone">
+    <button id="btn-start" class="btn btn-primary btn-xl" onclick="startGenerate()">
+      🚀 영상 생성 시작
+    </button>
+    <p class="hint">TTS → FFmpeg → Whisper → YouTube 업로드 순으로 진행됩니다.<br>
+    전체 소요 시간: 약 5~10분</p>
+  </div>
+
+  <!-- 진행 패널 (숨김) -->
+  <div id="progress-panel" style="display:none">
+    <div class="progress-wrap">
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fg" id="pbar" style="width:0%"></div>
+      </div>
+      <span class="progress-pct" id="pct-label">0%</span>
+    </div>
+
+    <div class="step-list" id="step-list">
+      <!-- JS가 동적 삽입 -->
+    </div>
+
+    <div class="current-msg" id="current-msg">준비 중...</div>
+  </div>
+
+  <!-- 완료 패널 (숨김) -->
+  <div id="done-panel" style="display:none">
+    <div class="done-card">
+      <div class="done-icon">🎉</div>
+      <h2>업로드 완료!</h2>
+      <p id="done-title"></p>
+      <a id="yt-link" href="#" target="_blank" rel="noopener" class="btn btn-primary btn-lg">
+        ▶ YouTube에서 확인
+      </a>
+      <a href="https://studio.youtube.com/channel/videos" target="_blank" rel="noopener"
+         class="btn btn-ghost btn-lg">
+        YouTube Studio
+      </a>
+      <a href="/" class="btn btn-ghost btn-lg">← 홈으로</a>
+    </div>
+  </div>
+
+  <!-- 에러 패널 (숨김) -->
+  <div id="error-panel" style="display:none">
+    <div class="error-card">
+      <div class="done-icon">❌</div>
+      <h2>오류 발생</h2>
+      <pre id="error-msg" class="error-pre"></pre>
+      <a href="/shorts/{{ slot }}/generate" class="btn btn-primary">다시 시도</a>
+      <a href="/" class="btn btn-ghost">← 홈으로</a>
+    </div>
+  </div>
+</main>
+
+<script>
+const SLOT  = "{{ slot }}";
+const TITLE = {{ gpt.title | tojson }};
+
+const STEPS = [
+  {key:"BG",      label:"배경 영상",    icon:"🎥"},
+  {key:"TTS",     label:"음성 생성",    icon:"🎙️"},
+  {key:"FFmpeg",  label:"영상 합성",    icon:"🎬"},
+  {key:"Whisper", label:"자막 생성",    icon:"📝"},
+  {key:"Upload",  label:"YouTube 업로드", icon:"📤"},
+];
+
+let es = null;
+
+function startGenerate() {
+  document.getElementById("btn-start").disabled = true;
+  document.getElementById("start-zone").style.display = "none";
+  document.getElementById("progress-panel").style.display = "block";
+  document.getElementById("back-link").style.pointerEvents = "none";
+  document.getElementById("back-link").style.opacity = "0.3";
+
+  renderStepList();
+
+  es = new EventSource(`/api/shorts/${SLOT}/stream`);
+  es.onmessage = handleEvent;
+  es.onerror   = () => { showError("서버 연결이 끊겼습니다. 페이지를 새로고침하세요."); es.close(); };
+}
+
+function renderStepList() {
+  const ul = document.getElementById("step-list");
+  ul.innerHTML = STEPS.map(s => `
+    <div class="step-item" id="si-${s.key}">
+      <span class="step-icon">${s.icon}</span>
+      <span class="step-label">${s.label}</span>
+      <span class="step-status" id="ss-${s.key}">대기</span>
+    </div>
+  `).join("");
+}
+
+function handleEvent(e) {
+  const d = JSON.parse(e.data);
+
+  if (d.step === "Error") {
+    if (es) es.close();
+    showError(d.msg || "알 수 없는 오류");
+    return;
+  }
+  if (d.step === "Done") {
+    if (es) es.close();
+    showDone(d.url || "https://studio.youtube.com/channel/videos");
+    return;
+  }
+
+  // 퍼센트 바 업데이트
+  const pct = Math.max(0, Math.min(100, d.pct || 0));
+  document.getElementById("pbar").style.width       = pct + "%";
+  document.getElementById("pct-label").textContent  = pct + "%";
+  document.getElementById("current-msg").textContent = d.msg || "";
+
+  // 단계별 상태 업데이트
+  STEPS.forEach(s => {
+    const el = document.getElementById(`ss-${s.key}`);
+    if (!el) return;
+    if (s.key === d.step) {
+      el.textContent = "진행 중 ⏳";
+      el.className   = "step-status running";
+      document.getElementById(`si-${s.key}`).classList.add("active");
+    } else if (STEPS.findIndex(x=>x.key===d.step) > STEPS.findIndex(x=>x.key===s.key)) {
+      el.textContent = "완료 ✓";
+      el.className   = "step-status done";
+    }
+  });
+}
+
+function showDone(url) {
+  document.getElementById("progress-panel").style.display = "none";
+  document.getElementById("done-panel").style.display     = "block";
+  document.getElementById("done-title").textContent        = TITLE;
+  document.getElementById("pbar").style.width              = "100%";
+  document.getElementById("pct-label").textContent         = "100%";
+  const link = document.getElementById("yt-link");
+  link.href = url;
+  // 업로드 후 예약 발행이므로 watch URL이 아닐 수 있음
+  if (url.includes("studio.youtube.com")) {
+    link.textContent = "YouTube Studio에서 확인";
+  }
+}
+
+function showError(msg) {
+  document.getElementById("progress-panel").style.display = "none";
+  document.getElementById("error-panel").style.display    = "block";
+  document.getElementById("error-msg").textContent         = msg;
+}
+</script>
+</body>
+</html>

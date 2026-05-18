@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>대본 확인 — 슬롯 {{ slot }}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="back-btn" href="/shorts/{{ slot }}/select">← 기사 선택</a>
+  <span class="logo">대본 확인</span>
+  <span class="slot-chip">슬롯 {{ slot }}</span>
+</header>
+
+<main class="container">
+
+  <div class="script-panel">
+    <!-- 메타 영역 -->
+    <div class="meta-row">
+      <div class="meta-item">
+        <label>영상 제목</label>
+        <p id="gpt-title" class="val-title">{{ gpt.title }}</p>
+      </div>
+      <div class="meta-item">
+        <label>short_title</label>
+        <span id="gpt-short" class="chip chip-navy">{{ gpt.short_title }}</span>
+      </div>
+      <div class="meta-item">
+        <label>감정(emotion)</label>
+        <span id="gpt-emotion" class="chip chip-red">{{ gpt.emotion }}</span>
+      </div>
+    </div>
+
+    <!-- Hook -->
+    <div class="script-block">
+      <label>🎣 Hook (일본어)</label>
+      <p id="gpt-hook" class="val-hook">{{ gpt.hook }}</p>
+    </div>
+    {% if gpt.hook_korean %}
+    <div class="script-block">
+      <label>🇰🇷 Hook 한국어</label>
+      <p id="gpt-hook-kr" class="val-sub">{{ gpt.hook_korean }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Script -->
+    <div class="script-block">
+      <label>📝 스크립트 (일본어)</label>
+      <pre id="gpt-script" class="script-pre">{{ gpt.script }}</pre>
+    </div>
+
+    <!-- Korean summary -->
+    {% if gpt.korean_summary %}
+    <div class="script-block">
+      <label>🇰🇷 한국어 요약</label>
+      <p id="gpt-kor-sum" class="val-sub">{{ gpt.korean_summary }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Hashtags -->
+    <div class="script-block">
+      <label>#️⃣ 해시태그</label>
+      <div id="gpt-hashtags" class="hashtag-row">
+        {% if gpt.hashtags is iterable and gpt.hashtags is not string %}
+          {% for tag in gpt.hashtags %}
+          <span class="hashtag">{{ tag }}</span>
+          {% endfor %}
+        {% else %}
+          {% for tag in gpt.hashtags.split() %}
+          <span class="hashtag">{{ tag }}</span>
+          {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Image prompt -->
+    <div class="script-block">
+      <label>🖼️ Pexels 검색어</label>
+      <code id="gpt-img-prompt">{{ gpt.image_prompt }}</code>
+    </div>
+  </div>
+
+  <!-- 버튼 -->
+  <div class="action-row">
+    <button id="btn-proceed" class="btn btn-primary btn-lg" onclick="proceed()">
+      ✅ 이대로 진행 → 배경 영상 선택
+    </button>
+    <button id="btn-regen" class="btn btn-secondary btn-lg" onclick="regenerate()">
+      🔄 다시 생성
+    </button>
+    <a class="btn btn-ghost btn-lg" href="/shorts/{{ slot }}/select">
+      ← 기사 다시 선택
+    </a>
+  </div>
+  <p class="hint" style="text-align:center" id="regen-count"></p>
+</main>
+
+<!-- 재생성 오버레이 -->
+<div id="regen-overlay" class="overlay" style="display:none">
+  <div class="overlay-box">
+    <div class="spinner spinner-lg"></div>
+    <p>GPT 대본 재생성 중...<br><small>약 10~20초 소요</small></p>
+  </div>
+</div>
+
+<script>
+const SLOT = "{{ slot }}";
+let regenCount = 0;
+
+async function proceed() {
+  document.getElementById("btn-proceed").disabled = true;
+  document.getElementById("btn-proceed").textContent = "저장 중...";
+  const r = await fetch(`/api/shorts/${SLOT}/save-gpt`, {method:"POST"});
+  if (!r.ok) { alert("저장 실패"); document.getElementById("btn-proceed").disabled = false; return; }
+  location.href = `/shorts/${SLOT}/background`;
+}
+
+async function regenerate() {
+  document.getElementById("regen-overlay").style.display = "flex";
+  document.getElementById("btn-regen").disabled = true;
+
+  const r = await fetch(`/api/shorts/${SLOT}/regenerate`, {method:"POST"});
+  document.getElementById("regen-overlay").style.display = "none";
+  document.getElementById("btn-regen").disabled = false;
+
+  if (!r.ok) { alert("재생성 실패"); return; }
+  const gpt = await r.json();
+  regenCount++;
+
+  // DOM 업데이트
+  document.getElementById("gpt-title").textContent   = gpt.title     || "";
+  document.getElementById("gpt-short").textContent   = gpt.short_title || "";
+  document.getElementById("gpt-emotion").textContent = gpt.emotion   || "";
+  document.getElementById("gpt-hook").textContent    = gpt.hook      || "";
+  const hookKr = document.getElementById("gpt-hook-kr");
+  if (hookKr) hookKr.textContent = gpt.hook_korean || "";
+  document.getElementById("gpt-script").textContent   = gpt.script    || "";
+  const korSum = document.getElementById("gpt-kor-sum");
+  if (korSum) korSum.textContent = gpt.korean_summary || "";
+  document.getElementById("gpt-img-prompt").textContent = gpt.image_prompt || "";
+
+  // 해시태그 재렌더
+  const tags = Array.isArray(gpt.hashtags) ? gpt.hashtags : (gpt.hashtags||"").split(/\s+/);
+  document.getElementById("gpt-hashtags").innerHTML =
+    tags.map(t => `<span class="hashtag">${t}</span>`).join("");
+
+  document.getElementById("regen-count").textContent = `재생성 ${regenCount}회 완료`;
+}
+</script>
+</body>
+</html>

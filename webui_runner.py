@@ -1,0 +1,372 @@
+"""모찌엔 웹 UI — 파이프라인 단계별 실행 래퍼 + SSE 제너레이터"""
+import sys
+import json
+import asyncio
+import shutil
+import requests
+from pathlib import Path
+from datetime import datetime, timezone, timedelta
+from typing import AsyncGenerator
+
+# step2_select 함수 직접 import (모듈 레벨 코드는 harmless)
+from step2_select import fetch_articles as _fetch_articles, call_chatgpt as _call_chatgpt
+
+BASE = Path(__file__).parent
+JST  = timezone(timedelta(hours=9))
+
+# ── 단계별 예상 소요 시간 ─────────────────────────────────
+ETA = {
+    "BG":      "예상 10초",
+    "TTS":     "예상 30~60초",
+    "FFmpeg":  "예상 2~4분 소요 — 잠시 기다려주세요",
+    "Whisper": "예상 1~2분 소요",
+    "Upload":  "예상 1~2분 소요",
+    "Long1":   "예상 3~5분 소요 (GPT 4회 호출)",
+    "Long2":   "예상 1~2분 소요",
+    "Long4":   "예상 6~10분 소요 — 잠시 기다려주세요",
+    "Long5":   "예상 2~4분 소요",
+    "Long6":   "예상 1~2분 소요",
+}
+
+# 의사 진행률 tick 간격 (초)
+TICK_FFmpeg  = 25.0
+TICK_Upload  = 30.0
+TICK_Whisper = 20.0
+TICK_Long4   = 40.0
+TICK_Long5   = 25.0
+
+LONG_BG_FILES = {
+    0: "long_bg_main.mp4",
+    1: "long_bg_issue1.mp4",
+    2: "long_bg_issue2.mp4",
+}
+
+
+def _today() -> str:
+    return datetime.now(JST).strftime("%Y-%m-%d")
+
+def _ev(step: str, pct: int, msg: str, **extra) -> str:
+    payload = {"step": step, "pct": max(0, min(100, pct)), "msg": msg, **extra}
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+def _err(step: str, detail: str) -> str:
+    return _ev("Error", -1, f"[{step}] {detail[:400]}")
+
+
+# ── 배경 영상 다운로드 ─────────────────────────────────────
+def download_video(url: str, dest: str, chunk: int = 1 << 20):
+    resp = requests.get(url, stream=True, timeout=120)
+    resp.raise_for_status()
+    with open(dest, "wb") as f:
+        for block in resp.iter_content(chunk):
+            if block:
+                f.write(block)
+
+
+# ── RSS 기사 수집 ─────────────────────────────────────────
+def run_fetch_articles() -> list:
+    """step2_select.fetch_articles() 호출 → 직렬화 가능한 dict 리스트 반환."""
+    raw = _fetch_articles()
+    result = []
+    for a in raw:
+        result.append({
+            "title":        a.get("title", ""),
+            "url":          a.get("url", ""),
+            "article_body": a.get("article_body", ""),
+            "published":    str(a.get("_published", "")),
+        })
+    return result
+
+
+# ── GPT 호출 ──────────────────────────────────────────────
+def run_call_gpt(title: str, article_body: str) -> dict:
+    """step2_select.call_chatgpt() 호출 → gpt_result dict 반환."""
+    return _call_chatgpt(title, article_body)
+
+
+# ── gpt_result.json 저장 ──────────────────────────────────
+def save_slot_gpt_result(slot: str, gpt: dict, article: dict | None = None):
+    """gpt_result.json (루트) + output/{today}/{slot}_gpt_result.json 동시 저장."""
+    now = datetime.now(JST)
+    save = {
+        **gpt,
+        "slot":          slot,
+        "article_url":   (article or {}).get("url", gpt.get("article_url", "")),
+        "raw_summary_jp": (article or {}).get("article_body", gpt.get("raw_summary_jp", "")),
+    }
+    root_path = BASE / "gpt_result.json"
+    root_path.write_text(json.dumps(save, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    slot_dir = BASE / "output" / now.strftime("%Y-%m-%d")
+    slot_dir.mkdir(parents=True, exist_ok=True)
+    (slot_dir / f"{slot}_gpt_result.json").write_text(
+        json.dumps(save, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+# ── 서브프로세스 실행 (공용) ───────────────────────────────
+async def _run_proc(script: str) -> tuple[int, bytes, bytes]:
+    """venv Python으로 스크립트 실행 → (returncode, stdout, stderr)."""
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable, script,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        cwd=str(BASE),
+    )
+    stdout, stderr = await proc.communicate()
+    return proc.returncode, stdout, stderr
+
+
+async def _run_with_ticks(
+    script: str,
+    step: str,
+    start_pct: int,
+    end_pct: int,
+    msg: str,
+    tick_sec: float,
+) -> AsyncGenerator[str, None]:
+    """
+    서브프로세스를 실행하면서 의사 진행률(tick) SSE 이벤트를 yield하는 내부 헬퍼.
+    성공이면 마지막 이벤트로 end_pct 를 yield하고 반환(rc=0).
+    실패이면 Error 이벤트를 yield하고 반환(rc≠0).
+    호출부에서 실패 여부를 알 수 있도록 async generator 내부에 플래그 노출은 못하므로,
+    호출부는 마지막 이벤트에 "Error" 가 포함됐는지로 판단한다.
+    """
+    eta = ETA.get(step, "")
+    yield _ev(step, start_pct, f"{msg} ({eta})")
+
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable, script,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        cwd=str(BASE),
+    )
+    stdout_task = asyncio.create_task(proc.stdout.read())
+    stderr_task = asyncio.create_task(proc.stderr.read())
+    wait_task   = asyncio.create_task(proc.wait())
+
+    # tick 2~3회 (start ~ end 구간 균등 분할)
+    n_ticks  = max(2, int((end_pct - start_pct) // 10))
+    tick_pts = [
+        start_pct + (end_pct - start_pct) * (i + 1) // (n_ticks + 1)
+        for i in range(n_ticks)
+    ]
+
+    for tp in tick_pts:
+        done, _ = await asyncio.wait({wait_task}, timeout=tick_sec)
+        if done:
+            break
+        yield _ev(step, tp, msg)
+
+    await asyncio.gather(stdout_task, stderr_task, wait_task)
+    rc     = wait_task.result()
+    stderr = stderr_task.result()
+
+    if rc != 0:
+        err_text = stderr.decode(errors="replace").strip()
+        yield _err(step, err_text)
+        return
+
+    yield _ev(step, end_pct, f"{step} 완료 ✓")
+
+
+# ── 쇼츠 파이프라인 SSE ───────────────────────────────────
+async def run_shorts_stream(slot: str, gpt: dict, bg_url: str) -> AsyncGenerator[str, None]:
+    """쇼츠 영상 생성 파이프라인 SSE 이벤트 제너레이터."""
+
+    # gpt_result.json 준비
+    slot_file = BASE / "output" / _today() / f"{slot}_gpt_result.json"
+    if slot_file.exists():
+        shutil.copy(slot_file, BASE / "gpt_result.json")
+    else:
+        (BASE / "gpt_result.json").write_text(
+            json.dumps({**gpt, "slot": slot}, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+    # ── 1. 배경 영상 다운로드 ──────────────────────────────
+    yield _ev("BG", 3, f"배경 영상 다운로드 중... ({ETA['BG']})")
+    try:
+        await asyncio.to_thread(download_video, bg_url, str(BASE / "background.mp4"))
+    except Exception as e:
+        yield _err("BG", str(e))
+        return
+    yield _ev("BG", 12, "배경 영상 다운로드 완료 ✓")
+
+    # ── 2. TTS ─────────────────────────────────────────────
+    failed = False
+    async for ev in _run_with_ticks("step5_tts.py", "TTS", 15, 28, "음성 생성 중...", 15.0):
+        yield ev
+        if '"step":"Error"' in ev:
+            failed = True
+    if failed:
+        return
+
+    # ── 3. FFmpeg (긴 단계 — 의사 진행률) ─────────────────
+    failed = False
+    async for ev in _run_with_ticks("step6_ffmpeg.py", "FFmpeg", 30, 62, "영상 합성 중...", TICK_FFmpeg):
+        yield ev
+        if '"step":"Error"' in ev:
+            failed = True
+    if failed:
+        return
+
+    # ── 4. Whisper ─────────────────────────────────────────
+    failed = False
+    async for ev in _run_with_ticks("step7_whisper_subtitle.py", "Whisper", 65, 83, "자막 생성 중...", TICK_Whisper):
+        yield ev
+        if '"step":"Error"' in ev:
+            failed = True
+    if failed:
+        return
+
+    # ── 5. YouTube 업로드 (긴 단계 — 의사 진행률) ─────────
+    yield _ev("Upload", 85, f"YouTube 업로드 중... ({ETA['Upload']})")
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable, "step9_youtube.py",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        cwd=str(BASE),
+    )
+    stdout_t = asyncio.create_task(proc.stdout.read())
+    stderr_t = asyncio.create_task(proc.stderr.read())
+    wait_t   = asyncio.create_task(proc.wait())
+
+    for tp in [88, 93]:
+        done, _ = await asyncio.wait({wait_t}, timeout=TICK_Upload)
+        if done:
+            break
+        yield _ev("Upload", tp, "업로드 진행 중...")
+
+    await asyncio.gather(stdout_t, stderr_t, wait_t)
+    rc  = wait_t.result()
+    out = stdout_t.result().decode(errors="replace")
+
+    if rc != 0:
+        yield _err("Upload", stderr_t.result().decode(errors="replace"))
+        return
+
+    # stdout에서 YouTube URL 파싱 (step9가 "URL       : https://..." 형식으로 출력)
+    yt_url = "https://studio.youtube.com/channel/videos"
+    for line in out.splitlines():
+        if "youtube.com/watch" in line or "youtu.be" in line:
+            parts = line.split(":")
+            # "URL       : https://www.youtube.com/watch?v=xxx"
+            url_candidate = line.split(":", 1)[-1].strip()
+            if url_candidate.startswith("http"):
+                yt_url = url_candidate
+                break
+
+    yield _ev("Done", 100, "영상 생성 및 업로드 완료! 🎉", url=yt_url)
+
+
+# ── 롱폼: long1 실행 ──────────────────────────────────────
+def run_long1_script() -> dict:
+    """long1_script.py를 서브프로세스 실행 → long_script.json 반환."""
+    import subprocess
+    result = subprocess.run(
+        [sys.executable, "long1_script.py"],
+        capture_output=True, text=True,
+        cwd=str(BASE), encoding="utf-8", errors="replace",
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip()[-500:])
+    return json.loads((BASE / "long_script.json").read_text(encoding="utf-8"))
+
+
+# ── 롱폼 파이프라인 SSE ───────────────────────────────────
+async def run_longform_stream(bg_urls: dict) -> AsyncGenerator[str, None]:
+    """롱폼 영상 생성 파이프라인 SSE 이벤트 제너레이터.
+    bg_urls: {0: {url, thumb}, 1: {url, thumb}, 2: {url, thumb}}
+    """
+
+    # ── 배경 영상 다운로드 (선택된 것만 / 없으면 long3 로 대체) ──
+    dl_targets = {
+        0: "long_bg_main.mp4",
+        1: "long_bg_issue1.mp4",
+        2: "long_bg_issue2.mp4",
+    }
+    has_custom_bg = bool(bg_urls)
+
+    if has_custom_bg:
+        yield _ev("Long3", 2, f"배경 영상 다운로드 중... ({ETA['BG']})")
+        for idx, fname in dl_targets.items():
+            entry = bg_urls.get(idx)
+            if not entry:
+                continue
+            try:
+                await asyncio.to_thread(download_video, entry["url"], str(BASE / fname))
+            except Exception as e:
+                yield _err("Long3", f"{fname}: {e}")
+                return
+        yield _ev("Long3", 8, "배경 영상 다운로드 완료 ✓")
+    else:
+        # 사용자가 Pexels 선택을 건너뜀 → long3 자동 실행
+        yield _ev("Long3", 2, f"배경 영상 자동 선택 중... ({ETA['BG']})")
+        rc, _, stderr = await _run_proc("long3_pexels.py")
+        if rc != 0:
+            yield _err("Long3", stderr.decode(errors="replace"))
+            return
+        yield _ev("Long3", 8, "배경 영상 준비 완료 ✓")
+
+    # ── long2: TTS ──────────────────────────────────────────
+    failed = False
+    async for ev in _run_with_ticks("long2_tts.py", "Long2", 10, 22, "롱폼 음성 생성 중...", 15.0):
+        yield ev
+        if '"step":"Error"' in ev:
+            failed = True
+    if failed:
+        return
+
+    # ── long4: FFmpeg (가장 긴 단계) ───────────────────────
+    failed = False
+    async for ev in _run_with_ticks("long4_ffmpeg.py", "Long4", 25, 68, "롱폼 영상 합성 중...", TICK_Long4):
+        yield ev
+        if '"step":"Error"' in ev:
+            failed = True
+    if failed:
+        return
+
+    # ── long5: Whisper ─────────────────────────────────────
+    failed = False
+    async for ev in _run_with_ticks("long5_whisper.py", "Long5", 70, 84, "롱폼 자막 생성 중...", TICK_Long5):
+        yield ev
+        if '"step":"Error"' in ev:
+            failed = True
+    if failed:
+        return
+
+    # ── long6: YouTube 업로드 ──────────────────────────────
+    yield _ev("Long6", 86, f"롱폼 YouTube 업로드 중... ({ETA['Long6']})")
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable, "long6_youtube.py",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        cwd=str(BASE),
+    )
+    stdout_t = asyncio.create_task(proc.stdout.read())
+    stderr_t = asyncio.create_task(proc.stderr.read())
+    wait_t   = asyncio.create_task(proc.wait())
+
+    for tp in [90, 95]:
+        done, _ = await asyncio.wait({wait_t}, timeout=TICK_Upload)
+        if done:
+            break
+        yield _ev("Long6", tp, "롱폼 업로드 진행 중...")
+
+    await asyncio.gather(stdout_t, stderr_t, wait_t)
+    rc  = wait_t.result()
+    out = stdout_t.result().decode(errors="replace")
+
+    if rc != 0:
+        yield _err("Long6", stderr_t.result().decode(errors="replace"))
+        return
+
+    yt_url = "https://studio.youtube.com/channel/videos"
+    for line in out.splitlines():
+        if "youtube.com/watch" in line or "youtu.be" in line:
+            url_candidate = line.split(":", 1)[-1].strip()
+            if url_candidate.startswith("http"):
+                yt_url = url_candidate
+                break
+
+    yield _ev("Done", 100, "롱폼 영상 생성 및 업로드 완료! 🎉", url=yt_url)

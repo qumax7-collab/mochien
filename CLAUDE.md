@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 18일 (세션 6)
+최종 업데이트: 2026년 5월 18일 (세션 7 — 로컬 웹 UI 추가)
 
 ================================================================
 ## 0. 작업 규칙
@@ -1040,6 +1040,51 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
   USER_PROMPT 【その他】에 "必ず韓国語（한국어）で1文" 명시로 해결 — 필드 설명이 없으면 GPT는 출력하지 않을 수 있음
 - load_recent_used_urls(): output/ 하위 YYYY-MM-DD 폴더를 date() 비교로 스캔 (timedelta+datetime 비교 시 시각까지 비교되어 당일 경계 오차 발생 → .date() 비교 권장)
 
+
+================================================================
+## 20. 로컬 웹 UI (세션 7 추가 — 2026-05-18)
+================================================================
+목적       : GitHub Actions + 텔레그램 자동 모드와 별개로, PC에서 수동 운영하는 웹 인터페이스
+실행       : webui.bat 더블클릭 → http://localhost:8000 접속
+기술 스택  : FastAPI + Jinja2 + Vanilla JS + SSE / 다크모드 고정
+
+신규 파일 목록:
+  webui.py           ← FastAPI 진입점 (모든 라우트)
+  webui_runner.py    ← 파이프라인 래퍼 + SSE 제너레이터
+  webui_pexels.py    ← Pexels 후보 6개 + used_videos.json 관리
+  used_videos.json   ← 런타임 생성 / 최근 30일 사용 영상 URL 누적
+  templates/index.html          ← 대시보드 (슬롯 상태 + 진입 버튼)
+  templates/select_article.html ← 기사 선택 카드
+  templates/confirm_script.html ← GPT 대본 확인 + 재생성
+  templates/select_background.html ← Pexels 후보 선택 (hover 미리보기)
+  templates/generate.html       ← SSE 진행상황 + YouTube URL 표시
+  templates/longform.html       ← 롱폼 단일 페이지 위자드
+  static/style.css   ← 다크모드 / 모찌엔 컬러 (#1a1a2e 배경, #1B2A4A 네이비, #E50000 포인트)
+  static/app.js      ← SSE 공용 헬퍼, 진행바 업데이트 유틸
+  webui.bat          ← uvicorn webui:app --reload --port 8000 실행 배치
+
+쇼츠 화면 흐름 (슬롯별):
+  / → /shorts/{slot}/select → /shorts/{slot}/script → /shorts/{slot}/background → /shorts/{slot}/generate
+  각 단계 중간 결과는 서버 인메모리 (SLOT_STATE) + 파일 동시 보존
+  [다시 생성] 무제한 / 기사·배경 선택 언제든 재진행 가능
+
+롱폼 화면 흐름 (단일 페이지 위자드):
+  /longform → ① 스크립트 생성 → ② 확인 → ③ 배경 3슬롯 선택 → ④ 생성 SSE
+
+SSE 진행률 설계:
+  - 단계 시작 시: {step, pct, msg, eta} 이벤트
+  - 긴 단계(FFmpeg·Upload·Long4 등): TICK_INTERVAL(25~40초)마다 의사 진행률 tick
+  - 완료: {step:"Done", pct:100, url:"https://..."} / 오류: {step:"Error", pct:-1, msg:"..."}
+  - FFmpeg 내부 진행률: step6_ffmpeg.py가 stderr을 capture_output=True로 내부 처리하므로
+    외부 파싱 불가 → 25초 tick 의사 진행률로 대응
+
+핵심 설계 원칙:
+  - 기존 step2~9 / long1~6 코드 무변경 — webui_runner가 subprocess로 호출
+  - step4_pexels.py 대체: webui UI에서 선택 → webui_runner.download_video()로 직접 다운로드
+  - 동시 실행 방지: SLOT_STATE[slot]["is_running"] 플래그
+  - 자동 모드(GitHub Actions)와 완전 독립 — 진입점 분리
+
+requirements.txt 추가 항목: fastapi / uvicorn[standard] / jinja2 / sse-starlette
 
 ================================================================
 ## 19. 2단계 예고 (파이프라인 안정화 이후 검토)

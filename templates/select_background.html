@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>배경 영상 선택 — 슬롯 {{ slot }}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="back-btn" href="/shorts/{{ slot }}/script">← 대본 확인</a>
+  <span class="logo">배경 영상 선택</span>
+  <span class="slot-chip">슬롯 {{ slot }}</span>
+</header>
+
+<main class="container">
+  <div class="section-title">
+    <h2>Pexels 후보 6개</h2>
+    <p class="hint">검색어: <code>{{ image_prompt }}</code> &nbsp;|&nbsp; 최근 30일 사용 영상 자동 제외</p>
+  </div>
+
+  <div id="loading" class="loading-box">
+    <div class="spinner"></div>
+    <p>Pexels에서 후보 영상 검색 중...</p>
+  </div>
+
+  <div id="bg-grid" class="bg-grid" style="display:none"></div>
+
+  <div id="btn-refresh-zone" style="display:none; text-align:center; margin-top:1rem;">
+    <button class="btn btn-ghost" onclick="loadCandidates()">🔄 후보 다시 받기</button>
+    <p class="hint">같은 쿼리로 재검색합니다.</p>
+  </div>
+</main>
+
+<!-- 선택 완료 오버레이 -->
+<div id="select-overlay" class="overlay" style="display:none">
+  <div class="overlay-box">
+    <div class="spinner spinner-lg"></div>
+    <p>배경 영상 선택 중...</p>
+  </div>
+</div>
+
+<script>
+const SLOT = "{{ slot }}";
+
+async function loadCandidates() {
+  document.getElementById("loading").style.display = "flex";
+  document.getElementById("bg-grid").style.display = "none";
+  document.getElementById("btn-refresh-zone").style.display = "none";
+
+  const r = await fetch(`/api/shorts/${SLOT}/pexels`);
+  document.getElementById("loading").style.display = "none";
+
+  if (!r.ok) { alert("Pexels 로드 실패"); return; }
+  const data = await r.json();
+  renderCandidates(data.candidates);
+}
+
+function fmtDur(sec) {
+  const m = Math.floor(sec/60), s = sec%60;
+  return `${m}:${String(s).padStart(2,"0")}`;
+}
+
+function renderCandidates(candidates) {
+  const grid = document.getElementById("bg-grid");
+  grid.style.display = "grid";
+  document.getElementById("btn-refresh-zone").style.display = "block";
+
+  if (candidates.length === 0) {
+    grid.innerHTML = '<p class="empty">Pexels에서 결과를 가져오지 못했습니다.<br>API 키 또는 쿼리를 확인해주세요.</p>';
+    return;
+  }
+
+  grid.innerHTML = candidates.map((c, i) => `
+    <div class="bg-card" id="bgcard-${i}">
+      <div class="bg-thumb-wrap"
+           onmouseenter="playPreview(${i})"
+           onmouseleave="stopPreview(${i})">
+        <img src="${c.thumb}" alt="썸네일" class="bg-thumb" id="bgimg-${i}">
+        <video id="bgvid-${i}" class="bg-video" muted loop playsinline
+               src="${c.url}" preload="none"></video>
+        <div class="dur-badge">${fmtDur(c.duration)}</div>
+        <div class="res-badge">${c.width}×${c.height}</div>
+      </div>
+      <button class="btn btn-primary btn-sm" style="margin-top:.6rem"
+              onclick="selectBg(${i}, '${escQ(c.url)}', '${escQ(c.thumb)}')">
+        ✅ 선택
+      </button>
+    </div>
+  `).join("");
+}
+
+function playPreview(i) {
+  const vid = document.getElementById(`bgvid-${i}`);
+  const img = document.getElementById(`bgimg-${i}`);
+  if (!vid) return;
+  vid.style.display = "block";
+  img.style.display = "none";
+  vid.play().catch(()=>{});
+}
+function stopPreview(i) {
+  const vid = document.getElementById(`bgvid-${i}`);
+  const img = document.getElementById(`bgimg-${i}`);
+  if (!vid) return;
+  vid.pause();
+  vid.style.display = "none";
+  img.style.display = "block";
+}
+
+async function selectBg(i, url, thumb) {
+  document.getElementById("select-overlay").style.display = "flex";
+  const r = await fetch(`/api/shorts/${SLOT}/select-bg`, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({url, thumb}),
+  });
+  if (!r.ok) {
+    document.getElementById("select-overlay").style.display = "none";
+    alert("배경 선택 저장 실패");
+    return;
+  }
+  location.href = `/shorts/${SLOT}/generate`;
+}
+
+function escQ(s) {
+  return String(s).replace(/'/g, "\\'");
+}
+
+loadCandidates();
+</script>
+</body>
+</html>

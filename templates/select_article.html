@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>기사 선택 — 슬롯 {{ slot }}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="back-btn" href="/">← 홈</a>
+  <span class="logo">기사 선택</span>
+  <span class="slot-chip">슬롯 {{ slot }}</span>
+</header>
+
+<main class="container">
+  {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+  <div id="fetch-zone" class="fetch-zone">
+    <p class="hint">RSS에서 최신 일본 경제 뉴스를 가져옵니다.</p>
+    <button id="btn-fetch" class="btn btn-primary btn-lg" onclick="fetchArticles()">
+      📡 기사 불러오기
+    </button>
+  </div>
+
+  <div id="loading" class="loading-box" style="display:none">
+    <div class="spinner"></div>
+    <p>RSS 수집 + 차단 필터 적용 중...</p>
+  </div>
+
+  <div id="article-list" style="display:none">
+    <div class="list-header">
+      <span id="count-label"></span>
+      <button class="btn btn-ghost btn-sm" onclick="location.reload()">🔄 다시 불러오기</button>
+    </div>
+    <div id="cards"></div>
+  </div>
+</main>
+
+<!-- GPT 호출 로딩 오버레이 -->
+<div id="gpt-overlay" class="overlay" style="display:none">
+  <div class="overlay-box">
+    <div class="spinner spinner-lg"></div>
+    <p>GPT 대본 생성 중...<br><small>약 10~20초 소요</small></p>
+  </div>
+</div>
+
+<script>
+const SLOT = "{{ slot }}";
+
+async function fetchArticles() {
+  document.getElementById("fetch-zone").style.display = "none";
+  document.getElementById("loading").style.display = "flex";
+
+  const r = await fetch(`/api/shorts/${SLOT}/articles`, {method:"POST"});
+  document.getElementById("loading").style.display = "none";
+
+  if (!r.ok) {
+    const e = await r.json().catch(()=>({detail:"알 수 없는 오류"}));
+    alert("기사 수집 실패: " + e.detail);
+    document.getElementById("fetch-zone").style.display = "block";
+    return;
+  }
+  const data = await r.json();
+  renderArticles(data.articles);
+}
+
+function formatDate(ts) {
+  if (!ts || ts === "0") return "";
+  const d = new Date(parseInt(ts) * 1000);
+  return d.toLocaleString("ja-JP", {month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit"});
+}
+
+function renderArticles(articles) {
+  const cards = document.getElementById("cards");
+  document.getElementById("count-label").textContent = `후보 ${articles.length}건`;
+  document.getElementById("article-list").style.display = "block";
+
+  if (articles.length === 0) {
+    cards.innerHTML = '<p class="empty">조건에 맞는 기사가 없습니다. 잠시 후 다시 시도하세요.</p>';
+    return;
+  }
+
+  cards.innerHTML = articles.map((a, i) => `
+    <div class="article-card" id="card-${i}">
+      <div class="article-meta">
+        <span class="source-badge">NHK</span>
+        ${a.published ? `<span class="pub-time">${formatDate(a.published)}</span>` : ""}
+      </div>
+      <h3 class="article-title">${escHtml(a.title)}</h3>
+      <p class="article-body">${escHtml((a.article_body||"").slice(0,200))}${(a.article_body||"").length>200?"…":""}</p>
+      <div class="article-url"><a href="${escHtml(a.url)}" target="_blank" rel="noopener">↗ 원문 보기</a></div>
+      <button class="btn btn-primary btn-sm" onclick="selectArticle(${i})">✅ 이 기사로 대본 생성</button>
+    </div>
+  `).join("");
+}
+
+async function selectArticle(idx) {
+  const cards = document.getElementById("cards");
+  const article = JSON.parse(cards.querySelectorAll(".article-card")[idx].dataset.raw || "null")
+    || window._articles[idx];
+
+  document.getElementById("gpt-overlay").style.display = "flex";
+
+  const r = await fetch(`/api/shorts/${SLOT}/gpt`, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({article: window._articles[idx]}),
+  });
+
+  if (!r.ok) {
+    document.getElementById("gpt-overlay").style.display = "none";
+    const e = await r.json().catch(()=>({detail:"GPT 호출 실패"}));
+    alert(e.detail);
+    return;
+  }
+  location.href = `/shorts/${SLOT}/script`;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// 기사 데이터를 메모리에도 보관 (selectArticle에서 사용)
+window._articles = [];
+const _orig = renderArticles;
+renderArticles = function(articles) {
+  window._articles = articles;
+  _orig(articles);
+};
+</script>
+</body>
+</html>
