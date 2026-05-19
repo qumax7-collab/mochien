@@ -14,6 +14,7 @@ USED_VIDEOS_FILE   = BASE / "used_videos.json"
 PEXELS_API_URL     = "https://api.pexels.com/videos/search"
 RETENTION_DAYS     = 30
 JST                = timezone(timedelta(hours=9))
+PEXELS_QUERY_SUFFIX = " no people b-roll"  # 인물 클로즈업 억제
 
 
 # ── 사용 이력 관리 ────────────────────────────────────────
@@ -75,6 +76,7 @@ def fetch_pexels_candidates(query: str, count: int = 6, page_start: int = 1) -> 
     api_key = os.getenv("PEXELS_API_KEY", "")
     headers = {"Authorization": api_key}
     used    = load_used_video_urls()
+    query   = query.strip() + PEXELS_QUERY_SUFFIX
 
     candidates: list = []
     per_page   = min(count + len(used) + 5, 30)   # 여유 있게 요청

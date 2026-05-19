@@ -105,9 +105,11 @@ def translate_titles_korean(articles: list) -> list:
         return [{**a, "korean_title": a["title"]} for a in articles]
 
 
+WEBUI_MAX_ARTICLES = 10
+
 def run_fetch_articles() -> list:
     """step2_select.fetch_articles() 호출 → 한국어 제목 포함 dict 리스트 반환."""
-    raw = _fetch_articles()
+    raw = _fetch_articles(limit=WEBUI_MAX_ARTICLES)
     result = []
     for a in raw:
         result.append({
@@ -149,10 +151,23 @@ def save_slot_gpt_result(slot: str, gpt: dict, article: dict | None = None):
 # Windows SelectorEventLoop에서 asyncio.create_subprocess_exec이 NotImplementedError를
 # 발생시키므로 subprocess.run + run_in_executor 방식으로 대체
 def _run_sync(script: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
+    proc = subprocess.Popen(
         [sys.executable, script],
-        capture_output=True, cwd=str(BASE),
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(BASE),
     )
+    try:
+        stdout, stderr = proc.communicate()
+        return subprocess.CompletedProcess(proc.args, proc.returncode, stdout, stderr)
+    except KeyboardInterrupt:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        return subprocess.CompletedProcess(
+            proc.args, 1, b"",
+            f"[{script}] 실행 중 시스템 인터럽트 발생 (재시도하세요)".encode(),
+        )
 
 async def _run_proc(script: str) -> tuple[int, bytes, bytes]:
     """venv Python으로 스크립트 실행 → (returncode, stdout, stderr)."""

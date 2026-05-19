@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 18일 (세션 7 — 로컬 웹 UI 추가)
+최종 업데이트: 2026년 5월 20일 (웹 UI 개선 — 기사 재수집·Pexels 인물제외·KeyboardInterrupt 수정)
 
 ================================================================
 ## 0. 작업 규칙
@@ -844,6 +844,20 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
           · single_main() / batch_main().call_safe() 별도 캐치 처리
         - 거시 변수 단독 키워드(金利·為替·円安·円高) 차단어 미포함 (정책 뉴스 정상 통과용)
 
+✅  웹 UI 개선 (2026-05-20)
+        - step2_select.py: fetch_articles(limit=MAX_ARTICLES) 파라미터 추가
+          · 기존 텔레그램/배치 호출 기본값 5 유지 / 웹 UI는 WEBUI_MAX_ARTICLES=10으로 호출
+        - webui_runner.py:
+          · WEBUI_MAX_ARTICLES = 10 상수 추가 → 웹 UI 기사 선택 최대 10개
+          · _run_sync(): subprocess.run() → Popen 직접 관리로 전환
+            KeyboardInterrupt 발생 시 child 프로세스 terminate/kill 후 returncode=1 반환
+            → SSE 화면에 "재시도하세요" 에러 메시지 정상 표시 (기존: 비정상 스트림 종료)
+        - webui_pexels.py: PEXELS_QUERY_SUFFIX = " no people b-roll" 상수 추가
+          · 모든 Pexels 검색에 자동 append → 인물 클로즈업 영상 비중 감소
+          · fallback 쿼리("japanese economy")에도 동일 적용
+        - templates/select_article.html: "🔄 다시 불러오기" → location.reload() 제거
+          · fetchArticles() 직접 호출로 변경 → 페이지 초기화 없이 바로 재수집
+
 🔜  세션 7 — 워드프레스 자동 연재 (long7_wordpress.py)
 ⬜  세션 8 — E: AI 공시 + 정체성 명시
 ⬜  세션 9 — F: 댓글 반자동 응답 봇
@@ -1078,6 +1092,14 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
   → _entry_is_recent()로 양쪽 형식 처리. webui도 used_at으로 통일하면 충돌 없음
 - 롱폼 배경 선택 UI: long3_pexels.py가 long_bg_main.mp4도 항상 다운로드
   → 사용자 선택을 long3 실행 후 덮어쓰는 순서로 구현해야 사용자 선택이 최종 반영됨
+- webui _run_sync() KeyboardInterrupt: uvicorn Windows 시그널 핸들러가 executor 스레드에 KBI 주입
+  subprocess.run() 사용 시 communicate() 내부 stdout_thread.join()에서 예외 발생 → SSE 비정상 종료
+  → Popen 직접 관리로 전환, except KeyboardInterrupt 에서 terminate/kill 후 returncode=1 반환
+  → _run_with_ticks가 returncode!=0 으로 에러 이벤트 yield → 웹 UI에 정상 에러 표시
+- Pexels 인물 제외: API 자체 네거티브 필터 미지원 → 쿼리에 " no people b-roll" 접미사 추가
+  완전 제거는 불가하나 인물 클로즈업 비중이 눈에 띄게 줄어듦 / 나머지는 페이지 넘기기로 대응
+- fetch_articles limit 파라미터: 웹 UI는 더 많은 후보(10개)가 필요하나 텔레그램 모드는 5개 유지
+  → 기본값 유지 함수 시그니처 변경으로 하위 호환 + 호출부에서 limit 지정하는 패턴 적용
 - Windows asyncio + uvicorn: asyncio.create_subprocess_exec는 ProactorEventLoop 필요
   uvicorn이 SelectorEventLoop으로 실행 시 NotImplementedError 발생
   → subprocess.run (블로킹) + loop.run_in_executor(None, fn)으로 대체

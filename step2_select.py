@@ -451,7 +451,7 @@ def load_recent_used_urls(days: int) -> set:
     return used
 
 
-def fetch_articles():
+def fetch_articles(limit: int = MAX_ARTICLES):
     used_urls = load_recent_used_urls(RECENT_USED_URL_DAYS)
     if used_urls:
         print(f"  최근 {RECENT_USED_URL_DAYS}일 사용된 기사 {len(used_urls)}개 제외")
@@ -496,11 +496,11 @@ def fetch_articles():
 
     if filtered:
         print(f"경제 키워드 기사 {len(filtered)}개 / 전체 {len(all_articles)}개")
-        return sort_by_freshness(filtered)[:MAX_ARTICLES]
+        return sort_by_freshness(filtered)[:limit]
 
     print("경제 키워드 기사 없음 → 전체 기사에서 선택")
     tg_send("⚠️ 경제 키워드 기사 없어 전체에서 선택")
-    return sort_by_freshness(all_articles)[:MAX_ARTICLES]
+    return sort_by_freshness(all_articles)[:limit]
 
 
 # ─────────────────────────────────────────
