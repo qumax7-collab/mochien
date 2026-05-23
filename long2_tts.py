@@ -24,6 +24,11 @@ PD_ID             = os.getenv("ELEVENLABS_PD_ID", "")
 PD_VERSION_ID     = os.getenv("ELEVENLABS_PD_VERSION_ID", "")
 CONCAT_LIST_FILE  = "long_voice_concat.txt"
 PRONUNCIATION_PATH = "pronunciation.json"
+SECTION_LABEL_PAT  = re.compile(
+    r'[\[【〔](?:issue[12]|intro|outro|이슈\s*[12]|イントロ|アウトロ)[\]】〕]'
+    r'|^(?:issue[12]|intro|outro|이슈\s*[12]|イントロ|アウトロ)\s*[:：]\s*',
+    re.IGNORECASE | re.MULTILINE,
+)
 
 # 섹션 순서 (파일명, long_script.json 내 위치)
 SECTIONS = [
@@ -85,11 +90,17 @@ def build_chapters():
 
 def get_section_script(data, key):
     if key == "intro":
-        return data["intro"]["script"]
-    if key == "outro":
-        return data["outro"]["script"]
-    idx = int(key[-1]) - 1  # issue1 → 0
-    return data["issues"][idx]["script"]
+        text = data["intro"]["script"]
+    elif key == "outro":
+        text = data["outro"]["script"]
+    else:
+        idx = int(key[-1]) - 1  # issue1 → 0
+        text = data["issues"][idx]["script"]
+    # 운영자 검수용 출처 태그를 TTS 전에 제거 (한국어·일본어 양쪽 패턴 대응)
+    text = re.sub(r'\[출처[^\]]*\]', '', text)
+    text = re.sub(r'\[出典[^\]]*\]', '', text)
+    text = SECTION_LABEL_PAT.sub('', text)
+    return text.strip()
 
 
 def apply_pronunciation(text: str) -> str:

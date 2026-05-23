@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 20일 (웹 UI 개선 — 기사 재수집·Pexels 인물제외·KeyboardInterrupt 수정)
+최종 업데이트: 2026년 5월 23일 (RSS 보강 + 프롬프트 3차 개편 + 롱폼 슬롯 + 아웃트로 + 기사 선택 UI)
 
 ================================================================
 ## 0. 작업 규칙
@@ -354,6 +354,7 @@ GitHub Secrets 등록 목록:
   PEXELS_API_KEY / TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID /
   YOUTUBE_CREDENTIALS / CLIENT_SECRETS /
   GEMINI_API_KEY / ANTHROPIC_API_KEY   ← 16차 세션 추가
+  WP_URL / WP_USERNAME / WP_APP_PASSWORD  ← 세션 A 추가 (워드프레스 REST API)
   ※ GITHUB_TOKEN은 자동 제공 — 별도 등록 불필요
 
 
@@ -394,13 +395,14 @@ C:\mochien\
   ├── step9_youtube.py
   ├── step10_gemini_review.py             ← Gemini+Claude 자막·발음 자동 검수 (--mode shorts|longform)
   ├── [ 롱폼 파이프라인 ]
-  ├── run_longform.py                     ← 롱폼 전체 실행 (long1→6)
-  ├── long1_script.py                     ← gpt-4.1 롱폼 스크립트 생성
+  ├── run_longform.py                     ← 롱폼 전체 실행 (long1→7)
+  ├── long1_script.py                     ← gpt-4.1 롱폼 스크립트 생성 (2단계 KO→JA / 에버그린)
   ├── long2_tts.py                        ← 4섹션 TTS + concat
   ├── long3_pexels.py                     ← 3개 배경 영상 다운로드
   ├── long4_ffmpeg.py                     ← 섹션별 클립 생성 + concat
   ├── long5_whisper.py                    ← Whisper 자막 합성
   ├── long6_youtube.py                    ← YouTube 업로드 + 텔레그램
+  ├── long7_wordpress.py                  ← WordPress REST API 블로그 발행 (세션 A 신규)
   ├── [ 런타임 생성 파일 ]
   ├── article.json
   ├── gpt_result.json
@@ -417,6 +419,12 @@ C:\mochien\
   ├── long_output.mp4
   ├── long_subtitle.srt                   ← long5_whisper.py가 생성 / 롱폼 SRT (참조용)
   ├── long_chapters.json                  ← long2_tts.py가 생성 / long6_youtube.py가 소비
+  ├── long_youtube_url.txt                ← long6_youtube.py가 생성 / long7_wordpress.py가 소비
+  ├── long_script_ko.json                 ← long1 KO 단계 출력 (한국어 초안 / 웹 UI 검토용)
+  ├── long_script_verify.json             ← long1 JA 단계 역직역 확인용 (일→한 back-translation)
+  ├── long_thumb.jpg                      ← long7이 생성하는 썸네일 (long_bg_main.mp4 첫 프레임)
+  ├── topic_bank.json                     ← 거시 경제 토픽 15개 (에버그린 컨셉 / 세션 A 신규)
+  ├── topic_history.json                  ← 최근 발행 토픽 이력 (21일 쿨다운 / 런타임 생성)
   └── output/                             ← 날짜별 gpt_result (롱폼 연결용)
         └── 2026-05-10/
               ├── 09_gpt_result.json
@@ -858,13 +866,167 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
         - templates/select_article.html: "🔄 다시 불러오기" → location.reload() 제거
           · fetchArticles() 직접 호출로 변경 → 페이지 초기화 없이 바로 재수집
 
-🔜  세션 7 — 워드프레스 자동 연재 (long7_wordpress.py)
+✅  세션 A 완료 (2026-05-22) — 롱폼 에버그린 전환 + 워드프레스 자동 발행
+        - long1_script.py: 전면 재작성 (2단계 KO→JA 에버그린 방식)
+          · 철학 전환: "오늘 뉴스 요약" → "뉴스=입구, 거시 원리=내용" (에버그린 컨셉)
+          · 2단계 생성: --stage ko (한국어 초안 / 운영자 검토용) → --stage ja (일본어 변환)
+          · Mode A/B 자동 판정: GPT가 2개 기사 공통 원리 판별 → A(통합) / B(단독 집중)
+          · 할루시네이션 방지: 입력 데이터(raw_summary_jp + title + korean_summary) 외 사실 생성 금지
+            출처 인용 필수 ([출처: 기사1] 형식)
+          · 인물 페르소나: 교양 거시경제 해설가 / 뉴스를 입구 삼아 시대 흐름 해설
+          · long_script_ko.json 신규 출력 (한국어 초안 검토용)
+          · long_script_verify.json 신규 출력 (역직역 back-translation 확인용)
+          · long_script.json에 _slug_keyword 필드 추가 (topic_id → WP slug)
+        - topic_bank.json 신규 생성
+          · 15개 거시 경제 토픽 (id / title_ja / principle / keywords_ja)
+          · _readme 필드로 운영자용 토픽 추가 방법 안내 (Python 입문자 대상)
+          · 토픽 ID 목록: real-wage / yen-rate / interest-rate / inflation-deflation /
+            national-debt / trade-balance / aging-social-security / consumption-tax /
+            gdp-growth / business-cycle / energy-dependency / central-bank /
+            irregular-employment / declining-birthrate / cashless-society
+        - topic_history.json 신규 생성 (런타임)
+          · 최근 발행 토픽 이력 추적 / 21일 쿨다운 (같은 토픽 반복 방지)
+          · 15개 골고루 소비되도록 최근 사용 토픽 후순위 배치
+        - long7_wordpress.py 신규 생성
+          · WordPress REST API + Application Password 인증
+          · 썸네일: long_bg_main.mp4 첫 프레임 추출 → JPEG → /wp/v2/media 업로드
+          · HTML 본문 자동 생성 (H2 섹션별 / YouTube embed 포함)
+          · 예약 발행 21:00 JST (status: "future" / RFC3339)
+          · WP slug: topic_id 순수 키워드형 (real-wage) / 재발행 시 -2/-3 suffix
+          · get_unique_slug(): 기존 slug 충돌 시 자동 -N suffix 추가
+          · 실패 시 tg_error() 알림 + sys.exit(0) (파이프라인 중단 없음)
+          · 성공 시 텔레그램 블로그 URL 알림
+        - long6_youtube.py: long_youtube_url.txt 저장 추가 (long7 연결용)
+        - run_longform.py: PIPELINE에 long7_wordpress.py 추가
+        - webui_runner.py:
+          · LONG_SCRIPT_KO_FILE / LONG_SCRIPT_VERIFY_FILE 상수 추가
+          · _run_sync_cmd() 신규 (generic cmd list runner / KBI-safe)
+          · run_long1_ko(revise=None) / run_long1_ja() 신규
+          · run_longform_stream() 에 Long7 SSE 스텝 추가
+        - webui.py: 5개 신규 엔드포인트 추가
+          · POST /api/longform/script/ko (KO 초안 생성)
+          · POST /api/longform/script/ko/revise (KO 수정 재생성)
+          · GET /api/longform/script/ko/read (KO 초안 조회)
+          · POST /api/longform/script/ja (JA 변환)
+          · GET /api/longform/script/verify/read (역직역 확인)
+        - templates/longform.html: 4단계 위자드로 전면 재작성
+          · 1단계: KO 초안 생성 + 수정 텍스트 입력 + "일본어로 변환" 버튼
+          · 2단계: 일본어 확인 + 역직역 토글 표시
+          · 3단계: 배경 영상 선택
+          · 4단계: SSE 영상 생성 (Long7 블로그 발행 포함)
+        - mochien_longform.yml / mochien_full.yml:
+          · WP_URL / WP_USERNAME / WP_APP_PASSWORD Secret 주입 추가
+          · workflow_dispatch 전용 유지 (cron 없음 — 주 2회 수동 운영 철학)
+        - GitHub Secrets 신규 등록 필요: WP_URL / WP_USERNAME / WP_APP_PASSWORD
+          로컬 .env에도 동일하게 등록 필요
+
+✅  세션 A 후속 버그 수정 (2026-05-22)
+        - long2_tts.py: get_section_script()에 출처 태그 제거 추가
+          · re.sub으로 [출처: ...] (한국어) / [出典: ...] (일본어) 패턴 제거
+          · TTS 전송 텍스트에서만 제거 / long_script.json 원본 미변경
+          · 이유: JA 단계 GPT 지시만으로는 태그 완전 제거 보장 불가
+        - long7_wordpress.py: build_html_body()에 동일 출처 태그 제거 추가
+          · strip_citations() 헬퍼 신규 / to_paragraphs() 내부에서 자동 적용
+          · 블로그 본문 전체(인트로·이슈1·이슈2·아웃트로) 적용
+        - long1_script.py: KO 초안 덮어쓰기 전 자동 백업 추가
+          · LONG_SCRIPT_KO_BAK_FILE = "long_script_ko.bak.json" 상수 추가
+          · stage_ko() 저장 직전 기존 파일 있으면 shutil.copy2()로 bak 복사
+          · --revise 재생성 시 이전 버전 자동 보존 (1세대)
+          · import shutil 추가
+
+✅  세션 B 완료 (2026-05-22) — 롱폼 대본 분량 정상화 + 블로그 서식 정비 + 기존 글 재발행
+        - long1_script.py: issue2 retry 블록 추가 (edit ⑩)
+          · call_issue_retry()를 issue2에도 적용 (issue1과 동일 구조)
+          · ISSUE_RETRY_MIN_CHARS=450 기준 / 미달 시 1회 재시도
+        - long2_tts.py: SECTION_LABEL_PAT 상수 추가 + get_section_script()에 적용
+          · 섹션 레이블 ([issue1], intro: 등) TTS 텍스트 오출력 방어
+          · 한국어·일본어·영어 레이블 패턴 일괄 제거 (re.IGNORECASE | re.MULTILINE)
+        - long7_wordpress.py: 블로그 서식 5건 정비 (전면 재작성)
+          ① 문단 분리: split_japanese()로 句点(。) 기준 분리 + SENTENCES_PER_PARA=3 그룹화
+             괄호 깊이 추적으로 「」『』（） 내부 句点 오분리 방지
+          ② 광고 슬롯: AD_SLOT_1/2/3 HTML 주석 마커 (섹션 첫 문단 후 자동 삽입)
+          ③ 영상 멘트 제거: VIDEO_OUTRO_PAT로 「以上、モチエンが…」 제거 + 블로그 전용 마무리 삽입
+             BLOG_OUTRO_TMPL: YouTube URL을 "動画" 텍스트에 하이퍼링크
+          ④ 이슈 이미지: extract_frame()으로 long_bg_issue1/2.mp4 첫 프레임 → JPEG
+             upload_media() 반환값을 (media_id, source_url) 튜플로 변경
+             이슈 H2 직후 <img> 태그로 본문 내 이미지 삽입
+          ⑤ SEO: get_or_create_tag()로 hashtags → WP 태그 자동 생성·연결
+             Yoast SEO 메타: _yoast_wpseo_metadesc + _yoast_wpseo_focuskw meta 필드
+             excerpt: 후리가나 제거 후 intro 첫 120자
+        - long7_wordpress.py: --update 모드 추가 (argparse)
+          · find_post_by_slug(slug): GET /wp/v2/posts?slug=X&status=any 로 예약 글 포함 검색
+          · update_post(post_id, ...): POST /wp/v2/posts/{id} 로 내용·태그·메타만 업데이트
+            slug·status·date·featured_media는 보존 (예약 상태 유지)
+          · slug 없으면 tg_error 후 sys.exit(0) (신규 발행 폴백 없음)
+        - 신규 런타임 파일: long_thumb_issue1.jpg / long_thumb_issue2.jpg
+
+✅  세션 C (2026-05-23) — RSS 보강 + 쇼츠 프롬프트 3차 개편
+        - step2_select.py: RSS_URLS 3개 → 5개 확장
+          · NHK cat2.xml (生活·社会政策) 신규 추가
+          · Yahoo Japan domestic.xml 신규 추가 (Yahoo 経済 이외 국내 생활밀착 기사 공급)
+          · cat6 주석 수정: "경제" → "国際" (실제 카테고리 반영)
+        - step3_chatgpt.py (쇼츠 2단계 KO→JA): 프롬프트 3차 개편
+          · 1차 개편: 후크 간결·임팩트·궁금증 강화 — 30자 이내 / 질문형·수치형·뒤집기형
+            숫자는 반드시 포함 / 「あなたの○○」型 / 네거티브 앵커 + 반전 구조
+          · 2차 개편: 후크 추가 강화 — 익숙한 생활 현상으로 시작 / 경제용어 금지 /
+            첫 문장=의문 제기, 둘째=긴장 확장, 셋째=해결 예고 3-beat 구조
+          · 3차 개편: script 궁금증 해소 — 메커니즘 설명 의무
+            "어떻게 연결되는가"의 인과 경로 서술 (방향 예측 금지 / 방향 중립 표현 필수)
+          · 톤 가드 (감정 과잉 방지): 「！」최대 1회 / 연속 「！！」금지 /
+            단정 미래예측 맥락에서만 「確かに/必ず」금지
+
+✅  세션 D (2026-05-23) — 롱폼 발행 슬롯 + active_longform.json + 쇼츠 아웃트로
+        - longform_link.py 신규 생성 (SRP)
+          · next_publish_jst(slot): sun(일) / thu(목) 18:00 JST RFC3339 계산
+          · append_active(entry): active_longform.json에 항목 추가, MAX_ACTIVE=6 trim
+          · get_active(): publish_at_jst <= now 중 최신 1개 반환 (아웃트로 깔때기용)
+          · get_upcoming(): publish_at_jst > now 중 가장 가까운 topic_id 반환 (기사 선택 UI용)
+        - long6_youtube.py: 21:00 고정 → sun/thu 18:00 슬롯 방식으로 전환
+          · longform_link.next_publish_jst(args.slot) 사용
+          · 업로드 후 append_active() 호출 (topic_id / topic_ja / title_ja / url / publish_at_jst)
+          · long_youtube_url.txt 저장 (long7 연결용)
+        - run_longform.py: --slot 인수 추가 → long6에 전달
+        - mochien_longform.yml: workflow_dispatch input "slot" (sun/thu, default: sun) 추가
+        - mochien_full.yml: Commit 스텝에 active_longform.json 추가
+        - webui.py: /api/longform/stream?slot= 쿼리 파라미터 추가
+        - templates/longform.html: 슬롯 드롭다운 (일요일/목요일 18:00 JST)
+        - step3_chatgpt.py: 쇼츠 아웃트로 signoff 아키텍처 구현
+          · SIGNOFF_DEFAULT_KO / SIGNOFF_DEFAULT_JA / SIGNOFF_FUNNEL_JA 상수
+          · _SIGNOFF_RE 정규식 — KO/JA 기본/깔때기/레거시 변형 모두 캐치
+          · _strip_signoff(): GPT 출력에서 아웃트로 제거 (stage_ko/stage_ja 양쪽 적용)
+          · stage_ko(): 한국어 기본 아웃트로 코드에서 부착
+          · stage_ja(): get_active() 확인 → 공개 롱폼 있으면 깔때기 멘트 부착,
+            없으면 기본 아웃트로. active_longform_url / active_longform_title gpt 결과에 저장
+          · backtranslate_script에도 _strip_signoff 적용 (역직역 대상에서 제외)
+        - step9_youtube.py: build_notification()에 롱폼 링크 줄 추가
+          · active_longform_url 있으면 "▼今週の解説：「{title}」\n{url}" 고정댓글에 포함
+
+✅  세션 E (2026-05-23) — 기사 선택 UI — 생활밀착 점수 + 토픽뱅크 매치
+        - life_keywords.json 신규 생성
+          · 생활밀착 키워드 37개, 가중치 2~3 (给料·物価·年金·光熱費 등)
+          · 코드 수정 없이 이 파일만 편집하면 가중치 조정 가능
+        - article_score.py 신규 생성 (SRP)
+          · life_score(article): 제목+본문 생활밀착 키워드 가중치 합산
+          · match_topic(article): topic_bank.json keywords_ja 중복 최다 토픽 반환 (0이면 None)
+          · enrich_articles(articles, active_topic_id): life_score/match_topic_id/match_topic_ja/
+            is_active_match 필드 추가 + 소프트 정렬 (is_active_match=True 먼저 → life_score 내림)
+        - longform_link.py: get_upcoming() 추가 (세션 D에 포함)
+        - webui_runner.py: run_fetch_articles()에 enrich_articles 적용
+          · get_upcoming()으로 예정 롱폼 topic_id 취득 → enrich_articles(result, upcoming)
+          · 결과 리스트에 life_score / match_topic_id / match_topic_ja / is_active_match 포함
+        - templates/select_article.html: 점수 배지 + 롱폼 매칭 하이라이트
+          · 📊 생활밀착 N 배지 (초록색), 📌 토픽명 배지 (파란색)
+          · 🔗 롱폼 연결 칩 (빨간색) + article-card--match 빨간 테두리
+        - static/style.css: score-badge / topic-badge / match-chip / article-card--match 추가
+        - step2_select.py: 텔레그램 메시지에 점수 줄 추가 (선택 순서·로직 변경 없음)
+          · build_preview() / batch_main() 후보 텍스트: "📊 생활밀착 N · 토픽:제목" 줄 삽입
+          · import article_score as _article_score 추가
+
 ⬜  세션 8 — E: AI 공시 + 정체성 명시
 ⬜  세션 9 — F: 댓글 반자동 응답 봇
 ⬜  세션 10 — B: 캐스터 3명 구도
 ⬜  세션 11 — C: 시리즈물 구조 (기획 단계)
 
-🔜  32. 워드프레스 REST API 블로그 자동 발행
 🔜  33. emotion 자동 매핑 복원 (블로그 자동발행 이후)
 🔜  34. 롱폼 추가 개선 (챕터 밀도·섹션 구성 최적화)
 
@@ -1104,6 +1266,61 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
   uvicorn이 SelectorEventLoop으로 실행 시 NotImplementedError 발생
   → subprocess.run (블로킹) + loop.run_in_executor(None, fn)으로 대체
   asyncio.wait({future}, timeout=tick_sec)으로 틱 진행률 구현 가능
+- WordPress REST API Application Password 인증:
+  WP 관리자 → 사용자 → 프로필 → Application Passwords에서 발급
+  Authorization: Basic base64(username:app_password) 헤더로 인증
+  POST /wp/v2/posts 로 글 작성 / /wp/v2/media로 미디어 업로드
+- WordPress 예약 발행: status: "future" + date: RFC3339 형식 (WP는 UTC로 저장, 표시는 블로그 시간대 기준)
+  JST 21:00 → datetime.isoformat() 그대로 전송 (WP가 시간대 오프셋 포함된 RFC3339 인식)
+- WordPress slug 충돌: GET /wp/v2/posts?slug=X 로 사전 확인 → 결과 비어있으면 사용 가능
+  재사용 시 -2/-3... suffix 자동 추가 / 에버그린 URL은 날짜 prefix 없이 순수 키워드형
+- long7_wordpress.py 실패 처리: sys.exit(0) — 파이프라인 중단 없음
+  실패 원인(WP_URL 미설정·API 오류·파일 없음)을 tg_error()로 텔레그램 알림 후 조용히 종료
+- topic_bank.json 운영 원칙: 15개는 시작 재고 / 계속 추가 예정
+  새 토픽 추가: _readme 필드 안내대로 id/title_ja/principle/keywords_ja/chart_type/fred_code 6필드 추가
+  topic_history.json 쿨다운 21일: 동일 토픽 21일 이내 재발행 방지 / 자동 최신 우선순위 배제
+- long1_script.py 2단계 생성 운영 방식:
+  KO 단계(--stage ko): 한국어 초안 생성 → 웹 UI에서 검토 → 수정 텍스트로 재생성 가능
+  JA 단계(--stage ja): KO 초안 기반 일본어 변환 + 역직역(back-translation) 확인용 출력
+  인수 없이 실행: KO+JA 자동 연속 실행 (GitHub Actions 비대화형 환경용)
+- 에버그린 컨셉 핵심: 뉴스는 입구(entry point) / 거시 원리가 실제 내용
+  "실질 임금이 하락했다"(뉴스) → "실질 임금이란 무엇이고 생활에 어떤 영향을 주는가"(원리) 구조
+  시청자가 6개월 후에 봐도 핵심 내용이 유효한 영상이 목표
+- [출처: 기사1] 태그 제거 원칙: KO 단계 운영자 검수용 / JA 변환 후에도 GPT가 태그를 남길 수 있음
+  TTS(long2_tts.py)와 블로그 본문(long7_wordpress.py) 양쪽 모두 re.sub으로 코드 레벨 제거 필수
+  long_script_ko.json·long_script.json 원본에는 남겨둠 (검수·디버깅용)
+- long_script_ko.json 백업: revise 재생성 전 shutil.copy2()로 .bak.json 자동 저장
+  1세대만 유지 / revise 2회 연속 시 bak은 직전 버전만 보존 (그 이전은 덮어써짐)
+- ConoHa WAF PUT 차단: ConoHa Wing의 WAF가 HTTP PUT 메서드를 403 Forbidden으로 차단
+  WP REST API 글 업데이트는 requests.put() 대신 requests.post(url_with_id, ...)로 호출해야 함
+  POST /wp/v2/posts/{id} (URL에 ID 포함)은 WP가 내부적으로 업데이트로 처리 — PUT과 동일 동작
+  WAF 설정은 보안상 끄지 않음 / POST 방식으로 우회하는 것이 정답
+- WP REST API 예약 글 조회: 기본 GET /wp/v2/posts는 published 상태만 반환
+  예약(future/scheduled) 글 포함 조회 시 params={"status": "any"} 필수
+  find_post_by_slug()에 status=any 없으면 예약 글을 찾지 못해 항상 None 반환
+- split_japanese() 구현: 일본어 句点 분리 시 「」 괄호 내부 。를 분리점으로 오인식하는 문제
+  → 문자 단위 순회 + 괄호 깊이 카운터로 depth==0 일 때만 。를 분리점으로 처리
+  OPEN_BRACKETS = set('「『（(') / CLOSE_BRACKETS = set('」』）)') 로 구분
+- upload_media() 반환값 설계: featured 썸네일은 media_id만 필요 / 본문 삽입 이미지는 source_url 필요
+  → (media_id, source_url) 튜플 반환으로 양쪽 용도 커버
+  호출부: media_id, _ = upload_media(...) / _, src_url = upload_media(...)
+- WP 본문 단락 분리: GPT 스크립트는 줄바꿈 없이 1개 장문 → split("\n") 로는 단락 1개만 생성
+  → 句点(。) 기준 문장 분리 후 SENTENCES_PER_PARA 단위로 <p> 그룹화하는 방식이 정답
+  마지막 그룹이 1문장이면 직전 그룹에 흡수 (고아 단락 방지)
+- NHK cat2는 공식 분류명 "文化·エンタメ"이지만 실제 기사는 生活·社会政策 중심
+  (실질임금·광열비·사회보험 등 39% 생활밀착) — 카테고리명이 아닌 실제 내용 기준으로 추가
+- RSS 보강 시 cat6 주석 오류 주의: cat6=国際 (cat5가 経済) / 동작은 정상이나 주석 혼동 방지
+- 쇼츠 아웃트로 signoff 설계: GPT가 매번 다른 마무리를 생성하면 일관성 없고 깔때기 문구 삽입 불가
+  → GPT 프롬프트에서 마무리 지시 제거 → 코드(_strip_signoff + 고정 상수)가 항상 부착하는 구조
+  _SIGNOFF_RE로 GPT 생성 변형도 제거 (레거시 텍스트 포함)
+- get_active() vs get_upcoming() 구분:
+  · get_active(): publish_at_jst <= now → 이미 공개된 롱폼. 아웃트로 깔때기에 사용.
+  · get_upcoming(): publish_at_jst > now → 아직 미발행 예정 롱폼. 기사 선택 UI 정렬에 사용.
+  · 토요일 제작 시 이번 주 일/목 롱폼은 미래 → get_active가 옛 토픽을 가리킴
+    → 기사 선택 UI는 get_upcoming을 써야 "예정된" 롱폼 주제로 기사를 고를 수 있음
+- article_score.py 소프트 정렬: is_active_match=True 먼저 → life_score 내림
+  하드 필터(차단) 없음 — 점수 낮아도 선택 가능. UI는 정보 제공 목적.
+  선택 자동화(is_active_match 기사 자동 채택 등)는 구현하지 않음 (운영자 판단 보존)
 
 
 ================================================================

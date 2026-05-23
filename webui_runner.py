@@ -18,7 +18,12 @@ load_dotenv()
 TRANSLATE_MODEL = "gpt-4.1-mini"
 
 # step2_select 함수 직접 import (모듈 레벨 코드는 harmless)
-from step2_select import fetch_articles as _fetch_articles, call_chatgpt as _call_chatgpt
+from step2_select import fetch_articles as _fetch_articles
+# step3_chatgpt 2단계 함수 import
+from step3_chatgpt import stage_ko as _stage_ko, stage_ja as _stage_ja
+# 생활밀착 점수 + 롱폼 예정 토픽 매칭
+import article_score as _article_score
+import longform_link as _longform_link
 
 BASE = Path(__file__).parent
 JST  = timezone(timedelta(hours=9))
@@ -35,6 +40,7 @@ ETA = {
     "Long4":   "예상 6~10분 소요 — 잠시 기다려주세요",
     "Long5":   "예상 2~4분 소요",
     "Long6":   "예상 1~2분 소요",
+    "Long7":   "예상 30초 소요",
 }
 
 # 의사 진행률 tick 간격 (초)
@@ -49,6 +55,9 @@ LONG_BG_FILES = {
     1: "long_bg_issue1.mp4",
     2: "long_bg_issue2.mp4",
 }
+
+LONG_SCRIPT_KO_FILE     = "long_script_ko.json"
+LONG_SCRIPT_VERIFY_FILE = "long_script_verify.json"
 
 
 def _today() -> str:
@@ -108,7 +117,7 @@ def translate_titles_korean(articles: list) -> list:
 WEBUI_MAX_ARTICLES = 10
 
 def run_fetch_articles() -> list:
-    """step2_select.fetch_articles() 호출 → 한국어 제목 포함 dict 리스트 반환."""
+    """step2_select.fetch_articles() 호출 → 생활밀착 점수·롱폼 매칭 포함 dict 리스트 반환."""
     raw = _fetch_articles(limit=WEBUI_MAX_ARTICLES)
     result = []
     for a in raw:
@@ -118,13 +127,30 @@ def run_fetch_articles() -> list:
             "article_body": a.get("article_body", ""),
             "published":    str(a.get("_published", "")),
         })
+    # 생활밀착 점수 + 예정 롱폼 토픽 매칭 후 소프트 정렬
+    upcoming_topic_id = _longform_link.get_upcoming()
+    result = _article_score.enrich_articles(result, upcoming_topic_id)
     return translate_titles_korean(result)
 
 
-# ── GPT 호출 ──────────────────────────────────────────────
-def run_call_gpt(title: str, article_body: str) -> dict:
-    """step2_select.call_chatgpt() 호출 → gpt_result dict 반환."""
-    return _call_chatgpt(title, article_body)
+# ── GPT 호출 (2단계) ──────────────────────────────────────
+def run_call_gpt_ko(title: str, article_body: str) -> dict:
+    """KO 단계: 한국어 초안 생성 → shorts_script_ko.json 저장 후 dict 반환."""
+    return _stage_ko(title, article_body)
+
+
+def run_translate_ja(ko_data: dict) -> dict:
+    """JA 단계: 한국어 → 일본어 변환 → gpt_result dict + verify dict 반환.
+    반환: {"gpt": ..., "verify": ...}
+    """
+    gpt = _stage_ja(ko_data)
+    verify_path = BASE / "shorts_script_verify.json"
+    verify = {}
+    try:
+        verify = json.loads(verify_path.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {"gpt": gpt, "verify": verify}
 
 
 # ── gpt_result.json 저장 ──────────────────────────────────
@@ -150,6 +176,26 @@ def save_slot_gpt_result(slot: str, gpt: dict, article: dict | None = None):
 # ── 서브프로세스 실행 (공용) ───────────────────────────────
 # Windows SelectorEventLoop에서 asyncio.create_subprocess_exec이 NotImplementedError를
 # 발생시키므로 subprocess.run + run_in_executor 방식으로 대체
+def _run_sync_cmd(cmd: list) -> subprocess.CompletedProcess:
+    """임의 커맨드 리스트를 서브프로세스로 실행 (KBI 안전)."""
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(BASE),
+    )
+    try:
+        stdout, stderr = proc.communicate()
+        return subprocess.CompletedProcess(proc.args, proc.returncode, stdout, stderr)
+    except KeyboardInterrupt:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        return subprocess.CompletedProcess(
+            proc.args, 1, b"",
+            b"[KBI] \xec\x8b\xa4\xed\x96\x89 \xec\xa4\x91 \xec\x9d\xb8\xed\x84\xb0\xeb\x9f\xbd\xed\x8a\xb8",
+        )
+
+
 def _run_sync(script: str) -> subprocess.CompletedProcess:
     proc = subprocess.Popen(
         [sys.executable, script],
@@ -305,21 +351,37 @@ async def run_shorts_stream(slot: str, gpt: dict, bg_url: str) -> AsyncGenerator
 
 # ── 롱폼: long1 실행 ──────────────────────────────────────
 def run_long1_script() -> dict:
-    """long1_script.py를 서브프로세스 실행 → long_script.json 반환."""
-    result = subprocess.run(
-        [sys.executable, "long1_script.py"],
-        capture_output=True, text=True,
-        cwd=str(BASE), encoding="utf-8", errors="replace",
-    )
-    if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip()[-500:])
+    """long1_script.py (자동 모드: KO+JA 연속) → long_script.json 반환."""
+    r = _run_sync_cmd([sys.executable, "long1_script.py"])
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr.decode(errors="replace").strip()[-500:])
+    return json.loads((BASE / "long_script.json").read_text(encoding="utf-8"))
+
+
+def run_long1_ko(revise: str | None = None) -> dict:
+    """KO 단계만 실행 (--stage ko) → long_script_ko.json 반환."""
+    cmd = [sys.executable, "long1_script.py", "--stage", "ko"]
+    if revise:
+        cmd += ["--revise", revise]
+    r = _run_sync_cmd(cmd)
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr.decode(errors="replace").strip()[-500:])
+    return json.loads((BASE / LONG_SCRIPT_KO_FILE).read_text(encoding="utf-8"))
+
+
+def run_long1_ja() -> dict:
+    """JA 단계만 실행 (--stage ja) → long_script.json 반환."""
+    r = _run_sync_cmd([sys.executable, "long1_script.py", "--stage", "ja"])
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr.decode(errors="replace").strip()[-500:])
     return json.loads((BASE / "long_script.json").read_text(encoding="utf-8"))
 
 
 # ── 롱폼 파이프라인 SSE ───────────────────────────────────
-async def run_longform_stream(bg_urls: dict) -> AsyncGenerator[str, None]:
+async def run_longform_stream(bg_urls: dict, slot: str = "sun") -> AsyncGenerator[str, None]:
     """롱폼 영상 생성 파이프라인 SSE 이벤트 제너레이터.
     bg_urls: {0: {url, thumb}, 1: {url, thumb}, 2: {url, thumb}}
+    slot: 발행 슬롯 ("sun" | "thu")
     """
 
     # ── 배경 영상: long3로 3개 자동 선택 후, 인트로·아웃트로는 사용자 선택으로 덮어쓰기 ──
@@ -372,7 +434,10 @@ async def run_longform_stream(bg_urls: dict) -> AsyncGenerator[str, None]:
     # ── long6: YouTube 업로드 ──────────────────────────────
     yield _ev("Long6", 86, f"롱폼 YouTube 업로드 중... ({ETA['Long6']})")
     loop   = asyncio.get_event_loop()
-    long6_f = loop.run_in_executor(None, _run_sync, "long6_youtube.py")
+    long6_f = loop.run_in_executor(
+        None, _run_sync_cmd,
+        [sys.executable, "long6_youtube.py", "--slot", slot],
+    )
 
     for tp in [90, 95]:
         done, _ = await asyncio.wait({long6_f}, timeout=TICK_Upload)
@@ -395,6 +460,14 @@ async def run_longform_stream(bg_urls: dict) -> AsyncGenerator[str, None]:
             if url_candidate.startswith("http"):
                 yt_url = url_candidate
                 break
+
+    # ── long7: 워드프레스 발행 ─────────────────────────────
+    yield _ev("Long7", 98, f"블로그 발행 중... ({ETA.get('Long7', '예상 30초')})")
+    r7 = await loop.run_in_executor(None, _run_sync, "long7_wordpress.py")
+    if r7.returncode != 0:
+        # 실패해도 영상 업로드는 완료 → 에러 이벤트 없이 경고만 로그
+        print(f"[Long7 경고] returncode={r7.returncode}")
+    yield _ev("Long7", 99, "블로그 발행 완료 ✓")
 
     # step10 검수: 백그라운드 실행 (롱폼 모드)
     asyncio.get_event_loop().run_in_executor(None, lambda: subprocess.run(

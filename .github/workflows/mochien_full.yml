@@ -40,6 +40,9 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ELEVENLABS_PD_ID: ${{ secrets.ELEVENLABS_PD_ID }}
           ELEVENLABS_PD_VERSION_ID: ${{ secrets.ELEVENLABS_PD_VERSION_ID }}
+          WP_URL: ${{ secrets.WP_URL }}
+          WP_USERNAME: ${{ secrets.WP_USERNAME }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
         run: |
           echo "OPENAI_API_KEY=$OPENAI_API_KEY"                       >> .env
           echo "ELEVENLABS_API_KEY=$ELEVENLABS_API_KEY"               >> .env
@@ -51,6 +54,9 @@ jobs:
           echo "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"                 >> .env
           echo "ELEVENLABS_PD_ID=$ELEVENLABS_PD_ID"                   >> .env
           echo "ELEVENLABS_PD_VERSION_ID=$ELEVENLABS_PD_VERSION_ID"   >> .env
+          echo "WP_URL=$WP_URL"                                       >> .env
+          echo "WP_USERNAME=$WP_USERNAME"                             >> .env
+          echo "WP_APP_PASSWORD=$WP_APP_PASSWORD"                     >> .env
 
       - name: Restore YouTube token
         env:
@@ -76,13 +82,13 @@ jobs:
           retention-days: 1
           overwrite: true
 
-      - name: Commit used_videos.json
+      - name: Commit used_videos.json + active_longform.json
         if: always()
         continue-on-error: true
         run: |
           git config user.email "actions@github.com"
           git config user.name "github-actions"
           git pull --rebase
-          git add used_videos.json
-          git diff --staged --quiet || git commit -m "chore: update used_videos.json [skip ci]"
+          git add used_videos.json active_longform.json
+          git diff --staged --quiet || git commit -m "chore: update used_videos + active_longform [skip ci]"
           git push

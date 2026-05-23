@@ -77,11 +77,16 @@ def build_notification(gpt, publish_at):
     hook = gpt.get("hook", "")
     hook_korean = gpt.get("hook_korean", "")
     kr_line = f"\n🇰🇷 {hook_korean}" if hook_korean else ""
+
+    lf_url   = gpt.get("active_longform_url", "")
+    lf_title = gpt.get("active_longform_title", "")
+    lf_line  = f"\n▼今週の解説：「{lf_title}」\n{lf_url}" if lf_url else ""
+
     return (
         f"📹 {label} 예약 완료\n"
         f"제목: {gpt['title']}\n"
         f"예약: {display_time} JST\n"
-        f"\n📌 고정댓글:\n{hook}{kr_line}"
+        f"\n📌 고정댓글:\n{hook}{kr_line}{lf_line}"
     )
 
 
@@ -158,6 +163,7 @@ def upload_video(youtube, title, description, tags, publish_at):
             "privacyStatus": "private",
             "publishAt": publish_at,
             "selfDeclaredMadeForKids": False,
+            "embeddable": True,
         },
     }
     media = MediaFileUpload(VIDEO_PATH, chunksize=-1, resumable=True, mimetype="video/mp4")

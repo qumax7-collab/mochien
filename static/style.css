@@ -233,6 +233,36 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   border-radius: 4px;
 }
 .pub-time { font-size: .75rem; color: var(--text-sub); }
+.score-badge {
+  background: #1e3a2a;
+  color: #6ddd9a;
+  font-size: .7rem;
+  padding: .1rem .45rem;
+  border-radius: 4px;
+}
+.topic-badge {
+  background: #1a2e3a;
+  color: #6ab8dd;
+  font-size: .7rem;
+  padding: .1rem .45rem;
+  border-radius: 4px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.match-chip {
+  background: var(--red);
+  color: #fff;
+  font-size: .7rem;
+  font-weight: 700;
+  padding: .1rem .5rem;
+  border-radius: 4px;
+}
+.article-card--match {
+  border-color: var(--red);
+  box-shadow: 0 0 0 1px var(--red);
+}
 .article-title {
   font-size: 1rem;
   font-weight: 700;

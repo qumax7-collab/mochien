@@ -1,0 +1,138 @@
+{
+  "_readme": [
+    "【새 토픽 추가 방법】",
+    "1. 아래 topics 배열에서 항목 하나를 복사해 맨 끝에 붙여넣으세요.",
+    "2. 각 필드 설명:",
+    "   id        : 영어 소문자 + 하이픈만 사용 (예: 'bank-credit'). 블로그 URL에 사용됩니다.",
+    "   title_ja  : 일본어 원리형 제목. '왜 ○○인가' 형식 권장.",
+    "   principle : 한국어로 이 토픽의 핵심 원리를 설명 (GPT가 참고합니다).",
+    "   keywords_ja: 이 토픽에 해당하는 일본어 뉴스 키워드 배열. GPT가 기사와 매칭할 때 씁니다.",
+    "   chart_type: 세션 B 전까지 null 유지.",
+    "   fred_code : 세션 B 전까지 null 유지.",
+    "3. id가 중복되지 않게 주의하세요.",
+    "4. 같은 토픽은 21일 이내 재발행이 자동으로 후순위 처리됩니다.",
+    "5. 토픽은 계속 추가할 수 있습니다. 15개 이상도 괜찮습니다."
+  ],
+  "topics": [
+    {
+      "id": "real-wage",
+      "title_ja": "給料が上がっても、なぜ生活は楽にならないのか",
+      "principle": "명목임금 vs 실질임금 / 물가상승률이 임금상승률을 잠식하는 구조 / CPI와 실질구매력",
+      "keywords_ja": ["実質賃金", "名目賃金", "物価上昇", "インフレ", "家計", "購買力", "春闘"],
+      "chart_type": null,
+      "fred_code": null
+    },
+    {
+      "id": "yen-rate",
+      "title_ja": "円安は「得」か「損」か？為替のしくみ",
+      "principle": "환율이 결정되는 구조 / 금리차와 통화 가치 / 엔저가 수출업체·수입업체·소비자에게 미치는 상반된 영향",
+      "keywords_ja": ["円安", "円高", "為替レート", "ドル円", "貿易", "輸出", "輸入", "為替介入"],
+      "chart_type": null,
+      "fred_code": null
+    },
+    {
+      "id": "interest-rate",
+      "title_ja": "金利が上がると、あなたの生活はこう変わる",
+      "principle": "BOJ 정책금리가 경제 전체에 파급되는 메커니즘 / 금리·물가·소비·주택대출의 연쇄 반응",
+      "keywords_ja": ["金利", "政策金利", "日本銀行", "利上げ", "住宅ローン", "預金", "国債金利"],
+      "chart_type": null,
+      "fred_code": null
+    },
+    {
+      "id": "inflation-deflation",
+      "title_ja": "インフレとデフレ、どちらが本当に怖いのか",
+      "principle": "가격 변동의 원인과 스파이럴 구조 / 수요 인플레·비용 인플레 구분 / 디플레이션이 경제를 멈추는 이유",
+      "keywords_ja": ["インフレ", "デフレ", "物価上昇", "消費者物価指数", "CPI", "スタグフレーション", "食料品"],
+      "chart_type": null,
+      "fred_code": null
+    },
+    {
+      "id": "national-debt",
+      "title_ja": "国の借金1,000兆円、本当に返せるのか",
+      "principle": "국채 발행 메커니즘 / 재정 적자가 미래 세대에 전가되는 구조 / 일본 재정의 현실과 한계",
+      "keywords_ja": ["国債", "財政赤字", "国の借金", "財務省", "プライマリーバランス", "財政健全化"],
+      "chart_type": null,
+      "fred_code": null
+    },
+    {
+      "id": "trade-balance",
+      "title_ja": "輸出大国ニッポンの、意外な弱点",
+      "principle": "무역수지 구조와 경상수지 / 에너지 수입 의존이 엔저와 결합될 때의 취약성 / 무역구조 변화",
+      "keywords_ja": ["貿易収支", "輸出", "輸入", "エネルギー", "原油", "経常収支", "貿易赤字"],
+      "chart_type": null,
+      "fred_code": null
+    },
+    {
+      "id": "aging-social-security",
+      "title_ja": "少ない若者が支える年金、持続できるのか",
+      "principle": "고령화가 사회보장비를 증가시키는 구조 / 세대간 부담 불균형 / 연금 지속 가능성 문제",
+      "keywords_ja": ["少子高齢化", "年金", "社会保障", "医療費", "介護", "労働力不足", "高齢化率"],
+      "chart_type": null,
+      "fred_code": null
+    },
+    {
+      "id": "consumption-tax",
+      "title_ja": "消費税は、なぜ上がり続けるのか",
+      "principle": "소비세의 역진성 / 세수 구조에서 소비세가 확대되는 이유 / 사회보장 재원으로서의 소비세",
+      "keywords_ja": ["消費税", "税率引き上げ", "社会保障財源", "逆進性", "税制改革", "軽減税率"],
+      "chart_type": null,
+      "fred_code": null
+    },
+    {
+      "id": "gdp-growth",
+      "title_ja": "GDPで景気を読む、本当の使い方",
+      "principle": "GDP의 의미와 한계 / 성장률·GDP 갭·잠재성장률로 경기를 읽는 방법 / 명목 vs 실질 GDP",
+      "keywords_ja": ["GDP", "経済成長率", "景気", "国内総生産", "潜在成長率", "GDPギャップ"],
+      "chart_type": null,
+      "fred_code": null
+    },
+    {
+      "id": "business-cycle",
+      "title_ja": "好景気と不況は、なぜ繰り返されるのか",
+      "principle": "경기 순환의 내생적 메커니즘 / 수요·공급·재고·투자 사이클 / 경기 선행지표 읽는 법",
+      "keywords_ja": ["景気循環", "景気後退", "リセッション", "好景気", "景気回復", "先行指標"],
+      "chart_type": null,
+      "fred_code": null
+    },
+    {
+      "id": "energy-dependency",
+      "title_ja": "エネルギーを輸入に頼る国の、リスクと現実",
+      "principle": "화석연료 수입 의존이 만드는 가격 변동성과 경상수지 악화 구조 / 에너지 전환 비용",
+      "keywords_ja": ["エネルギー", "原油", "天然ガス", "電気料金", "資源価格", "脱炭素", "再生可能エネルギー"],
+      "chart_type": null,
+      "fred_code": null
+    },
+    {
+      "id": "central-bank",
+      "title_ja": "日銀は何をしている？中央銀行の本当の役割",
+      "principle": "중앙은행의 2대 사명(물가 안정·금융 안정) / 금리·통화량 조절 도구 / 독립성의 의미",
+      "keywords_ja": ["日本銀行", "日銀", "金融政策", "量的緩和", "金利", "植田総裁", "中央銀行"],
+      "chart_type": null,
+      "fred_code": null
+    },
+    {
+      "id": "irregular-employment",
+      "title_ja": "非正規雇用はなぜ増え続けるのか",
+      "principle": "기업이 비정규직을 선호하는 구조 / 노동시장 이중구조가 만드는 소득 격차 / 고용 안정성 문제",
+      "keywords_ja": ["非正規雇用", "派遣", "パート", "労働市場", "賃金格差", "雇用", "正規雇用"],
+      "chart_type": null,
+      "fred_code": null
+    },
+    {
+      "id": "declining-birthrate",
+      "title_ja": "人口が減ると、経済はどうなるのか",
+      "principle": "인구 감소 → 노동력 감소 → 소비 감소 → 경제 축소의 연쇄 / 일본의 저출생 구조와 처방",
+      "keywords_ja": ["少子化", "人口減少", "出生率", "労働力", "消費市場", "移民", "子育て支援"],
+      "chart_type": null,
+      "fred_code": null
+    },
+    {
+      "id": "cashless-society",
+      "title_ja": "現金からキャッシュレスへ、経済は変わるのか",
+      "principle": "결제 혁신이 경제에 미치는 영향 / 일본의 낮은 캐시리스 비율과 그 구조적 이유 / 디지털 엔",
+      "keywords_ja": ["キャッシュレス", "デジタル払い", "電子マネー", "QRコード", "CBDC", "デジタル円", "PayPay"],
+      "chart_type": null,
+      "fred_code": null
+    }
+  ]
+}

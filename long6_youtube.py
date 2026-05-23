@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import sys
@@ -11,17 +12,19 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
+import longform_link
+
 sys.stdout.reconfigure(encoding="utf-8")
 load_dotenv()
 
 # ===== 파일 경로 =====
-LONG_SCRIPT_PATH   = "long_script.json"
-LONG_CHAPTERS_FILE = "long_chapters.json"
-VIDEO_PATH        = "long_output.mp4"
+LONG_SCRIPT_PATH    = "long_script.json"
+LONG_CHAPTERS_FILE  = "long_chapters.json"
+VIDEO_PATH          = "long_output.mp4"
 CLIENT_SECRETS_PATH = "client_secrets.json"
-TOKEN_PATH        = "token.json"
-OUTPUT_DIR        = "output"
-SLOTS             = ["09", "18"]
+TOKEN_PATH          = "token.json"
+OUTPUT_DIR          = "output"
+SLOTS               = ["09", "18"]
 
 # ===== YouTube API 설정 =====
 SCOPES = [
@@ -32,7 +35,6 @@ YOUTUBE_CATEGORY_ID = "25"   # News & Politics
 YOUTUBE_LANGUAGE    = "ja"
 
 JST = timezone(timedelta(hours=9))
-LONGFORM_PUBLISH_HOUR = 21
 
 CHANNEL_FOOTER = (
     "\n\n━━━━━━━━━━━━━━━━━━\n"
@@ -84,14 +86,6 @@ def tg_notify(text):
     )
 
 
-def get_publish_at():
-    """당일 21:00 JST 예약 시각(RFC 3339) 반환. 이미 지난 경우 익일로."""
-    now_jst = datetime.now(JST)
-    publish_jst = now_jst.replace(hour=LONGFORM_PUBLISH_HOUR, minute=0, second=0, microsecond=0)
-    if publish_jst <= now_jst:
-        publish_jst += timedelta(days=1)
-    return publish_jst.isoformat()
-
 
 def authenticate():
     creds = None
@@ -135,6 +129,7 @@ def upload_video(youtube, title, description, tags, publish_at):
             "privacyStatus": "private",
             "publishAt": publish_at,
             "selfDeclaredMadeForKids": False,
+            "embeddable": True,
         },
     }
     media = MediaFileUpload(VIDEO_PATH, chunksize=-1, resumable=True, mimetype="video/mp4")
@@ -165,7 +160,7 @@ def load_slot_short_titles():
     return titles
 
 
-def build_notification(long_script_data):
+def build_notification(long_script_data, publish_at_jst: str):
     """롱폼 단독 텔레그램 알림 메시지 생성."""
     title = long_script_data["title"]
 
@@ -185,13 +180,18 @@ def build_notification(long_script_data):
     return (
         f"📹 롱폼 예약 완료\n"
         f"제목: {title}\n"
-        f"예약: 21:00 JST\n"
+        f"예약: {publish_at_jst}\n"
         f"\n📌 고정댓글:\n{pin_comment}\n"
         f"\nYouTube Studio에서 달아주세요!"
     )
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--slot", default="sun", choices=list(longform_link.SLOT_WEEKDAYS.keys()),
+                        help="발행 슬롯 (sun=일요일 / thu=목요일, 기본: sun)")
+    args = parser.parse_args()
+
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("[오류] .env에 TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID를 입력하세요.")
         sys.exit(1)
@@ -206,10 +206,11 @@ def main():
     title    = data["title"]
     hashtags = data["hashtags"]
 
-    publish_at  = get_publish_at()
+    publish_at  = longform_link.next_publish_jst(args.slot)
     description = build_description(data)
 
     print(f"제목      : {title}")
+    print(f"슬롯      : {args.slot}")
     print(f"예약 시간 : {publish_at}")
 
     creds   = authenticate()
@@ -218,7 +219,21 @@ def main():
 
     result_url = f"https://www.youtube.com/watch?v={video_id}"
 
-    msg = build_notification(data)
+    # long7_wordpress.py가 embed용으로 읽는 파일
+    with open("long_youtube_url.txt", "w", encoding="utf-8") as f:
+        f.write(result_url)
+
+    # 발행 성공 → active_longform.json 기록
+    longform_link.append_active({
+        "topic_id":       data.get("_slug_keyword", ""),
+        "topic_ja":       data.get("topic_title_ja", ""),
+        "title_ja":       title,
+        "url":            result_url,
+        "publish_at_jst": publish_at,
+    })
+    print("active_longform.json 기록 완료")
+
+    msg = build_notification(data, publish_at)
     tg_notify(msg)
 
     print(f"\n예약 완료!")

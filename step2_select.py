@@ -11,15 +11,18 @@ import feedparser
 import requests
 from dotenv import load_dotenv
 from openai import OpenAI
+import article_score as _article_score
 
 sys.stdout.reconfigure(encoding="utf-8")
 load_dotenv()
 
 # ===== RSS =====
 RSS_URLS = [
-    "https://www3.nhk.or.jp/rss/news/cat6.xml",        # NHK 경제
-    "https://www3.nhk.or.jp/rss/news/cat5.xml",        # NHK 비즈니스
-    "https://news.yahoo.co.jp/rss/topics/business.xml", # Yahoo Japan 비즈니스
+    "https://www3.nhk.or.jp/rss/news/cat5.xml",         # NHK 経済
+    "https://www3.nhk.or.jp/rss/news/cat6.xml",         # NHK 国際 (에너지·지정학 연동)
+    "https://www3.nhk.or.jp/rss/news/cat2.xml",         # NHK 生活·社会政策 ← 신규
+    "https://news.yahoo.co.jp/rss/topics/business.xml", # Yahoo Japan 経済
+    "https://news.yahoo.co.jp/rss/topics/domestic.xml", # Yahoo Japan 国内 ← 신규
 ]
 MAX_ARTICLES   = 5
 MAX_CANDIDATES = 5
@@ -548,10 +551,17 @@ def _check_furigana(script: str):
 
 def build_preview(article, gpt, index, total):
     hashtags = " ".join(gpt["hashtags"])
+    score = _article_score.life_score(article)
+    topic = _article_score.match_topic(article)
+    score_line = f"📊 생활밀착 {score}" if score > 0 else ""
+    topic_line = f" · 토픽:{topic['title_ja'][:14]}" if topic else ""
+    meta_line = (score_line + topic_line).strip()
+    meta_str = f"{meta_line}\n\n" if meta_line else ""
     return (
         f"<b>📰 기사 {index + 1}/{total}</b>\n\n"
         f"<b>{article['title']}</b>\n\n"
         f"🇰🇷 {gpt['korean_summary']}\n\n"
+        f"{meta_str}"
         f"{hashtags}"
     )
 
@@ -690,10 +700,17 @@ def batch_main():
     article_msg_ids = set()
     for idx, (article, gpt) in enumerate(candidates):
         hashtags = " ".join(gpt["hashtags"]) if isinstance(gpt["hashtags"], list) else gpt["hashtags"]
+        score = _article_score.life_score(article)
+        topic = _article_score.match_topic(article)
+        score_line = f"📊 생활밀착 {score}" if score > 0 else ""
+        topic_line = f" · 토픽:{topic['title_ja'][:14]}" if topic else ""
+        meta_line = (score_line + topic_line).strip()
+        meta_str = f"{meta_line}\n\n" if meta_line else ""
         text = (
             f"<b>📰 후보 {idx + 1}/{len(candidates)}</b>\n\n"
             f"<b>{article['title']}</b>\n\n"
             f"🇰🇷 {gpt['korean_summary']}\n\n"
+            f"{meta_str}"
             f"{hashtags}"
         )
         buttons = {"inline_keyboard": [[

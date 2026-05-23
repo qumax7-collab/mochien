@@ -5,6 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>롱폼 생성</title>
 <link rel="stylesheet" href="/static/style.css">
+<style>
+.draft-box { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+.draft-label { font-size: .78rem; color: var(--text-sub); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-bottom: .4rem; }
+.draft-text  { font-size: .9rem; line-height: 1.7; white-space: pre-wrap; }
+.cite-tag    { color: #7fa3cc; font-size: .82rem; }
+.revise-area { width: 100%; min-height: 70px; padding: .6rem; background: var(--input-bg, #1e2030); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: .88rem; resize: vertical; box-sizing: border-box; margin-top: .5rem; }
+.edit-area   { width: 100%; min-height: 180px; padding: .6rem; background: var(--input-bg, #1e2030); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: .9rem; line-height: 1.7; resize: vertical; box-sizing: border-box; font-family: inherit; }
+.verify-box  { background: #1a2a1a; border: 1px solid #2a4a2a; border-radius: 8px; padding: 1rem; margin-top: .8rem; display: none; }
+.verify-label{ font-size: .78rem; color: #7ab87a; margin-bottom: .4rem; }
+.ja-box      { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+.mode-badge  { display: inline-block; background: var(--accent, #1B2A4A); color: #fff; font-size: .75rem; padding: .2rem .6rem; border-radius: 4px; margin-right: .5rem; }
+.topic-title { font-size: 1rem; font-weight: 700; margin-bottom: .3rem; }
+.reason-text { font-size: .82rem; color: var(--text-sub); }
+</style>
 </head>
 <body>
 <header class="topbar">
@@ -23,33 +37,158 @@
 
   <!-- 단계 표시 탭 -->
   <div class="wizard-tabs">
-    <div class="wizard-tab active" id="tab-1">① 스크립트 생성</div>
-    <div class="wizard-tab"        id="tab-2">② 배경 영상 선택</div>
-    <div class="wizard-tab"        id="tab-3">③ 영상 생성</div>
+    <div class="wizard-tab active" id="tab-1">① 한국어 초안 검토</div>
+    <div class="wizard-tab"        id="tab-2">② 일본어 확인</div>
+    <div class="wizard-tab"        id="tab-3">③ 배경 영상 선택</div>
+    <div class="wizard-tab"        id="tab-4">④ 영상 생성</div>
   </div>
 
-  <!-- ① 스크립트 생성 -->
+  <!-- ① 한국어 초안 검토 -->
   <div id="step-1" class="wizard-step active">
     <div class="fetch-zone">
-      <p class="hint">당일 슬롯 09·18 결과를 기반으로 GPT-4.1이 7~8분 롱폼 스크립트를 생성합니다.<br>
-      4회 순차 GPT 호출 — 예상 3~5분 소요.</p>
-      <button id="btn-gen-script" class="btn btn-primary btn-lg" onclick="genScript()">
-        📄 롱폼 스크립트 생성
-      </button>
+      <p class="hint">당일 슬롯 09·18 기사를 기반으로 거시 원리형 한국어 초안을 생성합니다.<br>
+      GPT-4.1 5회 호출 — 예상 3~5분 소요. 생성 후 내용 확인 후 일본어 변환을 진행하세요.</p>
+
+        <!-- 발행 슬롯 선택 -->
+      <div style="margin-bottom:1rem; display:flex; align-items:center; gap:.8rem">
+        <label style="font-size:.88rem; font-weight:600; white-space:nowrap">📅 발행 슬롯</label>
+        <select id="lf-slot-select" class="btn btn-ghost"
+                style="padding:.35rem .7rem; font-size:.88rem; cursor:pointer"
+                onchange="selectedSlot = this.value">
+          <option value="sun">일요일 18:00 JST</option>
+          <option value="thu">목요일 18:00 JST</option>
+        </select>
+      </div>
+
+      <div id="ko-action-row" style="display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:1rem">
+        <button id="btn-gen-ko" class="btn btn-primary btn-lg" onclick="genKo()">
+          📄 한국어 초안 생성
+        </button>
+      </div>
+
+      <div id="ko-existing-box" style="display:none; margin-bottom:1rem; padding:.8rem; background:var(--card-bg); border-radius:8px; border:1px solid var(--border)">
+        <p style="margin:0 0 .4rem 0; color:var(--text-sub); font-size:.85rem">이미 생성된 한국어 초안이 있습니다</p>
+        <p id="ko-existing-topic" style="margin:0 0 .6rem 0; font-weight:600; font-size:.9rem"></p>
+        <button class="btn btn-ghost btn-sm" onclick="loadExistingKo()">📋 기존 초안 보기 →</button>
+      </div>
     </div>
-    <div id="existing-script-box" style="display:none; margin-top:1rem; padding:1rem; background:var(--card-bg); border-radius:8px; border:1px solid var(--border)">
-      <p style="margin:0 0 .6rem 0; color:var(--text-sub); font-size:.85rem">이미 생성된 스크립트가 있습니다</p>
-      <p id="existing-script-title" style="margin:0 0 .8rem 0; font-weight:600"></p>
-      <button class="btn btn-ghost btn-lg" onclick="useExistingScript()">📋 기존 스크립트 사용 →</button>
-    </div>
-    <div id="script-loading" class="loading-box" style="display:none">
+
+    <div id="ko-loading" class="loading-box" style="display:none">
       <div class="spinner spinner-lg"></div>
-      <p>GPT-4.1 스크립트 생성 중...<br><small>4회 순차 호출 / 약 3~5분 소요</small></p>
+      <p>GPT-4.1 한국어 초안 생성 중...<br><small>토픽 매칭 + 5섹션 순차 생성 / 약 3~5분</small></p>
+    </div>
+
+    <!-- 초안 표시 -->
+    <div id="ko-draft-area" style="display:none">
+      <div id="ko-mode-info" style="margin-bottom:1rem"></div>
+
+      <div class="draft-box">
+        <div class="draft-label">인트로</div>
+        <textarea class="edit-area" id="ko-intro"></textarea>
+      </div>
+      <div class="draft-box">
+        <div class="draft-label" id="ko-issue1-label">이슈1</div>
+        <textarea class="edit-area" id="ko-issue1"></textarea>
+      </div>
+      <div class="draft-box">
+        <div class="draft-label" id="ko-issue2-label">이슈2</div>
+        <textarea class="edit-area" id="ko-issue2"></textarea>
+      </div>
+      <div class="draft-box">
+        <div class="draft-label">아웃트로</div>
+        <textarea class="edit-area" id="ko-outro"></textarea>
+      </div>
+
+      <!-- 저장 -->
+      <div style="margin-bottom:1rem; display:flex; gap:.6rem; align-items:center">
+        <button id="btn-save-ko" class="btn btn-ghost" onclick="saveDraftKo()">💾 저장</button>
+        <span id="save-status" style="font-size:.85rem; color:var(--text-sub)"></span>
+      </div>
+
+      <!-- 수정 요청 -->
+      <div style="margin-top:1.2rem; padding:1rem; background:var(--card-bg); border-radius:8px; border:1px solid var(--border)">
+        <p style="margin:0 0 .5rem 0; font-size:.88rem; font-weight:600">수정 요청 (선택사항)</p>
+        <p class="hint" style="margin:0 0 .4rem 0">수정이 필요한 경우 아래에 요청 내용을 입력하고 재생성하세요.<br>
+        예: "실질임금 계산식을 더 쉽게 설명해줘" / "이슈2를 좀 더 짧게 줄여줘"</p>
+        <textarea id="revise-input" class="revise-area" placeholder="수정 요청 사항 입력..."></textarea>
+        <div style="margin-top:.5rem">
+          <button id="btn-revise" class="btn btn-ghost" onclick="reviseKo()" disabled>🔄 수정 재생성</button>
+          <span id="revise-loading" style="display:none; margin-left:.8rem; color:var(--text-sub); font-size:.88rem">재생성 중...</span>
+        </div>
+      </div>
+
+      <!-- 일본어 변환으로 -->
+      <div class="action-row" style="margin-top:1.5rem">
+        <button id="btn-to-ja" class="btn btn-primary btn-lg" onclick="convertToJa()">
+          🇯🇵 일본어로 변환 →
+        </button>
+      </div>
     </div>
   </div>
 
-  <!-- ② 배경 영상 선택 (3개 슬롯) -->
+  <!-- ② 일본어 확인 -->
   <div id="step-2" class="wizard-step">
+    <div id="ja-loading" class="loading-box" style="display:none">
+      <div class="spinner spinner-lg"></div>
+      <p>GPT-4.1 일본어 변환 + 역직역 생성 중...<br><small>약 1~2분 소요</small></p>
+    </div>
+
+    <div id="ja-draft-area" style="display:none">
+      <div id="ja-meta" style="margin-bottom:1rem; padding:.8rem; background:var(--card-bg); border-radius:8px; border:1px solid var(--border)">
+        <div style="font-size:.82rem; color:var(--text-sub); margin-bottom:.3rem">영상 제목</div>
+        <div id="ja-title" style="font-size:1.05rem; font-weight:700"></div>
+      </div>
+
+      <div class="ja-box">
+        <div class="draft-label">イントロ</div>
+        <div class="draft-text" id="ja-intro"></div>
+        <div class="verify-box" id="vf-intro">
+          <div class="verify-label">↩ 역직역 (한국어 확인용)</div>
+          <div class="draft-text" id="vf-intro-text" style="font-size:.85rem"></div>
+        </div>
+      </div>
+      <div class="ja-box">
+        <div class="draft-label" id="ja-issue1-label">トピック①</div>
+        <div class="draft-text" id="ja-issue1"></div>
+        <div class="verify-box" id="vf-issue1">
+          <div class="verify-label">↩ 역직역</div>
+          <div class="draft-text" id="vf-issue1-text" style="font-size:.85rem"></div>
+        </div>
+      </div>
+      <div class="ja-box">
+        <div class="draft-label" id="ja-issue2-label">トピック②</div>
+        <div class="draft-text" id="ja-issue2"></div>
+        <div class="verify-box" id="vf-issue2">
+          <div class="verify-label">↩ 역직역</div>
+          <div class="draft-text" id="vf-issue2-text" style="font-size:.85rem"></div>
+        </div>
+      </div>
+      <div class="ja-box">
+        <div class="draft-label">アウトロ</div>
+        <div class="draft-text" id="ja-outro"></div>
+        <div class="verify-box" id="vf-outro">
+          <div class="verify-label">↩ 역직역</div>
+          <div class="draft-text" id="vf-outro-text" style="font-size:.85rem"></div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:1rem; text-align:right">
+        <button class="btn btn-ghost btn-sm" onclick="toggleVerify()" id="btn-toggle-verify">
+          👁 역직역 표시
+        </button>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-primary btn-lg" onclick="goStep(3)">③ 배경 영상 선택 →</button>
+      </div>
+      <div style="text-align:center;margin-top:.5rem">
+        <button class="btn btn-ghost" onclick="goStep(1)">← 한국어 초안 다시 확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ③ 배경 영상 선택 -->
+  <div id="step-3" class="wizard-step">
     <div class="section-title">
       <h2>배경 영상 선택</h2>
       <p class="hint">인트로·아웃트로 공용 배경을 선택해주세요.<br>이슈1·2 배경은 자동으로 선택됩니다.</p>
@@ -64,18 +203,18 @@
     </div>
 
     <div class="action-row" style="margin-top:1.5rem">
-      <button id="btn-start-lf" class="btn btn-primary btn-lg" onclick="goStep(3)" disabled>
+      <button id="btn-start-lf" class="btn btn-primary btn-lg" onclick="goStep(4)" disabled>
         ▶ 롱폼 영상 생성 시작
       </button>
       <p class="hint" id="bg-status-hint">배경 영상 선택 후 버튼이 활성화됩니다.</p>
     </div>
     <div style="text-align:center;margin-top:.5rem">
-      <button class="btn btn-ghost" onclick="goStep(1)">← 스크립트 다시 생성</button>
+      <button class="btn btn-ghost" onclick="goStep(2)">← 일본어 확인으로</button>
     </div>
   </div>
 
-  <!-- ③ 영상 생성 -->
-  <div id="step-3" class="wizard-step">
+  <!-- ④ 영상 생성 -->
+  <div id="step-4" class="wizard-step">
     <div class="progress-wrap">
       <div class="progress-bar-bg">
         <div class="progress-bar-fg" id="lf-pbar" style="width:0%"></div>
@@ -83,9 +222,7 @@
       <span class="progress-pct" id="lf-pct-label">0%</span>
     </div>
 
-    <div class="step-list" id="lf-step-list">
-      <!-- JS 삽입 -->
-    </div>
+    <div class="step-list" id="lf-step-list"></div>
 
     <div class="current-msg" id="lf-current-msg">대기 중...</div>
 
@@ -116,22 +253,190 @@
 </main>
 
 <script>
-const selectedBgs = {};   // {0: {url, thumb}}
-const lfBgPages   = {0:1};
+const selectedBgs = {};
+const lfBgPages   = {0: 1};
+let verifyVisible = false;
+let selectedSlot  = "sun";
 
-// 페이지 로드 시 기존 스크립트 확인
+// 페이지 로드 시 기존 KO 초안 확인
 (async () => {
-  const r = await fetch("/api/longform/script/exists").catch(()=>null);
+  const r = await fetch("/api/longform/script/ko/read").catch(() => null);
   if (!r || !r.ok) return;
   const d = await r.json();
   if (d.exists) {
-    document.getElementById("existing-script-title").textContent = d.title || "(제목 없음)";
-    document.getElementById("existing-script-box").style.display = "block";
+    document.getElementById("ko-existing-topic").textContent =
+      d.topic_title_ja || "(토픽 미확인)";
+    document.getElementById("ko-existing-box").style.display = "block";
   }
 })();
 
-async function useExistingScript() {
+// 수정 요청 입력창 → 버튼 활성화
+document.getElementById("revise-input")?.addEventListener("input", e => {
+  document.getElementById("btn-revise").disabled = !e.target.value.trim();
+});
+
+async function loadExistingKo() {
+  const r = await fetch("/api/longform/script/ko/read").catch(() => null);
+  if (!r || !r.ok) { alert("로드 실패"); return; }
+  const d = await r.json();
+  if (d.exists) renderKoDraft(d);
+}
+
+async function genKo() {
+  document.getElementById("btn-gen-ko").style.display = "none";
+  document.getElementById("ko-existing-box").style.display = "none";
+  document.getElementById("ko-loading").style.display = "flex";
+  document.getElementById("ko-draft-area").style.display = "none";
+
+  const r = await fetch("/api/longform/script/ko", { method: "POST" });
+  document.getElementById("ko-loading").style.display = "none";
+  document.getElementById("btn-gen-ko").style.display = "inline-flex";
+
+  if (!r.ok) {
+    alert("초안 생성 실패: " + await r.text());
+    return;
+  }
+  const d = await r.json();
+  renderKoDraft(d);
+}
+
+async function reviseKo() {
+  const revise = document.getElementById("revise-input").value.trim();
+  if (!revise) return;
+
+  document.getElementById("btn-revise").disabled = true;
+  document.getElementById("revise-loading").style.display = "inline";
+  document.getElementById("ko-draft-area").style.display = "none";
+
+  const r = await fetch("/api/longform/script/ko/revise", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ revise }),
+  });
+
+  document.getElementById("revise-loading").style.display = "none";
+  document.getElementById("ko-draft-area").style.display = "block";
+
+  if (!r.ok) {
+    document.getElementById("btn-revise").disabled = false;
+    alert("재생성 실패: " + await r.text());
+    return;
+  }
+  const d = await r.json();
+  renderKoDraft(d);
+  document.getElementById("revise-input").value = "";
+  document.getElementById("btn-revise").disabled = true;
+}
+
+function renderKoDraft(d) {
+  // 모드·토픽 정보
+  const modeEl = document.getElementById("ko-mode-info");
+  modeEl.innerHTML = `
+    <span class="mode-badge">모드 ${d.mode || "?"}</span>
+    <span class="topic-title">${escHtml(d.topic_title_ja || "")}</span>
+    <div class="reason-text">${escHtml(d.reason_ko || "")}</div>
+  `;
+
+  // 섹션 내용
+  document.getElementById("ko-intro").value           = d.intro?.script_ko || "";
+  document.getElementById("ko-issue1-label").textContent = d.issues?.[0]?.title_ko || "이슈1";
+  document.getElementById("ko-issue1").value          = d.issues?.[0]?.script_ko || "";
+  document.getElementById("ko-issue2-label").textContent = d.issues?.[1]?.title_ko || "이슈2";
+  document.getElementById("ko-issue2").value          = d.issues?.[1]?.script_ko || "";
+  document.getElementById("ko-outro").value           = d.outro?.script_ko || "";
+
+  document.getElementById("ko-draft-area").style.display = "block";
+}
+
+async function saveDraftKo() {
+  const btn    = document.getElementById("btn-save-ko");
+  const status = document.getElementById("save-status");
+  if (btn)    btn.disabled = true;
+  if (status) status.textContent = "저장 중...";
+
+  try {
+    const r = await fetch("/api/longform/script/ko/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        intro_ko:  document.getElementById("ko-intro").value,
+        issue1_ko: document.getElementById("ko-issue1").value,
+        issue2_ko: document.getElementById("ko-issue2").value,
+        outro_ko:  document.getElementById("ko-outro").value,
+      }),
+    });
+    if (btn) btn.disabled = false;
+    if (r.ok) {
+      if (status) {
+        status.textContent = "✅ 저장됨";
+        setTimeout(() => { status.textContent = ""; }, 3000);
+      }
+      return true;
+    } else {
+      if (status) status.textContent = "❌ 저장 실패";
+      alert("저장 실패: " + await r.text());
+      return false;
+    }
+  } catch (e) {
+    if (btn)    btn.disabled = false;
+    if (status) status.textContent = "❌ 저장 실패";
+    return false;
+  }
+}
+
+async function convertToJa() {
+  // 편집 내용 자동 저장 — 저장 버튼 미클릭 시 유실 방지
+  await saveDraftKo();
+
+  document.getElementById("ko-draft-area").style.display = "none";
+  document.getElementById("ja-loading").style.display = "flex";
   goStep(2);
+
+  const r = await fetch("/api/longform/script/ja", { method: "POST" });
+  document.getElementById("ja-loading").style.display = "none";
+
+  if (!r.ok) {
+    document.getElementById("ja-loading").style.display = "none";
+    alert("일본어 변환 실패: " + await r.text());
+    goStep(1);
+    return;
+  }
+  const ja = await r.json();
+  renderJaDraft(ja);
+
+  // 역직역 로드
+  const rv = await fetch("/api/longform/script/verify/read").catch(() => null);
+  if (rv && rv.ok) {
+    const vd = await rv.json();
+    if (vd.exists) renderVerify(vd);
+  }
+}
+
+function renderJaDraft(d) {
+  document.getElementById("ja-title").textContent     = d.title || "";
+  document.getElementById("ja-issue1-label").textContent = d.issues?.[0]?.title || "トピック①";
+  document.getElementById("ja-issue2-label").textContent = d.issues?.[1]?.title || "トピック②";
+  document.getElementById("ja-intro").textContent     = d.intro?.script || "";
+  document.getElementById("ja-issue1").textContent    = d.issues?.[0]?.script || "";
+  document.getElementById("ja-issue2").textContent    = d.issues?.[1]?.script || "";
+  document.getElementById("ja-outro").textContent     = d.outro?.script || "";
+  document.getElementById("ja-draft-area").style.display = "block";
+}
+
+function renderVerify(vd) {
+  document.getElementById("vf-intro-text").textContent  = vd.intro_ko  || "";
+  document.getElementById("vf-issue1-text").textContent = vd.issue1_ko || "";
+  document.getElementById("vf-issue2-text").textContent = vd.issue2_ko || "";
+  document.getElementById("vf-outro-text").textContent  = vd.outro_ko  || "";
+}
+
+function toggleVerify() {
+  verifyVisible = !verifyVisible;
+  ["vf-intro","vf-issue1","vf-issue2","vf-outro"].forEach(id => {
+    document.getElementById(id).style.display = verifyVisible ? "block" : "none";
+  });
+  document.getElementById("btn-toggle-verify").textContent =
+    verifyVisible ? "👁 역직역 숨기기" : "👁 역직역 표시";
 }
 
 const LF_STEPS = [
@@ -140,6 +445,7 @@ const LF_STEPS = [
   {key:"Long4", label:"롱폼 영상 합성",    icon:"🎬"},
   {key:"Long5", label:"롱폼 자막 생성",    icon:"📝"},
   {key:"Long6", label:"YouTube 업로드",    icon:"📤"},
+  {key:"Long7", label:"블로그 발행",       icon:"📝"},
 ];
 
 function goStep(n) {
@@ -147,34 +453,16 @@ function goStep(n) {
   document.querySelectorAll(".wizard-tab").forEach(el => el.classList.remove("active"));
   document.getElementById(`step-${n}`).classList.add("active");
   document.getElementById(`tab-${n}`).classList.add("active");
-  if (n === 2) { loadLFBg(0); }
-  if (n === 3) startLongform();
-}
-
-async function genScript() {
-  document.getElementById("btn-gen-script").style.display = "none";
-  document.getElementById("script-loading").style.display = "flex";
-
-  const r = await fetch("/api/longform/script", {method:"POST"});
-  document.getElementById("script-loading").style.display = "none";
-
-  if (!r.ok) {
-    document.getElementById("btn-gen-script").style.display = "block";
-    alert("스크립트 생성 실패: " + (await r.json().catch(()=>({detail:"오류"})).then(e=>e.detail)));
-    return;
-  }
-  await r.json();  // 결과 수신 (표시 없이 배경 선택으로 진행)
-  goStep(2);
+  if (n === 3) loadLFBg(0);
+  if (n === 4) startLongform();
 }
 
 async function loadLFBg(idx) {
   document.getElementById(`bg-loading-${idx}`).style.display = "flex";
   document.getElementById(`bg-grid-${idx}`).innerHTML = "";
-
   const page = lfBgPages[idx] || 1;
   const r = await fetch(`/api/longform/pexels/${idx}?page=${page}`);
   document.getElementById(`bg-loading-${idx}`).style.display = "none";
-
   if (!r.ok) { document.getElementById(`bg-grid-${idx}`).innerHTML = '<p class="empty">Pexels 로드 실패</p>'; return; }
   const data = await r.json();
   renderLFGrid(idx, data.candidates);
@@ -189,14 +477,10 @@ function renderLFGrid(idx, candidates) {
   const grid = document.getElementById(`bg-grid-${idx}`);
   if (!candidates.length) { grid.innerHTML = '<p class="empty">결과 없음</p>'; return; }
   grid.innerHTML = candidates.map((c, i) => `
-    <div class="bg-card-sm ${selectedBgs[idx]?.url === c.url ? 'selected' : ''}"
-         id="lfcard-${idx}-${i}">
-      <div class="bg-thumb-wrap"
-           onmouseenter="playLFVid(${idx},${i})"
-           onmouseleave="stopLFVid(${idx},${i})">
+    <div class="bg-card-sm ${selectedBgs[idx]?.url === c.url ? 'selected' : ''}" id="lfcard-${idx}-${i}">
+      <div class="bg-thumb-wrap" onmouseenter="playLFVid(${idx},${i})" onmouseleave="stopLFVid(${idx},${i})">
         <img src="${c.thumb}" class="bg-thumb" id="lfimg-${idx}-${i}" alt="">
-        <video id="lfvid-${idx}-${i}" class="bg-video" muted loop playsinline
-               src="${c.url}" preload="none"></video>
+        <video id="lfvid-${idx}-${i}" class="bg-video" muted loop playsinline src="${c.url}" preload="none"></video>
         <div class="dur-badge">${fmtDur(c.duration)}</div>
       </div>
       <button class="btn btn-primary btn-sm" style="margin-top:.4rem"
@@ -210,7 +494,7 @@ function playLFVid(idx, i) {
   const img = document.getElementById(`lfimg-${idx}-${i}`);
   if (!vid) return;
   vid.style.display = "block"; img.style.display = "none";
-  vid.play().catch(()=>{});
+  vid.play().catch(() => {});
 }
 function stopLFVid(idx, i) {
   const vid = document.getElementById(`lfvid-${idx}-${i}`);
@@ -221,17 +505,15 @@ function stopLFVid(idx, i) {
 
 async function selectLFBg(idx, i, url, thumb) {
   const r = await fetch("/api/longform/select-bg", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({idx, url, thumb}),
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idx, url, thumb }),
   });
   if (!r.ok) { alert("저장 실패"); return; }
-  selectedBgs[idx] = {url, thumb};
-
+  selectedBgs[idx] = { url, thumb };
   document.querySelectorAll(`[id^="lfcard-${idx}-"]`).forEach(el => el.classList.remove("selected"));
   document.getElementById(`lfcard-${idx}-${i}`)?.classList.add("selected");
   document.getElementById(`slot-done-${idx}`).textContent = "✅";
-
   if (selectedBgs[0]) {
     document.getElementById("btn-start-lf").disabled = false;
     document.getElementById("bg-status-hint").textContent = "배경 영상 선택 완료 — 생성을 시작할 수 있습니다.";
@@ -240,8 +522,8 @@ async function selectLFBg(idx, i, url, thumb) {
 
 function startLongform() {
   renderLFStepList();
-  const es = new EventSource("/api/longform/stream");
-  es.onmessage = (e) => {
+  const es = new EventSource(`/api/longform/stream?slot=${encodeURIComponent(selectedSlot)}`);
+  es.onmessage = e => {
     const d = JSON.parse(e.data);
     if (d.step === "Error") { es.close(); showLFError(d.msg); return; }
     if (d.step === "Done")  { es.close(); showLFDone(d.url);  return; }
@@ -268,10 +550,14 @@ function updateLFProgress(d) {
   LF_STEPS.forEach(s => {
     const el = document.getElementById(`lf-ss-${s.key}`);
     if (!el) return;
-    const curIdx  = LF_STEPS.findIndex(x=>x.key===d.step);
-    const thisIdx = LF_STEPS.findIndex(x=>x.key===s.key);
-    if (s.key === d.step) { el.textContent="진행 중 ⏳"; el.className="step-status running"; document.getElementById(`lf-si-${s.key}`)?.classList.add("active"); }
-    else if (curIdx > thisIdx) { el.textContent="완료 ✓"; el.className="step-status done"; }
+    const curIdx  = LF_STEPS.findIndex(x => x.key === d.step);
+    const thisIdx = LF_STEPS.findIndex(x => x.key === s.key);
+    if (s.key === d.step) {
+      el.textContent = "진행 중 ⏳"; el.className = "step-status running";
+      document.getElementById(`lf-si-${s.key}`)?.classList.add("active");
+    } else if (curIdx > thisIdx) {
+      el.textContent = "완료 ✓"; el.className = "step-status done";
+    }
   });
 }
 
@@ -290,13 +576,13 @@ function showLFError(msg) {
 }
 
 function fmtDur(sec) {
-  const m = Math.floor(sec/60), s = sec%60;
-  return `${m}:${String(s).padStart(2,"0")}`;
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 function escHtml(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
-function escQ(s) { return String(s).replace(/'/g,"\\'"); }
+function escQ(s) { return String(s).replace(/'/g, "\\'"); }
 </script>
 </body>
 </html>

@@ -81,18 +81,33 @@ function renderArticles(articles) {
     return;
   }
 
-  cards.innerHTML = articles.map((a, i) => `
-    <div class="article-card" id="card-${i}">
+  cards.innerHTML = articles.map((a, i) => {
+    const isMatch = !!a.is_active_match;
+    const score   = a.life_score || 0;
+    const topicJa = a.match_topic_ja || "";
+    const scoreBadge = score > 0
+      ? `<span class="score-badge">📊 생활밀착 ${score}</span>`
+      : "";
+    const topicBadge = topicJa
+      ? `<span class="topic-badge">📌 ${escHtml(topicJa.length > 18 ? topicJa.slice(0,18)+"…" : topicJa)}</span>`
+      : "";
+    const matchChip = isMatch
+      ? `<span class="match-chip">🔗 롱폼 연결</span>`
+      : "";
+    return `
+    <div class="article-card${isMatch ? " article-card--match" : ""}" id="card-${i}">
       <div class="article-meta">
         <span class="source-badge">NHK</span>
         ${a.published ? `<span class="pub-time">${formatDate(a.published)}</span>` : ""}
+        ${scoreBadge}${topicBadge}${matchChip}
       </div>
       <h3 class="article-title">${escHtml(a.korean_title || a.title)}</h3>
       <p class="article-jp-title">${escHtml(a.title)}</p>
       <div class="article-url"><a href="${escHtml(a.url)}" target="_blank" rel="noopener">↗ 원문 보기</a></div>
       <button class="btn btn-primary btn-sm" onclick="selectArticle(${i})">✅ 이 기사로 대본 생성</button>
     </div>
-  `).join("");
+  `;
+  }).join("");
 }
 
 async function selectArticle(idx) {

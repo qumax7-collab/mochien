@@ -1,5 +1,6 @@
 """모찌엔 로컬 웹 UI — FastAPI 진입점"""
 import json
+import shutil
 import asyncio
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -11,9 +12,13 @@ from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader
 
 from webui_runner import (
-    run_fetch_articles, run_call_gpt, save_slot_gpt_result,
+    run_fetch_articles, run_call_gpt_ko, run_translate_ja, save_slot_gpt_result,
     run_shorts_stream, run_long1_script, run_longform_stream,
+    run_long1_ko, run_long1_ja,
+    LONG_SCRIPT_KO_FILE, LONG_SCRIPT_VERIFY_FILE,
 )
+
+LONG_SCRIPT_KO_BAK_FILE = "long_script_ko.bak.json"
 from webui_pexels import fetch_pexels_candidates, save_used_video
 
 BASE = Path(__file__).parent
@@ -32,8 +37,8 @@ templates = Jinja2Templates(env=_jinja_env)
 
 # ── 슬롯별 인메모리 상태 ─────────────────────────────────
 SLOT_STATE: dict = {
-    "09": {"is_running": False, "articles": [], "selected": None, "gpt": None, "bg_url": None, "bg_thumb": None},
-    "18": {"is_running": False, "articles": [], "selected": None, "gpt": None, "bg_url": None, "bg_thumb": None},
+    "09": {"is_running": False, "articles": [], "selected": None, "gpt_ko": None, "gpt": None, "bg_url": None, "bg_thumb": None},
+    "18": {"is_running": False, "articles": [], "selected": None, "gpt_ko": None, "gpt": None, "bg_url": None, "bg_thumb": None},
 }
 LONGFORM_STATE: dict = {
     "is_running": False,
@@ -91,12 +96,15 @@ async def page_select(request: Request, slot: str):
 @app.get("/shorts/{slot}/script", response_class=HTMLResponse)
 async def page_script(request: Request, slot: str):
     validate_slot(slot)
-    gpt = SLOT_STATE[slot].get("gpt")
-    if not gpt:
+    gpt_ko = SLOT_STATE[slot].get("gpt_ko")
+    gpt    = SLOT_STATE[slot].get("gpt")
+    if not gpt_ko and not gpt:
         return templates.TemplateResponse(request, "select_article.html", {
             "slot": slot, "error": "먼저 기사를 선택해주세요.",
         })
-    return templates.TemplateResponse(request, "confirm_script.html", {"slot": slot, "gpt": gpt})
+    return templates.TemplateResponse(request, "confirm_script.html", {
+        "slot": slot, "gpt_ko": gpt_ko, "gpt": gpt,
+    })
 
 @app.get("/shorts/{slot}/background", response_class=HTMLResponse)
 async def page_background(request: Request, slot: str):
@@ -158,24 +166,39 @@ async def api_fetch_articles(slot: str):
 
 @app.post("/api/shorts/{slot}/gpt")
 async def api_call_gpt(slot: str, request: Request):
+    """KO 단계: 기사 선택 → 한국어 초안 생성."""
     validate_slot(slot)
     body    = await request.json()
     article = body.get("article")
     if not article:
         raise HTTPException(400, "article 필드 필요")
     SLOT_STATE[slot]["selected"] = article
-    result = await asyncio.to_thread(run_call_gpt, article["title"], article["article_body"])
-    SLOT_STATE[slot]["gpt"] = result
+    SLOT_STATE[slot]["gpt"]      = None   # 기존 JA 결과 초기화
+    result = await asyncio.to_thread(run_call_gpt_ko, article["title"], article["article_body"])
+    SLOT_STATE[slot]["gpt_ko"] = result
     return result
 
 @app.post("/api/shorts/{slot}/regenerate")
 async def api_regenerate(slot: str):
+    """KO 재생성 — gpt_ko 업데이트, gpt(JA) 초기화."""
     validate_slot(slot)
     article = SLOT_STATE[slot].get("selected")
     if not article:
         raise HTTPException(400, "선택된 기사 없음 — 기사 먼저 선택")
-    result = await asyncio.to_thread(run_call_gpt, article["title"], article["article_body"])
-    SLOT_STATE[slot]["gpt"] = result
+    SLOT_STATE[slot]["gpt"] = None
+    result = await asyncio.to_thread(run_call_gpt_ko, article["title"], article["article_body"])
+    SLOT_STATE[slot]["gpt_ko"] = result
+    return result
+
+@app.post("/api/shorts/{slot}/translate-ja")
+async def api_translate_ja(slot: str):
+    """JA 단계: KO 초안 → 일본어 변환 + 역직역 반환."""
+    validate_slot(slot)
+    gpt_ko = SLOT_STATE[slot].get("gpt_ko")
+    if not gpt_ko:
+        raise HTTPException(400, "KO 초안이 없습니다. 먼저 대본을 생성하세요.")
+    result = await asyncio.to_thread(run_translate_ja, gpt_ko)
+    SLOT_STATE[slot]["gpt"] = result["gpt"]
     return result
 
 @app.post("/api/shorts/{slot}/save-gpt")
@@ -183,7 +206,7 @@ async def api_save_gpt(slot: str):
     validate_slot(slot)
     gpt = SLOT_STATE[slot].get("gpt")
     if not gpt:
-        raise HTTPException(400, "GPT 결과 없음")
+        raise HTTPException(400, "일본어 변환이 완료되지 않았습니다. [일본어로 변환]을 먼저 실행하세요.")
     selected = SLOT_STATE[slot].get("selected", {})
     save_slot_gpt_result(slot, gpt, selected)
     return {"ok": True, "slot": slot}
@@ -288,8 +311,86 @@ async def api_longform_select_bg(request: Request):
     save_used_video(url, thumb)
     return {"ok": True, "idx": idx}
 
+@app.post("/api/longform/script/ko")
+async def api_longform_ko():
+    """KO 단계: 한국어 거시 원리형 초안 생성 → long_script_ko.json."""
+    ko = await asyncio.to_thread(run_long1_ko)
+    return ko
+
+@app.post("/api/longform/script/ko/revise")
+async def api_longform_ko_revise(request: Request):
+    """수정 요청 텍스트로 KO 초안 재생성."""
+    body   = await request.json()
+    revise = body.get("revise", "").strip()
+    if not revise:
+        raise HTTPException(400, "revise 필드 필요")
+    ko = await asyncio.to_thread(run_long1_ko, revise)
+    return ko
+
+@app.get("/api/longform/script/ko/read")
+async def api_longform_ko_read():
+    """long_script_ko.json 내용 반환 (웹 UI 표시용)."""
+    path = BASE / LONG_SCRIPT_KO_FILE
+    if not path.exists():
+        return {"exists": False}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return {"exists": True, **data}
+    except Exception:
+        return {"exists": False}
+
+@app.post("/api/longform/script/ko/save")
+async def api_longform_ko_save(request: Request):
+    """한국어 대본 직접 편집 저장 — script_ko 4개 필드 덮어쓰기."""
+    path = BASE / LONG_SCRIPT_KO_FILE
+    if not path.exists():
+        raise HTTPException(400, "long_script_ko.json 없음 — 먼저 초안을 생성하세요.")
+    try:
+        ko = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise HTTPException(500, f"파일 읽기 실패: {e}")
+
+    body = await request.json()
+
+    shutil.copy2(str(path), str(BASE / LONG_SCRIPT_KO_BAK_FILE))
+
+    if "intro_ko" in body:
+        ko["intro"]["script_ko"] = body["intro_ko"]
+    if "issue1_ko" in body:
+        ko["issues"][0]["script_ko"] = body["issue1_ko"]
+    if "issue2_ko" in body:
+        ko["issues"][1]["script_ko"] = body["issue2_ko"]
+    if "outro_ko" in body:
+        ko["outro"]["script_ko"] = body["outro_ko"]
+
+    path.write_text(json.dumps(ko, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True}
+
+
+@app.post("/api/longform/script/ja")
+async def api_longform_ja():
+    """JA 단계: 일본어 변환 → long_script.json + long_script_verify.json."""
+    ja = await asyncio.to_thread(run_long1_ja)
+    LONGFORM_STATE["script"] = ja
+    return ja
+
+@app.get("/api/longform/script/verify/read")
+async def api_longform_verify_read():
+    """long_script_verify.json 반환 (역직역 확인용)."""
+    path = BASE / LONG_SCRIPT_VERIFY_FILE
+    if not path.exists():
+        return {"exists": False}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return {"exists": True, **data}
+    except Exception:
+        return {"exists": False}
+
 @app.get("/api/longform/stream")
-async def api_longform_stream():
+async def api_longform_stream(slot: str = Query(default="sun")):
+    if slot not in ("sun", "thu"):
+        slot = "sun"
+
     if LONGFORM_STATE["is_running"]:
         async def _busy():
             yield 'data: {"step":"Error","pct":-1,"msg":"롱폼 이미 실행 중입니다."}\n\n'
@@ -300,7 +401,7 @@ async def api_longform_stream():
 
     async def _gen():
         try:
-            async for ev in run_longform_stream(bg_urls):
+            async for ev in run_longform_stream(bg_urls, slot=slot):
                 yield ev
                 await asyncio.sleep(0)
         finally:

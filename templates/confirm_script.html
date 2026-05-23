@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>대본 확인 — 슬롯 {{ slot }}</title>
 <link rel="stylesheet" href="/static/style.css">
+<style>
+.verify-box { background:#0d1117; border:1px solid #30363d; border-radius:8px; padding:12px 16px; margin-top:6px; }
+.verify-toggle { cursor:pointer; color:#7d8590; font-size:13px; text-decoration:underline; }
+.state-badge { display:inline-block; padding:3px 10px; border-radius:4px; font-size:12px; font-weight:700; }
+.badge-ko { background:#1f3352; color:#58a6ff; }
+.badge-ja { background:#1a3a1a; color:#56d364; }
+</style>
 </head>
 <body>
 <header class="topbar">
@@ -15,92 +22,147 @@
 
 <main class="container">
 
-  <div class="script-panel">
-    <!-- 메타 영역 -->
-    <div class="meta-row">
-      <div class="meta-item">
-        <label>영상 제목</label>
-        <p id="gpt-title" class="val-title">{{ gpt.title }}</p>
+  <!-- ───── KO 상태 섹션 ───── -->
+  <div id="ko-state" {% if gpt %}style="display:none"{% endif %}>
+    <div class="script-panel">
+      <div style="margin-bottom:12px">
+        <span class="state-badge badge-ko">🇰🇷 한국어 초안</span>
+        <span style="color:#7d8590;font-size:13px;margin-left:8px">일본어로 변환 전 단계</span>
       </div>
-      <div class="meta-item">
-        <label>short_title</label>
-        <span id="gpt-short" class="chip chip-navy">{{ gpt.short_title }}</span>
+
+      <div class="meta-row">
+        <div class="meta-item">
+          <label>제목 (한국어)</label>
+          <p id="ko-title" class="val-title">{{ gpt_ko.title_ko if gpt_ko else "" }}</p>
+        </div>
+        <div class="meta-item">
+          <label>핵심 키워드</label>
+          <span id="ko-short" class="chip chip-navy">{{ gpt_ko.short_title if gpt_ko else "" }}</span>
+        </div>
+        <div class="meta-item">
+          <label>감정</label>
+          <span id="ko-emotion" class="chip chip-red">{{ gpt_ko.emotion if gpt_ko else "" }}</span>
+        </div>
       </div>
-      <div class="meta-item">
-        <label>감정(emotion)</label>
-        <span id="gpt-emotion" class="chip chip-red">{{ gpt.emotion }}</span>
+
+      <div class="script-block">
+        <label>🎣 Hook (한국어)</label>
+        <p id="ko-hook" class="val-hook">{{ gpt_ko.hook_ko if gpt_ko else "" }}</p>
       </div>
-    </div>
 
-    <!-- Hook -->
-    <div class="script-block">
-      <label>🎣 Hook (일본어)</label>
-      <p id="gpt-hook" class="val-hook">{{ gpt.hook }}</p>
-    </div>
-    {% if gpt.hook_korean %}
-    <div class="script-block">
-      <label>🇰🇷 Hook 한국어</label>
-      <p id="gpt-hook-kr" class="val-sub">{{ gpt.hook_korean }}</p>
-    </div>
-    {% endif %}
+      <div class="script-block">
+        <label>📝 스크립트 (한국어)</label>
+        <pre id="ko-script" class="script-pre">{{ gpt_ko.script_ko if gpt_ko else "" }}</pre>
+      </div>
 
-    <!-- Script -->
-    <div class="script-block">
-      <label>📝 스크립트 (일본어)</label>
-      <pre id="gpt-script" class="script-pre">{{ gpt.script }}</pre>
-    </div>
+      {% if gpt_ko and gpt_ko.korean_summary %}
+      <div class="script-block">
+        <label>📋 한국어 요약</label>
+        <p id="ko-summary" class="val-sub">{{ gpt_ko.korean_summary }}</p>
+      </div>
+      {% endif %}
 
-    <!-- Korean summary -->
-    {% if gpt.korean_summary %}
-    <div class="script-block">
-      <label>🇰🇷 한국어 요약</label>
-      <p id="gpt-kor-sum" class="val-sub">{{ gpt.korean_summary }}</p>
-    </div>
-    {% endif %}
-
-    <!-- Hashtags -->
-    <div class="script-block">
-      <label>#️⃣ 해시태그</label>
-      <div id="gpt-hashtags" class="hashtag-row">
-        {% if gpt.hashtags is iterable and gpt.hashtags is not string %}
-          {% for tag in gpt.hashtags %}
-          <span class="hashtag">{{ tag }}</span>
-          {% endfor %}
-        {% else %}
-          {% for tag in gpt.hashtags.split() %}
-          <span class="hashtag">{{ tag }}</span>
-          {% endfor %}
-        {% endif %}
+      <div class="script-block">
+        <label>🖼️ Pexels 검색어</label>
+        <code id="ko-img-prompt">{{ gpt_ko.image_prompt if gpt_ko else "" }}</code>
       </div>
     </div>
 
-    <!-- Image prompt -->
-    <div class="script-block">
-      <label>🖼️ Pexels 검색어</label>
-      <code id="gpt-img-prompt">{{ gpt.image_prompt }}</code>
+    <div class="action-row">
+      <button id="btn-translate" class="btn btn-primary btn-lg" onclick="translateJa()">
+        🇯🇵 일본어로 변환 →
+      </button>
+      <button id="btn-regen-ko" class="btn btn-secondary btn-lg" onclick="regenerate()">
+        🔄 다시 생성
+      </button>
+      <a class="btn btn-ghost btn-lg" href="/shorts/{{ slot }}/select">← 기사 다시 선택</a>
+    </div>
+    <p class="hint" style="text-align:center" id="regen-count"></p>
+  </div>
+
+  <!-- ───── JA 완료 상태 섹션 ───── -->
+  <div id="ja-state" {% if not gpt %}style="display:none"{% endif %}>
+    <div class="script-panel">
+      <div style="margin-bottom:12px">
+        <span class="state-badge badge-ja">🇯🇵 일본어 변환 완료</span>
+      </div>
+
+      <div class="meta-row">
+        <div class="meta-item">
+          <label>영상 제목</label>
+          <p id="ja-title" class="val-title">{{ gpt.title if gpt else "" }}</p>
+        </div>
+        <div class="meta-item">
+          <label>short_title</label>
+          <span id="ja-short" class="chip chip-navy">{{ gpt.short_title if gpt else "" }}</span>
+        </div>
+        <div class="meta-item">
+          <label>감정(emotion)</label>
+          <span id="ja-emotion" class="chip chip-red">{{ gpt.emotion if gpt else "" }}</span>
+        </div>
+      </div>
+
+      <div class="script-block">
+        <label>🎣 Hook (일본어)</label>
+        <p id="ja-hook" class="val-hook">{{ gpt.hook if gpt else "" }}</p>
+      </div>
+      <div class="script-block">
+        <label>🇰🇷 Hook (한국어)</label>
+        <p id="ja-hook-kr" class="val-sub">{{ gpt.hook_korean if gpt else "" }}</p>
+      </div>
+
+      <div class="script-block">
+        <label>📝 스크립트 (일본어)</label>
+        <pre id="ja-script" class="script-pre">{{ gpt.script if gpt else "" }}</pre>
+      </div>
+
+      <div class="script-block">
+        <label>🔁 역직역 확인
+          <span class="verify-toggle" id="verify-toggle" onclick="toggleVerify()">(펼치기)</span>
+        </label>
+        <div id="verify-box" class="verify-box" style="display:none">
+          <p style="color:#7d8590;font-size:12px;margin:0 0 6px">일본어 → 한국어 역직역 (검수용)</p>
+          <p id="verify-hook" style="margin:0 0 8px;color:#c9d1d9"></p>
+          <pre id="verify-script" style="margin:0;color:#c9d1d9;font-size:13px;white-space:pre-wrap"></pre>
+        </div>
+      </div>
+
+      <div class="script-block">
+        <label>#️⃣ 해시태그</label>
+        <div id="ja-hashtags" class="hashtag-row">
+          {% if gpt %}
+            {% if gpt.hashtags is iterable and gpt.hashtags is not string %}
+              {% for tag in gpt.hashtags %}<span class="hashtag">{{ tag }}</span>{% endfor %}
+            {% else %}
+              {% for tag in gpt.hashtags.split() %}<span class="hashtag">{{ tag }}</span>{% endfor %}
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="script-block">
+        <label>🖼️ Pexels 검색어</label>
+        <code id="ja-img-prompt">{{ gpt.image_prompt if gpt else "" }}</code>
+      </div>
+    </div>
+
+    <div class="action-row">
+      <button id="btn-proceed" class="btn btn-primary btn-lg" onclick="proceed()">
+        ✅ 이대로 진행 → 배경 영상 선택
+      </button>
+      <button class="btn btn-secondary btn-lg" onclick="backToKo()">
+        ← KO 단계로 돌아가기
+      </button>
     </div>
   </div>
 
-  <!-- 버튼 -->
-  <div class="action-row">
-    <button id="btn-proceed" class="btn btn-primary btn-lg" onclick="proceed()">
-      ✅ 이대로 진행 → 배경 영상 선택
-    </button>
-    <button id="btn-regen" class="btn btn-secondary btn-lg" onclick="regenerate()">
-      🔄 다시 생성
-    </button>
-    <a class="btn btn-ghost btn-lg" href="/shorts/{{ slot }}/select">
-      ← 기사 다시 선택
-    </a>
-  </div>
-  <p class="hint" style="text-align:center" id="regen-count"></p>
 </main>
 
-<!-- 재생성 오버레이 -->
-<div id="regen-overlay" class="overlay" style="display:none">
+<!-- 오버레이 -->
+<div id="overlay" class="overlay" style="display:none">
   <div class="overlay-box">
     <div class="spinner spinner-lg"></div>
-    <p>GPT 대본 재생성 중...<br><small>약 10~20초 소요</small></p>
+    <p id="overlay-msg">처리 중...<br><small>약 15~25초 소요</small></p>
   </div>
 </div>
 
@@ -108,44 +170,111 @@
 const SLOT = "{{ slot }}";
 let regenCount = 0;
 
+function showOverlay(msg) {
+  document.getElementById("overlay-msg").innerHTML = msg;
+  document.getElementById("overlay").style.display = "flex";
+}
+function hideOverlay() {
+  document.getElementById("overlay").style.display = "none";
+}
+
+// ── 일본어 변환 ──────────────────────────────────────────
+async function translateJa() {
+  showOverlay("🇯🇵 일본어로 변환 중...<br><small>약 15~25초 소요</small>");
+  document.getElementById("btn-translate").disabled = true;
+
+  const r = await fetch(`/api/shorts/${SLOT}/translate-ja`, {method:"POST"});
+  hideOverlay();
+  document.getElementById("btn-translate").disabled = false;
+
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({detail:"알 수 없는 오류"}));
+    alert("변환 실패: " + (err.detail || ""));
+    return;
+  }
+  const result = await r.json();
+  const gpt    = result.gpt;
+  const verify = result.verify || {};
+
+  // JA 섹션 DOM 업데이트
+  document.getElementById("ja-title").textContent    = gpt.title      || "";
+  document.getElementById("ja-short").textContent    = gpt.short_title || "";
+  document.getElementById("ja-emotion").textContent  = gpt.emotion    || "";
+  document.getElementById("ja-hook").textContent     = gpt.hook       || "";
+  document.getElementById("ja-hook-kr").textContent  = gpt.hook_korean || "";
+  document.getElementById("ja-script").textContent   = gpt.script     || "";
+  document.getElementById("ja-img-prompt").textContent = gpt.image_prompt || "";
+
+  const tags = Array.isArray(gpt.hashtags) ? gpt.hashtags : (gpt.hashtags||"").split(/\s+/);
+  document.getElementById("ja-hashtags").innerHTML =
+    tags.map(t => `<span class="hashtag">${t}</span>`).join("");
+
+  // 역직역
+  document.getElementById("verify-hook").textContent   = verify.backtranslate_hook   || "";
+  document.getElementById("verify-script").textContent = verify.backtranslate_script || "";
+
+  // KO → JA 상태 전환
+  document.getElementById("ko-state").style.display = "none";
+  document.getElementById("ja-state").style.display = "";
+}
+
+// ── KO 재생성 ─────────────────────────────────────────────
+async function regenerate() {
+  showOverlay("🔄 한국어 초안 재생성 중...<br><small>약 10~20초 소요</small>");
+  document.getElementById("btn-regen-ko").disabled = true;
+
+  const r = await fetch(`/api/shorts/${SLOT}/regenerate`, {method:"POST"});
+  hideOverlay();
+  document.getElementById("btn-regen-ko").disabled = false;
+
+  if (!r.ok) { alert("재생성 실패"); return; }
+  const ko = await r.json();
+  regenCount++;
+
+  document.getElementById("ko-title").textContent      = ko.title_ko    || "";
+  document.getElementById("ko-short").textContent      = ko.short_title || "";
+  document.getElementById("ko-emotion").textContent    = ko.emotion     || "";
+  document.getElementById("ko-hook").textContent       = ko.hook_ko     || "";
+  document.getElementById("ko-script").textContent     = ko.script_ko   || "";
+  document.getElementById("ko-img-prompt").textContent = ko.image_prompt || "";
+  const sumEl = document.getElementById("ko-summary");
+  if (sumEl) sumEl.textContent = ko.korean_summary || "";
+
+  document.getElementById("regen-count").textContent = `재생성 ${regenCount}회 완료`;
+}
+
+// ── KO 단계로 돌아가기 ────────────────────────────────────
+function backToKo() {
+  document.getElementById("ja-state").style.display = "none";
+  document.getElementById("ko-state").style.display = "";
+}
+
+// ── 역직역 토글 ──────────────────────────────────────────
+function toggleVerify() {
+  const box = document.getElementById("verify-box");
+  const btn = document.getElementById("verify-toggle");
+  if (box.style.display === "none") {
+    box.style.display = "";
+    btn.textContent = "(접기)";
+  } else {
+    box.style.display = "none";
+    btn.textContent = "(펼치기)";
+  }
+}
+
+// ── 진행 ─────────────────────────────────────────────────
 async function proceed() {
   document.getElementById("btn-proceed").disabled = true;
   document.getElementById("btn-proceed").textContent = "저장 중...";
   const r = await fetch(`/api/shorts/${SLOT}/save-gpt`, {method:"POST"});
-  if (!r.ok) { alert("저장 실패"); document.getElementById("btn-proceed").disabled = false; return; }
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({detail:"저장 실패"}));
+    alert(err.detail || "저장 실패");
+    document.getElementById("btn-proceed").disabled = false;
+    document.getElementById("btn-proceed").textContent = "✅ 이대로 진행 → 배경 영상 선택";
+    return;
+  }
   location.href = `/shorts/${SLOT}/background`;
-}
-
-async function regenerate() {
-  document.getElementById("regen-overlay").style.display = "flex";
-  document.getElementById("btn-regen").disabled = true;
-
-  const r = await fetch(`/api/shorts/${SLOT}/regenerate`, {method:"POST"});
-  document.getElementById("regen-overlay").style.display = "none";
-  document.getElementById("btn-regen").disabled = false;
-
-  if (!r.ok) { alert("재생성 실패"); return; }
-  const gpt = await r.json();
-  regenCount++;
-
-  // DOM 업데이트
-  document.getElementById("gpt-title").textContent   = gpt.title     || "";
-  document.getElementById("gpt-short").textContent   = gpt.short_title || "";
-  document.getElementById("gpt-emotion").textContent = gpt.emotion   || "";
-  document.getElementById("gpt-hook").textContent    = gpt.hook      || "";
-  const hookKr = document.getElementById("gpt-hook-kr");
-  if (hookKr) hookKr.textContent = gpt.hook_korean || "";
-  document.getElementById("gpt-script").textContent   = gpt.script    || "";
-  const korSum = document.getElementById("gpt-kor-sum");
-  if (korSum) korSum.textContent = gpt.korean_summary || "";
-  document.getElementById("gpt-img-prompt").textContent = gpt.image_prompt || "";
-
-  // 해시태그 재렌더
-  const tags = Array.isArray(gpt.hashtags) ? gpt.hashtags : (gpt.hashtags||"").split(/\s+/);
-  document.getElementById("gpt-hashtags").innerHTML =
-    tags.map(t => `<span class="hashtag">${t}</span>`).join("");
-
-  document.getElementById("regen-count").textContent = `재생성 ${regenCount}회 완료`;
 }
 </script>
 </body>

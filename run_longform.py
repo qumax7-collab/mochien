@@ -1,29 +1,42 @@
+import argparse
 import sys
 import subprocess
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-PIPELINE = [
+# long6 이전 스크립트 목록 (--slot 인수 불필요)
+PIPELINE_PRE_UPLOAD = [
     "long1_script.py",
     "long2_tts.py",
     "long3_pexels.py",
     "long4_ffmpeg.py",
     "long5_whisper.py",
-    "long6_youtube.py",
 ]
+LONG7 = "long7_wordpress.py"
 
 
 def main():
-    total = len(PIPELINE)
-    for i, script in enumerate(PIPELINE, 1):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--slot", default="sun", choices=["sun", "thu"],
+                        help="발행 슬롯 (sun=일요일 / thu=목요일, 기본: sun)")
+    args = parser.parse_args()
+
+    pipeline = PIPELINE_PRE_UPLOAD + [f"long6_youtube.py --slot {args.slot}", LONG7]
+    total = len(pipeline)
+
+    for i, entry in enumerate(pipeline, 1):
+        parts = entry.split()
+        script = parts[0]
+        extra  = parts[1:]
+
         print(f"\n{'='*50}")
-        print(f"[{i}/{total}] {script} 실행 중...")
+        print(f"[{i}/{total}] {entry} 실행 중...")
         print(f"{'='*50}")
 
-        result = subprocess.run([sys.executable, script])
+        result = subprocess.run([sys.executable, script] + extra)
 
         if result.returncode != 0:
-            print(f"\n[실패] {script} — 종료 코드 {result.returncode}")
+            print(f"\n[실패] {entry} — 종료 코드 {result.returncode}")
             print("롱폼 파이프라인 중단.")
             sys.exit(result.returncode)
 
