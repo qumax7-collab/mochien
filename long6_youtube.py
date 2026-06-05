@@ -42,13 +42,37 @@ CHANNEL_FOOTER = (
     "チャンネル登録よろしくお願いします。"
 )
 
-INFO_BLOCK = (
-    "【参考ソース】NHK ニュース / Yahoo Japan ビジネス\n"
+SOURCE_INST_JA = {
+    "estat": "総務省統計局 e-Stat",
+    "boj":   "日本銀行 時系列統計",
+    "fred":  "米連邦準備制度（FRED）",
+}
+FALLBACK_SOURCE = "NHK ニュース / Yahoo Japan ビジネス"
+
+CHANNEL_INFO_BLOCK = (
     "【このチャンネルについて】\n"
     "経済ニュースをモチエンキャラクターが解説するチャンネルです。\n"
     "一人で運営しています。\n"
     "個別銘柄や投資商品の推奨は行いません。"
 )
+
+
+def _source_line(slug_keyword: str) -> str:
+    """topic_id → 실제 사용 데이터 소스 기관명. 토픽 없으면 뉴스 fallback."""
+    try:
+        with open("topic_bank.json", encoding="utf-8") as f:
+            bank = json.load(f)["topics"]
+        topic = next((t for t in bank if t["id"] == slug_keyword), None)
+        if not topic or not topic.get("data_sources"):
+            return FALLBACK_SOURCE
+        seen: list[str] = []
+        for src in topic["data_sources"]:
+            inst = SOURCE_INST_JA.get(src.get("source", ""))
+            if inst and inst not in seen:
+                seen.append(inst)
+        return " / ".join(seen) if seen else FALLBACK_SOURCE
+    except Exception:
+        return FALLBACK_SOURCE
 
 # ===== 텔레그램 =====
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -103,11 +127,11 @@ def authenticate():
 
 
 def build_description(data):
-    hashtags = " ".join(data["hashtags"])
-    issues = "\n".join(
-        f"▶ {iss['title']}" for iss in data["issues"]
-    )
-    body = f"{hashtags}\n\n【本日の内容】\n{issues}\n\n{INFO_BLOCK}{CHANNEL_FOOTER}"
+    hashtags   = " ".join(data["hashtags"])
+    issues     = "\n".join(f"▶ {iss['title']}" for iss in data["issues"])
+    slug       = data.get("_slug_keyword", "")
+    info_block = f"【参考データ】{_source_line(slug)}\n{CHANNEL_INFO_BLOCK}"
+    body       = f"{hashtags}\n\n【本日の内容】\n{issues}\n\n{info_block}{CHANNEL_FOOTER}"
 
     chapters = load_chapters()
     if chapters:
