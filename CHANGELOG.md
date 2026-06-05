@@ -778,3 +778,29 @@
           · 실데이터: '23/6=144.88 ~ '26/5=159.3円 / Y범위 135~170 / Y틱 [140,150,160,170]
           · out/yen_rate_real.mp4 렌더 성공 (446 kB / 150프레임)
           · out/navy_dark.mp4 (PoC 더미 fallback) 동작 보존 확인
+
+✅  롱폼 깊이 개선 세션 완료 (2026-06-05) — food-prices 1편 프롬프트 체계 확립
+        [Work 1] 데이터 fetch 확장
+          · food-prices 토픽 신규: CPI 6종(食料/総合/生鮮食品/エネルギー/コアコア/穀類)
+            data_months=120(10년치) / 비교 스냅샷·1·3·5년 비교·12개월 추이 출력
+          · estat_fetch.py CLI --tab 인수 추가
+          · build_data_block: 다중 소스 풍부 포맷 (단일 소스는 기존 유지)
+        [Work 2] 프롬프트 경계 재설정 + food-prices 활성화
+          · SYSTEM_KO: [절대 금지] / [허용·권장] / [principle 사용 규칙] 분리 명시
+            허용·권장: 이미 일어난 일의 분해·연결·인과 해석 (예측 ≠ 메커니즘 설명)
+          · food-prices: status active / title_ja 확정 / principle 계단 구조 확정
+          · 출처 표기 자동화: long6_youtube.py · long7_wordpress.py에 _source_line() 추가
+            topic data_sources 기반 자동 표기 (food-prices→e-Stat / yen-rate→BOJ·FRED / 폴백 NHK)
+        [Work 3] 섹션 역할 분리 + 영구 규칙 2개
+          · 인트로=콜드오픈(반직관 미끼, 답 금지) / 이슈1=원리 / 이슈2=데이터 역할 분리
+          · [영구 규칙] 자국민 시점: "일본의 경우"·「日本では」 금지 → SYSTEM_KO·JA 양쪽
+          · 차트 태그 초판 ===차트=== / ===차트끝=== + long2_tts.py TTS 제거 안전망
+        [Work 5 + 보정] 이슈 역할 재조정 + 차트 태그 B안
+          · 이슈1=원리+대표 수치 1~2개+차트1 / 이슈2=세분화+의미 반전+차트 다수
+          · principle 계단 구조 개정: "큰 대비 → 세분화 → 숨은 사실 반전"
+          · [영구 규칙] 차트 태그 B안: ===차트[항목명, 시점]=== 음성문장 ===차트끝===
+            raw 수치 금지 / 항목은 data_block 실존 항목만 / TTS 전 전체 제거 / JA 변환 시 보존
+        [검증] food-prices KO 대본이 real-wage 교정본(4:21) 대비
+          분해·반전(穀類 27.4%→1.2%)·인과·자국민 시점 개선 확인
+        [미해결] 이슈1 대표 수치 시점 통일 미완 (프롬프트 덧대기 2회 실패)
+          → 다음 세션: data_block에서 최신월 고정 코드 구조적 해결로 전환

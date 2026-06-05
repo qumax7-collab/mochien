@@ -63,12 +63,16 @@ RSS (NHK cat6/cat5 + Yahoo Japan 비즈니스) 최대 5개 수집
 
 [ 롱폼 파이프라인 (mochien_longform.yml) — JST 21:00 ]
 → GitHub Artifact에서 당일 gpt_result 2개 파일 복원
-→ long1_script.py: gpt-4.1 롱폼 스크립트 2단계 생성 (KO→JA)
+→ long1_script.py: gpt-4.1 롱폼 스크립트 2단계 생성 (KO→JA / 에버그린)
    KO 단계 5회 순차 호출: mode_judge(토픽+분리축 결정) → intro → issue1 → issue2 → outro
      분리축(issue1_angle/issue2_angle)을 mode_judge에서 1회 사전 결정 → 각 이슈는 각도 하나만 깊게
      (--topic 직접 지정 시 call_angle_judge로 분리축만 결정 — 기사 불필요)
    JA 단계: 한국어 초안 → 모찌엔 일본어 변환 + 역직역 확인
    → long_script_ko.json (KO 검토) / long_script.json (JA 완성) / long_script_verify.json
+   [영구 규칙] 자국민 시점: "일본의 경우"·「日本では」 등 외부인 말투 금지
+     "우리 식탁에서는" 류 권장 / 타국 비교 시만 "일본은~" 허용 (SYSTEM_KO·JA 양쪽)
+   [영구 규칙] 차트 태그 B안: ===차트[항목명, 시점]=== 음성문장 ===차트끝===
+     항목은 data_block 실존 항목만 / raw 수치 금지(말로 풀어 표현) / TTS 전 전체 제거 안전망
 → long2_tts.py: 4섹션 TTS → long_voice.mp3 + long_chapters.json 생성 (ffprobe 길이 측정)
 → long3_pexels.py: 3개 배경 영상 다운로드
 → long4_ffmpeg.py: 섹션별 클립 생성 → concat → long_output_no_sub.mp4
@@ -581,8 +585,14 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
         레이아웃 4종 탐색: poc_a_split / poc_b_fullchart / poc_c_cards / poc_d_story
 ✅  작업 5-2(A) 완료 (2026-06-03) — BOJ fetch → yen-rate 차트 실연결
           data/make_chart_json.py 신규 / NavyDark.tsx props 동적 수용 / yen_rate_real.mp4 렌더 성공
-🔜  작업 5-2(B) — 대본 검수 중 구분자(===차트===) 분기 마킹 통합
-          TTS 전송 전 구분자 제거 + 사전 검증 이중 안전망
+✅  롱폼 깊이 개선 (2026-06-05) — food-prices 1편 프롬프트 체계 확립
+          Work 1: CPI 6종 데이터 + 10년 시계열 + build_data_block 풍부화
+          Work 2: SYSTEM_KO 금지/허용 분리 + 출처 자동화 + food-prices 활성화
+          Work 3+5: 섹션 역할 분리 + 자국민 시점·차트 태그 B안 영구 규칙
+          미해결 → 다음 세션: 이슈1 대표 수치 최신월 고정 (구조적 해결)
+🔜  작업 5-2(B) — 이슈1·2 대본 차트 태그(B안) + 최신월 고정 코드 구조
+          기존 ===차트=== → ===차트[항목명, 시점]=== B안으로 전환 완료
+          이슈1 대표 수치 최신월 고정 프롬프트 2회 실패 → data_block 코드로 박는 방식으로 전환
 🔜  작업 5-3 — 음성·자막 동기화 + long4 합성 = 첫 완성본 / 운영자 검수 게이트 지점
 🔜  작업 5-4 — 템플릿 N종 확장 + GitHub Actions Node 셋업
 🔜  선제작 (작업 4 재개) — 작업 5 완성 후 토픽뱅크 상위 토픽 점진 비축
