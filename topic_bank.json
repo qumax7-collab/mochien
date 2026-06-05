@@ -3,12 +3,22 @@
     "【새 토픽 추가 방법】",
     "1. 아래 topics 배열에서 항목 하나를 복사해 맨 끝에 붙여넣으세요.",
     "2. 각 필드 설명:",
-    "   id        : 영어 소문자 + 하이픈만 사용 (예: 'bank-credit'). 블로그 URL에 사용됩니다.",
-    "   title_ja  : 일본어 원리형 제목. '왜 ○○인가' 형식 권장.",
-    "   principle : 한국어로 이 토픽의 핵심 원리를 설명 (GPT가 참고합니다).",
-    "   keywords_ja: 이 토픽에 해당하는 일본어 뉴스 키워드 배열. GPT가 기사와 매칭할 때 씁니다.",
-    "   chart_type: 세션 B 전까지 null 유지.",
-    "   fred_code : 세션 B 전까지 null 유지.",
+    "   id          : 영어 소문자 + 하이픈만 (예: 'bank-credit'). 블로그 URL에 사용됩니다.",
+    "   title_ja    : 일본어 원리형 제목. '왜 ○○인가' 형식 권장.",
+    "   title_ko    : title_ja의 한국어 번역. 웹 UI 배지·텔레그램 표시용.",
+    "   principle   : 한국어로 이 토픽의 핵심 원리를 설명 (GPT가 참고합니다).",
+    "   keywords_ja : 일본어 뉴스 키워드 배열. 참고용 (매칭은 GPT 판정).",
+    "   chart_type  : 'line'(연속 추이) / 'bar'(이산·플러스·마이너스 반전 가능) / null(보류).",
+    "   fred_code   : deprecated — data_sources 배열로 대체됨. null 고정.",
+    "   status      : 'active'(사용 가능) / 'hold'(보류).",
+    "   status_reason: 보류 사유 (status='hold' 시 기재, active 시 null).",
+    "   data_sources: 데이터 소스 배열. primary=true 항목이 차트 기본 표시 시리즈.",
+    "     source='fred'  → {source, code, desc_ko, primary}",
+    "       호출: fred_fetch.fetch_series(code)",
+    "     source='boj'   → {source, db, code, desc_ko, primary}",
+    "       호출: boj_fetch.fetch_series(db, code)",
+    "     source='estat' → {source, stats_data_id, filters, desc_ko, primary}",
+    "       호출: estat_fetch.fetch_series(stats_data_id, filters)",
     "3. id가 중복되지 않게 주의하세요.",
     "4. 같은 토픽은 21일 이내 재발행이 자동으로 후순위 처리됩니다.",
     "5. 토픽은 계속 추가할 수 있습니다. 15개 이상도 괜찮습니다."
@@ -17,122 +27,386 @@
     {
       "id": "real-wage",
       "title_ja": "給料が上がっても、なぜ生活は楽にならないのか",
-      "principle": "명목임금 vs 실질임금 / 물가상승률이 임금상승률을 잠식하는 구조 / CPI와 실질구매력",
+      "title_ko": "월급이 올라도 생활이 편해지지 않는 이유",
+      "principle": "임금이 올라도 물가가 더 빠르게 오르면, 가계가 실제로 쓸 수 있는 돈은 오히려 줄어든다. 명목 임금이 아니라 가계의 실제 소비지출을 봐야 체감이 보인다.",
       "keywords_ja": ["実質賃金", "名目賃金", "物価上昇", "インフレ", "家計", "購買力", "春闘"],
-      "chart_type": null,
-      "fred_code": null
+      "chart_type": "line",
+      "fred_code": null,
+      "status": "active",
+      "status_reason": null,
+      "data_sources": [
+        {
+          "source": "estat",
+          "stats_data_id": "0002070001",
+          "filters": {"cdCat01": "059", "cdCat02": "03", "cdArea": "00000"},
+          "desc_ko": "家計調査 消費支出 二人以上世帯 全国 (실질구매력 대리)",
+          "primary": true
+        }
+      ]
     },
     {
       "id": "yen-rate",
       "title_ja": "円安は「得」か「損」か？為替のしくみ",
+      "title_ko": "엔저는 득인가 손인가 — 환율의 구조",
       "principle": "환율이 결정되는 구조 / 금리차와 통화 가치 / 엔저가 수출업체·수입업체·소비자에게 미치는 상반된 영향",
       "keywords_ja": ["円安", "円高", "為替レート", "ドル円", "貿易", "輸出", "輸入", "為替介入"],
-      "chart_type": null,
-      "fred_code": null
+      "chart_type": "line",
+      "fred_code": null,
+      "status": "active",
+      "status_reason": null,
+      "data_sources": [
+        {
+          "source": "boj",
+          "db": "FM08",
+          "code": "FXERD05",
+          "desc_ko": "도쿄시장 USD/JPY 스팟 중심시세",
+          "primary": true
+        },
+        {
+          "source": "fred",
+          "code": "DEXJPUS",
+          "desc_ko": "USD/JPY 환율 일별",
+          "primary": false
+        }
+      ]
     },
     {
       "id": "interest-rate",
       "title_ja": "金利が上がると、あなたの生活はこう変わる",
+      "title_ko": "금리가 오르면 생활이 이렇게 바뀐다",
       "principle": "BOJ 정책금리가 경제 전체에 파급되는 메커니즘 / 금리·물가·소비·주택대출의 연쇄 반응",
       "keywords_ja": ["金利", "政策金利", "日本銀行", "利上げ", "住宅ローン", "預金", "国債金利"],
-      "chart_type": null,
-      "fred_code": null
+      "chart_type": "line",
+      "fred_code": null,
+      "status": "active",
+      "status_reason": null,
+      "data_sources": [
+        {
+          "source": "fred",
+          "code": "IRLTLT01JPM156N",
+          "desc_ko": "일본 장기금리 10년물 국채금리 (OECD MEI)",
+          "primary": true
+        },
+        {
+          "source": "boj",
+          "db": "FM01",
+          "code": "STRDCLUCON",
+          "desc_ko": "무담보콜금리 O/N 평균 일별 (BOJ 정책금리 대리)",
+          "primary": false
+        },
+        {
+          "source": "boj",
+          "db": "FM02",
+          "code": "STRECLUCON",
+          "desc_ko": "무담보콜금리 O/N 월말",
+          "primary": false
+        }
+      ]
     },
     {
       "id": "inflation-deflation",
       "title_ja": "インフレとデフレ、どちらが本当に怖いのか",
+      "title_ko": "인플레와 디플레, 어느 쪽이 더 무서운가",
       "principle": "가격 변동의 원인과 스파이럴 구조 / 수요 인플레·비용 인플레 구분 / 디플레이션이 경제를 멈추는 이유",
       "keywords_ja": ["インフレ", "デフレ", "物価上昇", "消費者物価指数", "CPI", "スタグフレーション", "食料品"],
-      "chart_type": null,
-      "fred_code": null
+      "chart_type": "line",
+      "fred_code": null,
+      "status": "active",
+      "status_reason": null,
+      "data_sources": [
+        {
+          "source": "estat",
+          "stats_data_id": "0003427113",
+          "filters": {"cdTab": "3", "cdCat01": "0001", "cdArea": "00000"},
+          "desc_ko": "消費者物価指数(2020年基準) 総合 全国 前年同月比 (%)",
+          "primary": true
+        }
+      ]
     },
     {
       "id": "national-debt",
       "title_ja": "国の借金1,000兆円、本当に返せるのか",
+      "title_ko": "국가 부채 1,000조엔, 정말 갚을 수 있나",
       "principle": "국채 발행 메커니즘 / 재정 적자가 미래 세대에 전가되는 구조 / 일본 재정의 현실과 한계",
       "keywords_ja": ["国債", "財政赤字", "国の借金", "財務省", "プライマリーバランス", "財政健全化"],
-      "chart_type": null,
-      "fred_code": null
+      "chart_type": "bar",
+      "fred_code": null,
+      "status": "active",
+      "status_reason": null,
+      "data_sources": [
+        {
+          "source": "fred",
+          "code": "GGGDTAJPA188N",
+          "desc_ko": "일본 일반정부 총부채 (GDP 대비 %, IMF, 연간)",
+          "primary": true
+        }
+      ]
     },
     {
       "id": "trade-balance",
       "title_ja": "輸出大国ニッポンの、意外な弱点",
+      "title_ko": "수출 대국 일본의 뜻밖의 약점",
       "principle": "무역수지 구조와 경상수지 / 에너지 수입 의존이 엔저와 결합될 때의 취약성 / 무역구조 변화",
       "keywords_ja": ["貿易収支", "輸出", "輸入", "エネルギー", "原油", "経常収支", "貿易赤字"],
-      "chart_type": null,
-      "fred_code": null
+      "chart_type": "bar",
+      "fred_code": null,
+      "status": "active",
+      "status_reason": null,
+      "data_sources": [
+        {
+          "source": "boj",
+          "db": "BP01",
+          "code": "BPBP6JYNTB",
+          "desc_ko": "무역수지 순수출 (億円, BOP 기준, 월별)",
+          "primary": true
+        },
+        {
+          "source": "boj",
+          "db": "BP01",
+          "code": "BPBP6JYNCB",
+          "desc_ko": "경상수지 (億円, BOP 기준, 월별)",
+          "primary": false
+        }
+      ]
     },
     {
       "id": "aging-social-security",
       "title_ja": "少ない若者が支える年金、持続できるのか",
+      "title_ko": "적은 청년이 지탱하는 연금, 지속 가능한가",
       "principle": "고령화가 사회보장비를 증가시키는 구조 / 세대간 부담 불균형 / 연금 지속 가능성 문제",
       "keywords_ja": ["少子高齢化", "年金", "社会保障", "医療費", "介護", "労働力不足", "高齢化率"],
-      "chart_type": null,
-      "fred_code": null
+      "chart_type": "line",
+      "fred_code": null,
+      "status": "active",
+      "status_reason": null,
+      "data_sources": [
+        {
+          "source": "estat",
+          "stats_data_id": "0003443838",
+          "filters": {
+            "cdCat02": "000",
+            "cdCat03": "01024",
+            "cdCat04": "01",
+            "cdArea": "00000"
+          },
+          "desc_ko": "人口推計 65歳以上人口 月次 (万人)",
+          "primary": true
+        }
+      ]
     },
     {
       "id": "consumption-tax",
       "title_ja": "消費税は、なぜ上がり続けるのか",
+      "title_ko": "소비세는 왜 계속 오르는가",
       "principle": "소비세의 역진성 / 세수 구조에서 소비세가 확대되는 이유 / 사회보장 재원으로서의 소비세",
       "keywords_ja": ["消費税", "税率引き上げ", "社会保障財源", "逆進性", "税制改革", "軽減税率"],
-      "chart_type": null,
-      "fred_code": null
+      "chart_type": "line",
+      "fred_code": null,
+      "status": "active",
+      "status_reason": null,
+      "data_sources": [
+        {
+          "source": "estat",
+          "stats_data_id": "0002070001",
+          "filters": {"cdCat01": "059", "cdCat02": "03", "cdArea": "00000"},
+          "desc_ko": "家計調査 消費支出 二人以上世帯 全国 (소비세 충격 대리)",
+          "primary": true
+        }
+      ]
     },
     {
       "id": "gdp-growth",
       "title_ja": "GDPで景気を読む、本当の使い方",
+      "title_ko": "GDP로 경기를 읽는 진짜 방법",
       "principle": "GDP의 의미와 한계 / 성장률·GDP 갭·잠재성장률로 경기를 읽는 방법 / 명목 vs 실질 GDP",
       "keywords_ja": ["GDP", "経済成長率", "景気", "国内総生産", "潜在成長率", "GDPギャップ"],
-      "chart_type": null,
-      "fred_code": null
+      "chart_type": "bar",
+      "fred_code": null,
+      "status": "active",
+      "status_reason": null,
+      "data_sources": [
+        {
+          "source": "fred",
+          "code": "JPNRGDPEXP",
+          "desc_ko": "일본 실질GDP 지출측 (億円, 분기)",
+          "primary": true
+        }
+      ]
     },
     {
       "id": "business-cycle",
       "title_ja": "好景気と不況は、なぜ繰り返されるのか",
-      "principle": "경기 순환의 내생적 메커니즘 / 수요·공급·재고·투자 사이클 / 경기 선행지표 읽는 법",
+      "title_ko": "호황과 불황은 왜 반복되는가",
+      "principle": "景気循環の内生的メカニズム / 需要・供給・在庫・投資サイクル / 景気動向指数（一致指数）で今の局面を読む",
       "keywords_ja": ["景気循環", "景気後退", "リセッション", "好景気", "景気回復", "先行指標"],
-      "chart_type": null,
-      "fred_code": null
+      "chart_type": "line",
+      "fred_code": null,
+      "status": "active",
+      "status_reason": null,
+      "data_sources": [
+        {
+          "source": "estat",
+          "stats_data_id": "0003446461",
+          "filters": {"cdTab": "100", "cdCat01": "110"},
+          "desc_ko": "内閣府 景気動向指数 CI一致指数 (2020年=100, 月次)",
+          "primary": true
+        }
+      ]
     },
     {
       "id": "energy-dependency",
-      "title_ja": "エネルギーを輸入に頼る国の、リスクと現実",
-      "principle": "화석연료 수입 의존이 만드는 가격 변동성과 경상수지 악화 구조 / 에너지 전환 비용",
+      "title_ja": "原油高は家計にどう響くのか",
+      "title_ko": "원유가 상승이 가계에 미치는 영향",
+      "principle": "일본은 에너지의 대부분을 수입에 기대는 나라라, 국제 유가가 오르면 그 부담이 전기료·물가를 통해 가계와 기업으로 전가된다. 일본이 실제로 사 오는 가격에 가까운 두바이유로 그 압력을 본다.",
       "keywords_ja": ["エネルギー", "原油", "天然ガス", "電気料金", "資源価格", "脱炭素", "再生可能エネルギー"],
-      "chart_type": null,
-      "fred_code": null
+      "chart_type": "line",
+      "fred_code": null,
+      "status": "active",
+      "status_reason": null,
+      "data_sources": [
+        {
+          "source": "fred",
+          "code": "POILDUBUSDM",
+          "desc_ko": "두바이유 월별 USD (IMF 상품가격, 아시아 수입단가 대리)",
+          "primary": true
+        }
+      ]
     },
     {
       "id": "central-bank",
       "title_ja": "日銀は何をしている？中央銀行の本当の役割",
+      "title_ko": "일본은행은 무엇을 하나 — 중앙은행의 진짜 역할",
       "principle": "중앙은행의 2대 사명(물가 안정·금융 안정) / 금리·통화량 조절 도구 / 독립성의 의미",
       "keywords_ja": ["日本銀行", "日銀", "金融政策", "量的緩和", "金利", "植田総裁", "中央銀行"],
-      "chart_type": null,
-      "fred_code": null
+      "chart_type": "line",
+      "fred_code": null,
+      "status": "active",
+      "status_reason": null,
+      "data_sources": [
+        {
+          "source": "boj",
+          "db": "MD01",
+          "code": "MABS1AN11",
+          "desc_ko": "마네타리베이스 평균잔고 (億円, 월별)",
+          "primary": true
+        }
+      ]
     },
     {
       "id": "irregular-employment",
       "title_ja": "非正規雇用はなぜ増え続けるのか",
+      "title_ko": "비정규직은 왜 계속 늘어나는가",
       "principle": "기업이 비정규직을 선호하는 구조 / 노동시장 이중구조가 만드는 소득 격차 / 고용 안정성 문제",
       "keywords_ja": ["非正規雇用", "派遣", "パート", "労働市場", "賃金格差", "雇用", "正規雇用"],
-      "chart_type": null,
-      "fred_code": null
+      "chart_type": "line",
+      "fred_code": null,
+      "status": "active",
+      "status_reason": null,
+      "data_sources": [
+        {
+          "source": "estat",
+          "stats_data_id": "0003006361",
+          "filters": {
+            "cdCat01": "00",
+            "cdCat02": "02",
+            "cdCat03": "10",
+            "cdCat04": "00",
+            "cdCat05": "0",
+            "cdArea": "00000",
+            "cdTab": "06"
+          },
+          "desc_ko": "労働力調査 非正規の職員・従業員数 (万人, 분기)",
+          "primary": true
+        }
+      ]
     },
     {
       "id": "declining-birthrate",
       "title_ja": "人口が減ると、経済はどうなるのか",
+      "title_ko": "인구가 줄면 경제는 어떻게 되나",
       "principle": "인구 감소 → 노동력 감소 → 소비 감소 → 경제 축소의 연쇄 / 일본의 저출생 구조와 처방",
       "keywords_ja": ["少子化", "人口減少", "出生率", "労働力", "消費市場", "移民", "子育て支援"],
-      "chart_type": null,
-      "fred_code": null
+      "chart_type": "bar",
+      "fred_code": null,
+      "status": "active",
+      "status_reason": null,
+      "data_sources": [
+        {
+          "source": "estat",
+          "stats_data_id": "0003411721",
+          "filters": {"cdCat01": "00100"},
+          "desc_ko": "人口動態調査 出生数 年次 (人)",
+          "primary": true
+        }
+      ]
     },
     {
       "id": "cashless-society",
       "title_ja": "現金からキャッシュレスへ、経済は変わるのか",
+      "title_ko": "현금에서 캐시리스로 — 경제는 바뀌는가",
       "principle": "결제 혁신이 경제에 미치는 영향 / 일본의 낮은 캐시리스 비율과 그 구조적 이유 / 디지털 엔",
       "keywords_ja": ["キャッシュレス", "デジタル払い", "電子マネー", "QRコード", "CBDC", "デジタル円", "PayPay"],
       "chart_type": null,
-      "fred_code": null
+      "fred_code": null,
+      "status": "hold",
+      "status_reason": "전체가구 캐시리스 결제 월별 직접 통계 없음(e-Stat 0003424513은 無職世帯 한정·연간·2019). 적합 통계 확보 시 재개.",
+      "data_sources": []
+    },
+    {
+      "id": "food-prices",
+      "title_ja": "【Work 2で確定】なぜ食料品の値段は下がらないのか",
+      "title_ko": "【Work 2 확정 전 임시】왜 장바구니 물가는 계속 오르는가",
+      "principle": "【Work 2 운영자 확정 필요】",
+      "keywords_ja": ["物価", "食料品", "米", "インフレ", "家計", "輸入", "円安", "食費", "穀物"],
+      "chart_type": "line",
+      "fred_code": null,
+      "status": "hold",
+      "status_reason": "Work 1 데이터 준비 완료 — Work 2 대기: principle·제목 운영자 확정 필요",
+      "data_months": 120,
+      "data_sources": [
+        {
+          "source": "estat",
+          "stats_data_id": "0003427113",
+          "filters": {"cdTab": "3", "cdCat01": "0002", "cdArea": "00000"},
+          "desc_ko": "CPI 食料 前年同月比 (%) — 장바구니 전체",
+          "primary": true
+        },
+        {
+          "source": "estat",
+          "stats_data_id": "0003427113",
+          "filters": {"cdTab": "3", "cdCat01": "0001", "cdArea": "00000"},
+          "desc_ko": "CPI 総合 前年同月比 (%) — 전체 물가 비교 기준",
+          "primary": false
+        },
+        {
+          "source": "estat",
+          "stats_data_id": "0003427113",
+          "filters": {"cdTab": "3", "cdCat01": "0157", "cdArea": "00000"},
+          "desc_ko": "CPI 生鮮食品 前年同月比 (%) — 신선식품 (기상·수입 변동)",
+          "primary": false
+        },
+        {
+          "source": "estat",
+          "stats_data_id": "0003427113",
+          "filters": {"cdTab": "3", "cdCat01": "0167", "cdArea": "00000"},
+          "desc_ko": "CPI エネルギー 前年同月比 (%) — 에너지비용 (식품 생산·유통 압력)",
+          "primary": false
+        },
+        {
+          "source": "estat",
+          "stats_data_id": "0003427113",
+          "filters": {"cdTab": "3", "cdCat01": "0178", "cdArea": "00000"},
+          "desc_ko": "CPI コアコア(生鮮食品·エネルギー除く) 前年同月比 (%) — 국내 수요 기반 인플레",
+          "primary": false
+        },
+        {
+          "source": "estat",
+          "stats_data_id": "0003427113",
+          "filters": {"cdTab": "3", "cdCat01": "0003", "cdArea": "00000"},
+          "desc_ko": "CPI 穀類 前年同月比 (%) — 쌀·밀가루 등",
+          "primary": false
+        }
+      ]
     }
   ]
 }
