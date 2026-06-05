@@ -99,6 +99,7 @@ def get_section_script(data, key):
     # 운영자 검수용 출처 태그를 TTS 전에 제거 (한국어·일본어 양쪽 패턴 대응)
     text = re.sub(r'\[출처[^\]]*\]', '', text)
     text = re.sub(r'\[出典[^\]]*\]', '', text)
+    text = re.sub(r'===차트===|===차트끝===', '', text)
     text = SECTION_LABEL_PAT.sub('', text)
     return text.strip()
 
