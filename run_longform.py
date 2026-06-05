@@ -19,9 +19,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--slot", default="sun", choices=["sun", "thu"],
                         help="발행 슬롯 (sun=일요일 / thu=목요일, 기본: sun)")
+    parser.add_argument("--skip-long1", action="store_true",
+                        help="KO/JA 이미 완료 시 long1_script.py 건너뜀")
     args = parser.parse_args()
 
-    pipeline = PIPELINE_PRE_UPLOAD + [f"long6_youtube.py --slot {args.slot}", LONG7]
+    pre = PIPELINE_PRE_UPLOAD[1:] if args.skip_long1 else PIPELINE_PRE_UPLOAD
+    pipeline = pre + [f"long6_youtube.py --slot {args.slot}", LONG7]
     total = len(pipeline)
 
     for i, entry in enumerate(pipeline, 1):

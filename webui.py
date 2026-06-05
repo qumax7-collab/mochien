@@ -46,6 +46,13 @@ LONGFORM_STATE: dict = {
     "bg_urls": {},   # {0: url, 1: url, 2: url}
 }
 
+# 표정 허용값 (자동 풀 9종 + 수동 전용 3종)
+VALID_ALL_EXPRESSIONS = {
+    "smile", "happy", "surprised", "shocked", "worried",
+    "angry", "anxious", "sad", "base",
+    "shy", "embarrassed", "sleepy",
+}
+
 
 # ── 유틸 ─────────────────────────────────────────────────
 def today_jst() -> str:
@@ -83,7 +90,6 @@ async def page_index(request: Request):
     status = {s: slot_done(s) for s in ["09", "18"]}
     return templates.TemplateResponse(request, "index.html", {
         "status":         status,
-        "longform_ready": all(status.values()),
         "today":          today_jst(),
         "slot_state":     {s: {"is_running": SLOT_STATE[s]["is_running"]} for s in ["09", "18"]},
     })
@@ -149,7 +155,6 @@ async def api_slot_status():
     return {
         "09":             slot_done("09"),
         "18":             slot_done("18"),
-        "longform_ready": all(slot_done(s) for s in ["09", "18"]),
         "today":          today_jst(),
     }
 
@@ -210,6 +215,26 @@ async def api_save_gpt(slot: str):
     selected = SLOT_STATE[slot].get("selected", {})
     save_slot_gpt_result(slot, gpt, selected)
     return {"ok": True, "slot": slot}
+
+@app.post("/api/shorts/{slot}/set-expression")
+async def api_set_expression(slot: str, request: Request):
+    """표정 수동 선택 — SLOT_STATE 및 gpt_result.json 즉시 반영."""
+    validate_slot(slot)
+    body = await request.json()
+    expr = body.get("expression", "")
+    if expr not in VALID_ALL_EXPRESSIONS:
+        raise HTTPException(400, f"허용되지 않는 표정값: {expr}")
+    gpt = SLOT_STATE[slot].get("gpt")
+    if not gpt:
+        raise HTTPException(400, "GPT 대본이 없습니다. 일본어 변환을 먼저 실행하세요.")
+    if "expression_auto" not in gpt:
+        gpt["expression_auto"] = gpt.get("expression", "base")
+    gpt["expression"] = expr
+    gpt["expression_final"] = expr
+    SLOT_STATE[slot]["gpt"] = gpt
+    with open("gpt_result.json", "w", encoding="utf-8") as f:
+        json.dump(gpt, f, ensure_ascii=False, indent=2)
+    return {"ok": True, "expression": expr}
 
 
 # ── API: 배경 영상 ────────────────────────────────────────
@@ -311,10 +336,52 @@ async def api_longform_select_bg(request: Request):
     save_used_video(url, thumb)
     return {"ok": True, "idx": idx}
 
+@app.get("/api/longform/topics")
+async def api_longform_topics():
+    """topic_bank.json에서 status=active 토픽 목록 반환.
+    topic_history.json 조회 → made(JA 완료 여부) / made_date 필드 추가.
+    미제작(made=False) 토픽을 앞으로 정렬.
+    """
+    bank_path    = BASE / "topic_bank.json"
+    history_path = BASE / "topic_history.json"
+    try:
+        bank    = json.loads(bank_path.read_text(encoding="utf-8"))
+        history: dict = {}
+        if history_path.exists():
+            try:
+                history = json.loads(history_path.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+
+        topics = [
+            {
+                "id":        t["id"],
+                "title_ja":  t.get("title_ja", ""),
+                "title_ko":  t.get("title_ko", ""),
+                "principle": t.get("principle", ""),
+                "made":      t["id"] in history,
+                "made_date": history.get(t["id"]),
+            }
+            for t in bank.get("topics", [])
+            if t.get("status") == "active"
+        ]
+        topics.sort(key=lambda t: t["made"])   # False(미제작) → True(제작됨)
+        return {"topics": topics}
+    except Exception as e:
+        raise HTTPException(500, f"topic_bank 로드 실패: {e}")
+
+
 @app.post("/api/longform/script/ko")
-async def api_longform_ko():
-    """KO 단계: 한국어 거시 원리형 초안 생성 → long_script_ko.json."""
-    ko = await asyncio.to_thread(run_long1_ko)
+async def api_longform_ko(request: Request):
+    """KO 단계: 한국어 거시 원리형 초안 생성 → long_script_ko.json.
+    body: { topic_id?: string }  — 없거나 빈 문자열이면 기사 기반 경로.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    topic_id = (body.get("topic_id") or "").strip() or None
+    ko = await asyncio.to_thread(run_long1_ko, None, topic_id)
     return ko
 
 @app.post("/api/longform/script/ko/revise")

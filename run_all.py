@@ -24,6 +24,7 @@ TEMP_JSON_FILES = [
     "subtitle.srt",
     "subtitle.ass",
     "long_subtitle.srt",
+    "short_thumb.jpg",
 ]
 
 SLOT_STEPS = [
@@ -31,6 +32,7 @@ SLOT_STEPS = [
     "step5_tts.py",
     "step6_ffmpeg.py",
     "step7_whisper_subtitle.py",
+    "step8_thumbnail.py",
     "step9_youtube.py",
 ]
 
@@ -180,23 +182,9 @@ def main():
             print("\n[실패] 전체 슬롯 실패 — 롱폼 파이프라인 건너뜀.")
             sys.exit(1)
 
-        if succeeded < len(SLOTS):
-            msg = "⚠️ 쇼츠 1편만 성공 / 롱폼 스킵 (품질 보호)"
-            print(f"\n{msg}")
-            tg_notify(msg)
-            sys.exit(0)
-
-        # ── 3. 롱폼 파이프라인 ───────────────────────────────────────────
         print(f"\n{'='*50}")
-        print("run_longform.py 실행 중...")
-        print(f"{'='*50}")
-        rc = run_step("run_longform.py")
-        if rc != 0:
-            print(f"\n[실패] run_longform.py — 종료 코드 {rc}")
-            sys.exit(rc)
-
-        print(f"\n{'='*50}")
-        print("✅ 전체 파이프라인 완료 (쇼츠 2편 + 롱폼)")
+        print(f"✅ 쇼츠 파이프라인 완료 ({succeeded}/{len(SLOTS)}편 성공)")
+        print("💡 롱폼은 run_longform.py 로 단독 실행하세요.")
         print(f"{'='*50}")
     finally:
         cleanup_temp_files()

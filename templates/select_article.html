@@ -82,17 +82,21 @@ function renderArticles(articles) {
   }
 
   cards.innerHTML = articles.map((a, i) => {
-    const isMatch = !!a.is_active_match;
-    const score   = a.life_score || 0;
-    const topicJa = a.match_topic_ja || "";
+    const isMatch  = !!a.is_active_match;
+    const score    = a.life_score || 0;
+    const topicKo  = a.match_topic_ko || a.match_topic_ja || "";
+    const reason   = a.match_reason || "";
     const scoreBadge = score > 0
       ? `<span class="score-badge">📊 생활밀착 ${score}</span>`
       : "";
-    const topicBadge = topicJa
-      ? `<span class="topic-badge">📌 ${escHtml(topicJa.length > 18 ? topicJa.slice(0,18)+"…" : topicJa)}</span>`
+    const topicBadge = topicKo
+      ? `<span class="topic-badge">📌 ${escHtml(topicKo.length > 18 ? topicKo.slice(0,18)+"…" : topicKo)}</span>`
       : "";
     const matchChip = isMatch
       ? `<span class="match-chip">🔗 롱폼 연결</span>`
+      : "";
+    const reasonLine = reason
+      ? `<p class="match-reason">↳ ${escHtml(reason)}</p>`
       : "";
     return `
     <div class="article-card${isMatch ? " article-card--match" : ""}" id="card-${i}">
@@ -101,6 +105,7 @@ function renderArticles(articles) {
         ${a.published ? `<span class="pub-time">${formatDate(a.published)}</span>` : ""}
         ${scoreBadge}${topicBadge}${matchChip}
       </div>
+      ${reasonLine}
       <h3 class="article-title">${escHtml(a.korean_title || a.title)}</h3>
       <p class="article-jp-title">${escHtml(a.title)}</p>
       <div class="article-url"><a href="${escHtml(a.url)}" target="_blank" rel="noopener">↗ 원문 보기</a></div>

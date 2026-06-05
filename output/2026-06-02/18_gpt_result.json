@@ -1,0 +1,28 @@
+{
+  "title": "住宅ローン金利3％超の理由は？",
+  "hook": "住宅担保ローン金利が3％を超えました。あなたの毎月の返済額にどんな変化があるか気になりませんか？",
+  "hook_korean": "주택담보대출 금리가 3%를 넘었습니다. 당신의 월 상환액에 어떤 변화가 생길지 궁금하지 않으신가요?",
+  "script": "住宅担保ローンの代表的商品『フラット35』の最低金利が今月3.21％に上昇しました。これは2017年以降、初めて3％を超えた数値です。金利が上がった理由は長期市場金利が上昇したためです。長期金利が上がると金融機関は融資に使う資金調達コストも増え、そのコストがローン金利に反映されます。したがってローンを組むと月々の返済額の負担が増す可能性があります。特に長期間固定金利ローンを検討している場合、金利変動の仕組みを理解することが重要です。金利上昇は住宅価格に連動する税負担や生活費の調整にも影響を与えるため、慎重な資金計画が求められます。 もっと深く知るには、コメント欄へ。以上、モチエンでした。",
+  "hashtags": [
+    "#住宅ローン",
+    "#フラット35",
+    "#金利上昇",
+    "#家計",
+    "#資金計画",
+    "#Shorts"
+  ],
+  "korean_summary": "플랫35 금리 3.21%로 2017년 이후 첫 3% 돌파",
+  "expression": "worried",
+  "direction": "up",
+  "image_prompt": "urban residential area, daytime, close-up of house exterior, no people b-roll",
+  "short_title": "住宅ローン金利",
+  "thumb_headline": "フラット35金利3.21",
+  "matched_topic_id": "real-wage",
+  "active_longform_url": "https://www.youtube.com/watch?v=DKWSb7vI4eU",
+  "active_longform_title": "なぜ給料が上がっても生活が楽にならないのか",
+  "expression_auto": "worried",
+  "expression_final": "worried",
+  "slot": "18",
+  "article_url": "http://www3.nhk.or.jp/news/html/20260601/k10015137521000.html",
+  "raw_summary_jp": "長期固定型の住宅ローン、「フラット35」の今月の適用金利は、最長35年のローンの最も低い金利が3.21％に引き上げられました。長期金利の上昇を踏まえた対応で2017年以降で3％を超えるのは初めてだということです。"
+}

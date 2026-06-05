@@ -16,6 +16,7 @@ load_dotenv()
 # ===== 모델 =====
 GEMINI_MODEL = "gemini-2.5-flash"
 CLAUDE_MODEL = "claude-haiku-4-5-20251001"
+MAX_CLAUDE_ITEMS = 30  # Claude 1회 호출당 최대 후보 수 (초과 시 배치 분할)
 
 # ===== 파일 경로 (shorts) =====
 SHORTS_AUDIO       = "voice.mp3"
@@ -268,47 +269,56 @@ def call_claude(gemini_result, script_text, pronunciation_data, glossary_data):
                 text = text[4:]
         return json.loads(text.strip())
 
+    def _call_batched(items, key_in, key_out, schema_hint):
+        """items를 MAX_CLAUDE_ITEMS 단위로 나눠 Claude 호출 후 결과 병합."""
+        results = []
+        total = len(items)
+        for start in range(0, total, MAX_CLAUDE_ITEMS):
+            chunk = items[start:start + MAX_CLAUDE_ITEMS]
+            batch_num = start // MAX_CLAUDE_ITEMS + 1
+            total_batches = (total + MAX_CLAUDE_ITEMS - 1) // MAX_CLAUDE_ITEMS
+            print(f"    배치 {batch_num}/{total_batches} ({len(chunk)}건) 처리 중...")
+            prompt = (
+                f"【Gemini抽出候補 — {key_in}】\n"
+                f"{json.dumps(chunk, ensure_ascii=False, indent=2)}"
+                f"{context_block}"
+                "上記の候補を審査し、以下のスキーマでJSONのみを返してください:\n"
+                f"{schema_hint}"
+            )
+            msg = client.messages.create(
+                model=CLAUDE_MODEL,
+                max_tokens=4096,
+                system=CLAUDE_SYSTEM,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            results.extend(_parse(msg.content[0].text).get(key_out, []))
+        return results
+
     # 1/2: 발음 검증
     pron_items = gemini_result.get("pronunciation_errors", [])
     if pron_items:
-        print("  [1/2] 발음 후보 Claude 검증 중...")
-        prompt = (
-            f"【Gemini抽出候補 — 発音エラー】\n"
-            f"{json.dumps(pron_items, ensure_ascii=False, indent=2)}"
-            f"{context_block}"
-            "上記の候補を審査し、以下のスキーマでJSONのみを返してください:\n"
+        print(f"  [1/2] 발음 후보 Claude 검증 중... ({len(pron_items)}건)")
+        schema = (
             '{{\n  "pronunciation_reviewed": [\n'
             '    {{"kanji": "...", "correct_reading": "...", "meaning_ko": "한국어 뜻", "approve": true/false, "reason": "한국어로 이유"}}\n'
             '  ]\n}}'
         )
-        msg = client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=4096,
-            system=CLAUDE_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
+        combined["pronunciation_reviewed"] = _call_batched(
+            pron_items, "発音エラー", "pronunciation_reviewed", schema
         )
-        combined["pronunciation_reviewed"] = _parse(msg.content[0].text).get("pronunciation_reviewed", [])
 
     # 2/2: 자막 검증
     sub_items = gemini_result.get("subtitle_errors", [])
     if sub_items:
-        print("  [2/2] 자막 후보 Claude 검증 중...")
-        prompt = (
-            f"【Gemini抽出候補 — 字幕誤認識】\n"
-            f"{json.dumps(sub_items, ensure_ascii=False, indent=2)}"
-            f"{context_block}"
-            "上記の候補を審査し、以下のスキーマでJSONのみを返してください:\n"
+        print(f"  [2/2] 자막 후보 Claude 검증 중... ({len(sub_items)}건)")
+        schema = (
             '{{\n  "subtitle_reviewed": [\n'
             '    {{"correct": "...", "misheard": "...", "meaning_ko": "한국어 뜻", "approve": true/false, "reason": "한국어로 이유"}}\n'
             '  ]\n}}'
         )
-        msg = client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=4096,
-            system=CLAUDE_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
+        combined["subtitle_reviewed"] = _call_batched(
+            sub_items, "字幕誤認識", "subtitle_reviewed", schema
         )
-        combined["subtitle_reviewed"] = _parse(msg.content[0].text).get("subtitle_reviewed", [])
 
     return combined
 

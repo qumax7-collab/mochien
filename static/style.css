@@ -251,6 +251,12 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.match-reason {
+  font-size: .72rem;
+  color: #8a9bb0;
+  margin: .1rem 0 .35rem;
+  padding: 0;
+}
 .match-chip {
   background: var(--red);
   color: #fff;

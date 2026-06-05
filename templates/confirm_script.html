@@ -11,6 +11,18 @@
 .state-badge { display:inline-block; padding:3px 10px; border-radius:4px; font-size:12px; font-weight:700; }
 .badge-ko { background:#1f3352; color:#58a6ff; }
 .badge-ja { background:#1a3a1a; color:#56d364; }
+/* ── 표정 선택 그리드 ── */
+.expr-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:8px; }
+.expr-cell { cursor:pointer; text-align:center; border:2px solid #30363d; border-radius:6px;
+             padding:6px 4px; background:#0d1117; transition:border-color .15s,background .15s; }
+.expr-cell:hover { border-color:#7d8590; }
+.expr-cell img { width:100%; max-width:72px; display:block; margin:0 auto 4px; border-radius:4px; }
+.expr-cell span { font-size:11px; color:#7d8590; display:block; }
+.expr-cell.selected { border-color:#E50000; background:#1a0000; }
+.expr-cell.selected span { color:#ff6b6b; font-weight:700; }
+.expr-manual { border-style:dashed; }
+.expr-manual .manual-badge { font-size:9px; color:#555; display:block; }
+.expr-section-label { font-size:11px; color:#444; grid-column:1/-1; margin:4px 0 2px; }
 </style>
 </head>
 <body>
@@ -40,8 +52,8 @@
           <span id="ko-short" class="chip chip-navy">{{ gpt_ko.short_title if gpt_ko else "" }}</span>
         </div>
         <div class="meta-item">
-          <label>감정</label>
-          <span id="ko-emotion" class="chip chip-red">{{ gpt_ko.emotion if gpt_ko else "" }}</span>
+          <label>표정 (자동)</label>
+          <span id="ko-emotion" class="chip chip-red">{{ gpt_ko.expression if gpt_ko else "" }}</span>
         </div>
       </div>
 
@@ -97,8 +109,8 @@
           <span id="ja-short" class="chip chip-navy">{{ gpt.short_title if gpt else "" }}</span>
         </div>
         <div class="meta-item">
-          <label>감정(emotion)</label>
-          <span id="ja-emotion" class="chip chip-red">{{ gpt.emotion if gpt else "" }}</span>
+          <label>표정 (자동 추천)</label>
+          <span id="ja-expr-auto" class="chip chip-red">{{ gpt.expression if gpt else "" }}</span>
         </div>
       </div>
 
@@ -124,6 +136,26 @@
           <p style="color:#7d8590;font-size:12px;margin:0 0 6px">일본어 → 한국어 역직역 (검수용)</p>
           <p id="verify-hook" style="margin:0 0 8px;color:#c9d1d9"></p>
           <pre id="verify-script" style="margin:0;color:#c9d1d9;font-size:13px;white-space:pre-wrap"></pre>
+        </div>
+      </div>
+
+      <div class="script-block">
+        <label>🎭 표정 선택 <span style="color:#7d8590;font-size:12px;">(클릭으로 변경 / 변경 없으면 자동 추천 유지)</span></label>
+        <div id="expr-grid" class="expr-grid">
+          <div class="expr-section-label">— 자동 선택 풀 (9종) —</div>
+          <div class="expr-cell" data-expr="smile"     onclick="setExpression('smile')">    <img src="https://raw.githubusercontent.com/qumax7-collab/mochien-assets/main/mochien_smile.png"     alt="smile"    ><span>smile</span></div>
+          <div class="expr-cell" data-expr="happy"     onclick="setExpression('happy')">    <img src="https://raw.githubusercontent.com/qumax7-collab/mochien-assets/main/mochien_happy.png"     alt="happy"    ><span>happy</span></div>
+          <div class="expr-cell" data-expr="surprised" onclick="setExpression('surprised')"><img src="https://raw.githubusercontent.com/qumax7-collab/mochien-assets/main/mochien_surprised.png" alt="surprised"><span>surprised</span></div>
+          <div class="expr-cell" data-expr="shocked"   onclick="setExpression('shocked')">  <img src="https://raw.githubusercontent.com/qumax7-collab/mochien-assets/main/mochien_shocked.png"   alt="shocked"  ><span>shocked</span></div>
+          <div class="expr-cell" data-expr="worried"   onclick="setExpression('worried')">  <img src="https://raw.githubusercontent.com/qumax7-collab/mochien-assets/main/mochien_worried.png"   alt="worried"  ><span>worried</span></div>
+          <div class="expr-cell" data-expr="angry"     onclick="setExpression('angry')">    <img src="https://raw.githubusercontent.com/qumax7-collab/mochien-assets/main/mochien_angry.png"     alt="angry"    ><span>angry</span></div>
+          <div class="expr-cell" data-expr="anxious"   onclick="setExpression('anxious')">  <img src="https://raw.githubusercontent.com/qumax7-collab/mochien-assets/main/mochien_anxious.png"   alt="anxious"  ><span>anxious</span></div>
+          <div class="expr-cell" data-expr="sad"       onclick="setExpression('sad')">      <img src="https://raw.githubusercontent.com/qumax7-collab/mochien-assets/main/mochien_sad.png"       alt="sad"      ><span>sad</span></div>
+          <div class="expr-cell" data-expr="base"      onclick="setExpression('base')">     <img src="https://raw.githubusercontent.com/qumax7-collab/mochien-assets/main/mochien_neutral.png"    alt="base"     ><span>base</span></div>
+          <div class="expr-section-label">— 수동 전용 (3종) —</div>
+          <div class="expr-cell expr-manual" data-expr="shy"         onclick="setExpression('shy')">        <img src="https://raw.githubusercontent.com/qumax7-collab/mochien-assets/main/mochien_shy.png"         alt="shy"        ><span>shy</span><span class="manual-badge">수동 전용</span></div>
+          <div class="expr-cell expr-manual" data-expr="embarrassed" onclick="setExpression('embarrassed')"><img src="https://raw.githubusercontent.com/qumax7-collab/mochien-assets/main/mochien_embarrassed.png" alt="embarrassed"><span>embarrassed</span><span class="manual-badge">수동 전용</span></div>
+          <div class="expr-cell expr-manual" data-expr="sleepy"      onclick="setExpression('sleepy')">     <img src="https://raw.githubusercontent.com/qumax7-collab/mochien-assets/main/mochien_sleepy.png"      alt="sleepy"     ><span>sleepy</span><span class="manual-badge">수동 전용</span></div>
         </div>
       </div>
 
@@ -170,6 +202,12 @@
 const SLOT = "{{ slot }}";
 let regenCount = 0;
 
+// 페이지 로드 시 JA 상태로 시작하면 그리드 초기화
+window.addEventListener("DOMContentLoaded", () => {
+  const initExpr = "{{ gpt.expression if gpt else '' }}";
+  if (initExpr) initExprGrid(initExpr);
+});
+
 function showOverlay(msg) {
   document.getElementById("overlay-msg").innerHTML = msg;
   document.getElementById("overlay").style.display = "flex";
@@ -197,10 +235,10 @@ async function translateJa() {
   const verify = result.verify || {};
 
   // JA 섹션 DOM 업데이트
-  document.getElementById("ja-title").textContent    = gpt.title      || "";
-  document.getElementById("ja-short").textContent    = gpt.short_title || "";
-  document.getElementById("ja-emotion").textContent  = gpt.emotion    || "";
-  document.getElementById("ja-hook").textContent     = gpt.hook       || "";
+  document.getElementById("ja-title").textContent     = gpt.title       || "";
+  document.getElementById("ja-short").textContent     = gpt.short_title  || "";
+  document.getElementById("ja-expr-auto").textContent = gpt.expression   || "";
+  document.getElementById("ja-hook").textContent      = gpt.hook         || "";
   document.getElementById("ja-hook-kr").textContent  = gpt.hook_korean || "";
   document.getElementById("ja-script").textContent   = gpt.script     || "";
   document.getElementById("ja-img-prompt").textContent = gpt.image_prompt || "";
@@ -212,6 +250,9 @@ async function translateJa() {
   // 역직역
   document.getElementById("verify-hook").textContent   = verify.backtranslate_hook   || "";
   document.getElementById("verify-script").textContent = verify.backtranslate_script || "";
+
+  // 표정 그리드 초기화
+  initExprGrid(gpt.expression || "base");
 
   // KO → JA 상태 전환
   document.getElementById("ko-state").style.display = "none";
@@ -232,8 +273,8 @@ async function regenerate() {
   regenCount++;
 
   document.getElementById("ko-title").textContent      = ko.title_ko    || "";
-  document.getElementById("ko-short").textContent      = ko.short_title || "";
-  document.getElementById("ko-emotion").textContent    = ko.emotion     || "";
+  document.getElementById("ko-short").textContent      = ko.short_title  || "";
+  document.getElementById("ko-emotion").textContent    = ko.expression   || "";
   document.getElementById("ko-hook").textContent       = ko.hook_ko     || "";
   document.getElementById("ko-script").textContent     = ko.script_ko   || "";
   document.getElementById("ko-img-prompt").textContent = ko.image_prompt || "";
@@ -247,6 +288,24 @@ async function regenerate() {
 function backToKo() {
   document.getElementById("ja-state").style.display = "none";
   document.getElementById("ko-state").style.display = "";
+}
+
+// ── 표정 선택 ─────────────────────────────────────────────
+function initExprGrid(expr) {
+  document.querySelectorAll(".expr-cell").forEach(el => {
+    el.classList.toggle("selected", el.dataset.expr === expr);
+  });
+}
+
+async function setExpression(expr) {
+  const r = await fetch(`/api/shorts/${SLOT}/set-expression`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({expression: expr}),
+  });
+  if (!r.ok) { alert("표정 변경 실패"); return; }
+  document.getElementById("ja-expr-auto").textContent = expr;
+  initExprGrid(expr);
 }
 
 // ── 역직역 토글 ──────────────────────────────────────────

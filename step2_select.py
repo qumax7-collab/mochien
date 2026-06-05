@@ -61,17 +61,17 @@ def get_next_slot(out_dir):
 # ===== ChatGPT =====
 GPT_MODEL       = "gpt-4.1-mini"
 GPT_TEMPERATURE = 0.7
-REQUIRED_KEYS   = {"title", "hook", "script", "hashtags", "korean_summary",
-                   "emotion", "image_prompt"}
-VALID_EMOTIONS  = {"smile", "happy", "surprised", "shocked", "worried",
-                   "angry", "anxious", "sad", "neutral", "shy", "embarrassed", "sleepy"}
+REQUIRED_KEYS     = {"title", "hook", "script", "hashtags", "korean_summary", "image_prompt"}
+VALID_EXPRESSIONS = {"smile", "happy", "surprised", "shocked", "worried",
+                     "angry", "anxious", "sad", "base"}
+VALID_DIRECTIONS  = {"up", "down", "none"}
 
 SYSTEM_PROMPT = """\
 あなたはJSONのみを出力するAIです。
 出力は必ず { で始まり } で終わる純粋なJSONのみ。
 ```json などのマークダウン記号は絶対に使用禁止。
 以下のキー以外は絶対に追加しないこと:
-  title, hook, hook_korean, script, hashtags, korean_summary, emotion, image_prompt, short_title
+  title, hook, hook_korean, script, hashtags, korean_summary, expression, direction, image_prompt, short_title, thumb_headline
 hashtagsは必ずJSON配列で出力すること。例: ["#Shorts", "#経済", "#日本"]
 人名・企業名・役職名は正確に表記すること。略称・誤字・当て字は絶対禁止。
 
@@ -170,6 +170,51 @@ USER_PROMPT = """
   場所・時間帯・アングル・素材（工場/オフィス/街並み/人物など）が毎回異なるよう
   具体的なシーンを英語で記述すること（例："factory workers morning shift" / "tokyo street evening crowd" / "office desk financial charts"）
 - korean_summary：記事の要点を必ず韓国語（한국어）で1文にまとめること。例：「일본 GDP가 예상을 웃도는 성장률을 기록했습니다.」
+- expression: サムネイル用キャラクター表情を1つ選ぶこと。
+
+【選び方の手順(必ずこの順で考えること)】
+ステップ1: 記事の支配的な感情トーンを一行で言語化する。
+  例: 「明確な好材料・家計改善」「悪材料・負担増」「衝撃・速報的下落」
+ステップ2: そのトーンに最も合うexpressionを下記から1つ選ぶ。
+ステップ3: 選んだexpressionがhook/thumb_headlineのフレーム
+  (前向き/否定的/驚き/不安)と一致するか確認。一致しなければ再選択。
+
+【許可された9種とマッピング例】
+happy   — 明確な好材料・家計改善
+  例: 「春闘で大企業賃上げ率3年連続5%超」→ happy
+smile   — 軽い好材料・安定・改善
+  例: 「ガソリン価格、補助金で170円水準で安定」→ smile
+worried — 悪材料・家計負担増・じわじわ悪化
+  例: 「米価が4週ぶりに上昇」→ worried
+sad     — 深刻な悪材料・大幅損失
+  例: 「日銀の含み損45兆円規模に拡大」→ sad
+shocked — 衝撃的な急騰急落・速報的事件
+  例: 「日経平均が1日で5%急落」→ shocked
+surprised — 意外な結果・反転・予想外
+  例: 「予想に反し、消費者物価が下落」→ surprised
+angry   — 怒り誘発・不公正・転嫁
+  例: 「大手企業が補助金を価格に反映せず」→ angry
+anxious — 不確実な見通し・先行き不透明
+  例: 「日銀総裁、利上げ判断は経済情勢次第」→ anxious
+base    — 純粋に中立的な情報説明(極力避ける、表情のある選択を優先)
+
+【両面記事の処理ルール(重要)】
+記事に「安定」「補助金」「支援策」「改善」など前向き語が含まれ、
+かつ全体トーンも安定・改善方向であれば、worried/sadを選ばずsmile/happyを選ぶこと。
+逆にこれらの語が含まれても全体トーンが「依然高水準」「効果限定的」
+「先行き不透明」など否定的であれば、hook/thumb_headlineのフレームに従うこと。
+
+【絶対禁止】
+shy / embarrassed / sleepy は絶対に選ばない(自動選択では使用不可)。
+- direction：記事の主要な経済的方向性を"up"（上昇・好材料）/ "down"（下落・悪材料）/ "none"（方向性が判別不可・高止まり・複合）から1つ選ぶこと
+  ※数字があっても方向が曖昧な場合はnoneが正しい（例：170円の壁＝価格高止まり→none）
+  ※上昇・下落が明確な場合はup/downを積極的に選ぶこと（例：家賃+12%急上昇→up）
+- thumb_headline：サムネイル専用ヘッドライン。14字以内、名詞句または短い断定形。句読点・疑問符禁止。本文引用禁止。
+  【数字優先ルール】記事に%(パーセント)・金額・倍数・順位などの核心数値がある場合、必ずその数値をthumb_headlineに含めること。
+  数値が複数あれば最もインパクトの大きい1つを選ぶ。本当に数値がない記事のみワード型を使用してよい。
+  良い例：「家賃+12%」「原油-6%」「170円の壁」
+  悪い例：「最高」（数値なし）／「費用の負担」（数値なし）／「まる可能性があります」（本文引用）
+- scriptの冒頭はhookの内容を繰り返さないこと。hookの次の情報・詳細から始めること。
 
 ニュースタイトル：{title}
 ニュース本文：{article_body}
@@ -525,8 +570,10 @@ def call_chatgpt(title, article_body):
     data = json.loads(raw)
     if any("__BLOCKED__" in str(data.get(k, "")) for k in ("title", "script", "hook")):
         raise BlockedArticleError("GPT가 투자 관련 주제로 차단했습니다.")
-    if data.get("emotion") not in VALID_EMOTIONS:
-        data["emotion"] = "neutral"
+    if data.get("expression") not in VALID_EXPRESSIONS:
+        data["expression"] = "base"
+    if data.get("direction") not in VALID_DIRECTIONS:
+        data["direction"] = "none"
     if not data.get("short_title"):
         data["short_title"] = data.get("title", "")[:8]
     missing = REQUIRED_KEYS - data.keys()
@@ -554,7 +601,13 @@ def build_preview(article, gpt, index, total):
     score = _article_score.life_score(article)
     topic = _article_score.match_topic(article)
     score_line = f"📊 생활밀착 {score}" if score > 0 else ""
-    topic_line = f" · 토픽:{topic['title_ja'][:14]}" if topic else ""
+    if topic:
+        topic_label = topic.get("title_ko") or topic.get("title_ja", "")
+        reason_text = topic.get("match_reason", "")
+        topic_line = f" · 📌{topic_label[:16]}"
+        topic_line += f" ({reason_text})" if reason_text else ""
+    else:
+        topic_line = ""
     meta_line = (score_line + topic_line).strip()
     meta_str = f"{meta_line}\n\n" if meta_line else ""
     return (
@@ -703,7 +756,13 @@ def batch_main():
         score = _article_score.life_score(article)
         topic = _article_score.match_topic(article)
         score_line = f"📊 생활밀착 {score}" if score > 0 else ""
-        topic_line = f" · 토픽:{topic['title_ja'][:14]}" if topic else ""
+        if topic:
+            topic_label = topic.get("title_ko") or topic.get("title_ja", "")
+            reason_text = topic.get("match_reason", "")
+            topic_line = f" · 📌{topic_label[:16]}"
+            topic_line += f" ({reason_text})" if reason_text else ""
+        else:
+            topic_line = ""
         meta_line = (score_line + topic_line).strip()
         meta_str = f"{meta_line}\n\n" if meta_line else ""
         text = (

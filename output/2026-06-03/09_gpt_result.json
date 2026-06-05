@@ -1,0 +1,28 @@
+{
+  "title": "日本の金利、上がる可能性は？",
+  "hook": "日本銀行総裁が金利上昇に前向きな姿勢を示しました。あなたの預金やローン金利はどう変わるのでしょうか？",
+  "hook_korean": "일본은행 총재가 금리 인상에 긍정적인 입장을 밝혔습니다. 당신의 예금과 대출 이자에 어떤 변화가 있을까요?",
+  "script": "日本銀行総裁が金利引き上げに前向きな態度を示し、金融市場で変化への期待が高まっています。金利が上がれば、銀行は住宅ローンや個人ローンの利子を引き上げる可能性があり、借入れの負担が増すかもしれません。一方で、預金金利も上昇する可能性があり、貯蓄の利息収入が改善されることも考えられます。この変化は経済状況に応じて中央銀行が金融政策を調整する意志から来ており、金利調整は物価の安定と景気のコントロールを目的としています。したがって、金利上昇が実際の生活費や金融商品のコストにどのように影響するか、注意深く見守る必要があります。 もっと深く知るには、コメント欄へ。以上、モチエンでした。",
+  "hashtags": [
+    "#日本銀行",
+    "#金利上昇",
+    "#住宅ローン",
+    "#預金金利",
+    "#金融市場",
+    "#Shorts"
+  ],
+  "korean_summary": "일본은행 총재가 금리 인상에 긍정적 입장을 밝혀 금융 비용 변화가 예상됩니다.",
+  "expression": "surprised",
+  "direction": "up",
+  "image_prompt": "Tokyo cityscape evening view skyscrapers no people b-roll",
+  "short_title": "日本金利上昇",
+  "thumb_headline": "日本金利上昇の動き",
+  "matched_topic_id": "real-wage",
+  "active_longform_url": "https://www.youtube.com/watch?v=DKWSb7vI4eU",
+  "active_longform_title": "なぜ給料が上がっても生活が楽にならないのか",
+  "expression_auto": "anxious",
+  "expression_final": "surprised",
+  "slot": "09",
+  "article_url": "https://news.yahoo.co.jp/pickup/6582835?source=rss",
+  "raw_summary_jp": ""
+}

@@ -1,0 +1,29 @@
+{
+  "title": "11兆円の市場介入で為替はどう変わった？",
+  "hook": "11兆円を超える日本政府と中央銀行の市場介入が為替にどんな変化をもたらしたか、ご存知ですか？",
+  "hook_korean": "11조원이 넘는 일본 정부와 중앙은행의 시장 개입이 환율에 어떤 변화를 일으켰을까요?",
+  "script": "11兆円規模の政府と日本銀行の市場介入は4月末から5月末まで行われました。この介入で円の価値は1ドル当たり160円台後半から155円台まで上昇しましたが、最近は再び円安傾向にあります。この変化は海外旅行費用や輸入物価に直接影響します。市場介入は政府と中央銀行が大規模な資金を投入し、外国為替市場で円を買い支えることで円の価値を一時的に高める仕組みです。しかし世界経済の状況や投資家心理の変化が複合的に作用し、為替は再び変動する可能性があります。 もっと深く知るには、コメント欄へ。以上、モチエンでした。",
+  "hashtags": [
+    "#Shorts",
+    "#為替",
+    "#市場介入",
+    "#日本銀行",
+    "#経済",
+    "#円高",
+    "#投資"
+  ],
+  "korean_summary": "일본 정부와 중앙은행의 11조원 시장 개입과 환율 변동 상황.",
+  "expression": "shocked",
+  "direction": "none",
+  "image_prompt": "Tokyo cityscape evening, financial district view, no people b-roll",
+  "short_title": "市場介入・為替",
+  "thumb_headline": "11兆円介入後の為替変動",
+  "matched_topic_id": "real-wage",
+  "active_longform_url": "https://www.youtube.com/watch?v=vzKC9RqvYYE",
+  "active_longform_title": "なぜエネルギー輸入依存は家計を直撃するのか",
+  "expression_auto": "anxious",
+  "expression_final": "shocked",
+  "slot": "09",
+  "article_url": "http://www3.nhk.or.jp/news/html/20260529/k10015135371000.html",
+  "raw_summary_jp": "4月から5月にかけて、政府・日銀が総額11兆円あまりを投じて市場介入を実施していたことが明らかになりました。介入によって円相場は1ドル＝160円台後半の円安水準から1ドル＝155円台まで円高が進みましたが、足もとでは再び円安傾向となっています。"
+}

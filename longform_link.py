@@ -72,6 +72,32 @@ def get_active() -> dict | None:
     return published[-1][1]
 
 
+def get_active_for_topic(topic_id: str | None) -> dict | None:
+    """같은 topic_id로 발행된 롱폼 중 가장 최신 1개 반환.
+    없으면 get_active()(최신 발행 롱폼)로 폴백. 둘 다 없으면 None."""
+    now = datetime.now(JST)
+    entries = _load()
+    published = []
+    for e in entries:
+        try:
+            pub = datetime.fromisoformat(e["publish_at_jst"])
+            if pub <= now:
+                published.append((pub, e))
+        except Exception:
+            pass
+    if not published:
+        return None
+    published.sort(key=lambda x: x[0])
+
+    if topic_id:
+        matched = [(pub, e) for pub, e in published if e.get("topic_id") == topic_id]
+        if matched:
+            return matched[-1][1]
+
+    # 폴백: 최신 발행 롱폼
+    return published[-1][1]
+
+
 def get_upcoming() -> str | None:
     """publish_at_jst > 현재 JST인 항목 중 가장 가까운 것의 topic_id 반환. 없으면 None."""
     now = datetime.now(JST)

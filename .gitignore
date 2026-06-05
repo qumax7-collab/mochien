@@ -27,3 +27,6 @@ subtitle.txt
 
 # 폰트 (Actions에서 런타임 다운로드)
 fonts/
+
+# FRED 캐시 (런타임 생성 / 대용량 제외)
+data/cache/

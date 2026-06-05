@@ -30,11 +30,12 @@ JST  = timezone(timedelta(hours=9))
 
 # ── 단계별 예상 소요 시간 ─────────────────────────────────
 ETA = {
-    "BG":      "예상 10초",
-    "TTS":     "예상 30~60초",
-    "FFmpeg":  "예상 2~4분 소요 — 잠시 기다려주세요",
-    "Whisper": "예상 1~2분 소요",
-    "Upload":  "예상 1~2분 소요",
+    "BG":        "예상 10초",
+    "TTS":       "예상 30~60초",
+    "FFmpeg":    "예상 2~4분 소요 — 잠시 기다려주세요",
+    "Whisper":   "예상 1~2분 소요",
+    "Thumbnail": "예상 20~40초",
+    "Upload":    "예상 1~2분 소요",
     "Long1":   "예상 3~5분 소요 (GPT 4회 호출)",
     "Long2":   "예상 1~2분 소요",
     "Long4":   "예상 6~10분 소요 — 잠시 기다려주세요",
@@ -44,9 +45,10 @@ ETA = {
 }
 
 # 의사 진행률 tick 간격 (초)
-TICK_FFmpeg  = 25.0
-TICK_Upload  = 30.0
-TICK_Whisper = 20.0
+TICK_FFmpeg     = 25.0
+TICK_Upload     = 30.0
+TICK_Whisper    = 20.0
+TICK_Thumbnail  = 15.0
 TICK_Long4   = 40.0
 TICK_Long5   = 25.0
 
@@ -311,6 +313,12 @@ async def run_shorts_stream(slot: str, gpt: dict, bg_url: str) -> AsyncGenerator
     if failed:
         return
 
+    # ── 4.5 썸네일 생성 (실패해도 업로드 단계 진행) ──────
+    async for ev in _run_with_ticks("step8_thumbnail.py", "Thumbnail", 84, 84,
+                                    "썸네일 생성 중...", TICK_Thumbnail):
+        yield ev
+        # step8은 항상 exit(0) — Error 이벤트가 와도 파이프라인 계속 진행
+
     # ── 5. YouTube 업로드 (긴 단계 — 의사 진행률) ─────────
     yield _ev("Upload", 85, f"YouTube 업로드 중... ({ETA['Upload']})")
     loop     = asyncio.get_event_loop()
@@ -358,9 +366,13 @@ def run_long1_script() -> dict:
     return json.loads((BASE / "long_script.json").read_text(encoding="utf-8"))
 
 
-def run_long1_ko(revise: str | None = None) -> dict:
-    """KO 단계만 실행 (--stage ko) → long_script_ko.json 반환."""
+def run_long1_ko(revise: str | None = None, topic_id: str | None = None) -> dict:
+    """KO 단계만 실행 (--stage ko) → long_script_ko.json 반환.
+    topic_id 지정 시 --topic {id} 경로 (기사 불필요). 미지정 시 기사 기반.
+    """
     cmd = [sys.executable, "long1_script.py", "--stage", "ko"]
+    if topic_id:
+        cmd += ["--topic", topic_id]
     if revise:
         cmd += ["--revise", revise]
     r = _run_sync_cmd(cmd)

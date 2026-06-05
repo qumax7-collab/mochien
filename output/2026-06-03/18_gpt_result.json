@@ -1,0 +1,27 @@
+{
+  "title": "4月の燃料補助金はどれくらい？",
+  "hook": "3100億円規模の燃料補助金支出があなたの生活費に及ぼす影響は何でしょうか？",
+  "hook_korean": "3100억 원 규모의 연료 보조금 지출이 당신의 생활비에 미치는 영향은 무엇일까요?",
+  "script": "4月1か月間、政府は燃料価格を抑えるために約3100億円の補助金を支出しました。これは経済産業省が発表した資料によるもので、現在の補助金基金の残高は約6700億円に達しています。補助金は燃料価格の上昇負担を軽減し、消費者の生活費負担を和らげる役割を果たしています。政府が補助金を投入すると、燃料価格が急激に上がるのを防ぎ、燃料費の増加による家庭の負担をある程度軽減できます。ただし、この資金は無限に使えるわけではなく、基金の残高が減れば追加の財源確保が必要となるため、消費者物価に与える影響も引き続き注視する必要があります。 もっと深く知るには、コメント欄へ。以上、モチエンでした。",
+  "hashtags": [
+    "#燃料補助金",
+    "#生活費",
+    "#経済産業省",
+    "#政府支出",
+    "#Shorts"
+  ],
+  "korean_summary": "4월 정부는 3100억 원 기름 보조금으로 생활비 부담을 완화했습니다.",
+  "expression": "surprised",
+  "direction": "none",
+  "image_prompt": "gas station daytime close-up fuel pump no people b-roll",
+  "short_title": "燃料補助金",
+  "thumb_headline": "4月燃料補助金3100億円",
+  "matched_topic_id": "real-wage",
+  "active_longform_url": "https://www.youtube.com/watch?v=DKWSb7vI4eU",
+  "active_longform_title": "なぜ給料が上がっても生活が楽にならないのか",
+  "expression_auto": "smile",
+  "expression_final": "surprised",
+  "slot": "18",
+  "article_url": "http://www3.nhk.or.jp/news/html/20260603/k10015139941000.html",
+  "raw_summary_jp": "ガソリンなどの価格を抑えるための政府の補助金について、ことし4月は3100億円が支出されました。経済産業省によりますと、補助に充てる基金の残高は先月末の時点でおよそ6700億円だとしています。"
+}

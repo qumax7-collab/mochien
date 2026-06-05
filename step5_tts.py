@@ -101,13 +101,16 @@ def main():
     with open(INPUT_FILE, "r", encoding="utf-8") as f:
         gpt = json.load(f)
 
-    script = gpt["script"]
-    script = re.sub(r"[（(][^）)]*[）)]", "", script)
-    script = apply_pronunciation(script)
-    print(f"스크립트 ({len(script)}자):\n{script[:100]}...\n")
+    hook_text   = re.sub(r"[（(][^）)]*[）)]", "", gpt.get("hook", ""))
+    script_text = re.sub(r"[（(][^）)]*[）)]", "", gpt["script"])
+    hook_text   = apply_pronunciation(hook_text)
+    script_text = apply_pronunciation(script_text)
+    full_text   = (hook_text + "　" + script_text).strip() if hook_text else script_text
+    print(f"hook ({len(hook_text)}자) + script ({len(script_text)}자) = 합계 {len(full_text)}자")
+    print(f"hook: {hook_text[:60]}...\n")
 
     print(f"=== TTS 생성 중... (voice_id: {voice_id}) ===")
-    audio = generate_tts(script, voice_id)
+    audio = generate_tts(full_text, voice_id)
 
     with open(OUTPUT_FILE, "wb") as f:
         f.write(audio)

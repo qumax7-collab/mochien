@@ -15,11 +15,12 @@ sys.stdout.reconfigure(encoding="utf-8")
 load_dotenv()
 
 # ===== 파일 경로 =====
-GPT_RESULT_PATH = "gpt_result.json"
-VIDEO_PATH = "output_video_subtitled.mp4"
-SRT_PATH = "subtitle.srt"
+GPT_RESULT_PATH  = "gpt_result.json"
+VIDEO_PATH       = "output_video_subtitled.mp4"
+SRT_PATH         = "subtitle.srt"
+SHORT_THUMB_PATH = "short_thumb.jpg"
 CLIENT_SECRETS_PATH = "client_secrets.json"
-TOKEN_PATH = "token.json"
+TOKEN_PATH       = "token.json"
 
 # ===== YouTube API 설정 =====
 SCOPES = [
@@ -80,13 +81,14 @@ def build_notification(gpt, publish_at):
 
     lf_url   = gpt.get("active_longform_url", "")
     lf_title = gpt.get("active_longform_title", "")
-    lf_line  = f"\n▼今週の解説：「{lf_title}」\n{lf_url}" if lf_url else ""
+    lf_line  = f"\n▼くわしい解説：「{lf_title}」\n{lf_url}" if lf_url else ""
+    pin_note = "\n※ 핀 댓글은 선택 — 펀넬 링크는 설명란 첫 줄에 자동 삽입됨" if lf_url else ""
 
     return (
         f"📹 {label} 예약 완료\n"
         f"제목: {gpt['title']}\n"
         f"예약: {display_time} JST\n"
-        f"\n📌 고정댓글:\n{hook}{kr_line}{lf_line}"
+        f"\n📌 고정댓글:\n{hook}{kr_line}{lf_line}{pin_note}"
     )
 
 
@@ -127,6 +129,27 @@ def authenticate():
     return creds
 
 
+def upload_thumbnail(youtube, video_id):
+    if not os.path.exists(SHORT_THUMB_PATH):
+        print("short_thumb.jpg 없음 → 썸네일 업로드 건너뜀")
+        return
+    try:
+        media = MediaFileUpload(SHORT_THUMB_PATH, mimetype="image/jpeg", resumable=False)
+        youtube.thumbnails().set(videoId=video_id, media_body=media).execute()
+        print("썸네일 업로드 완료")
+    except Exception as e:
+        err_str = str(e).lower()
+        if "403" in err_str or "forbidden" in err_str or "thumbnails" in err_str:
+            msg = (
+                "⚠️ 썸네일 업로드 불가 — 채널 전화번호 인증 필요\n"
+                "https://www.youtube.com/verify"
+            )
+            tg_notify(msg)
+            print(msg)
+        else:
+            print(f"[썸네일 오류] {e}")
+
+
 def upload_caption(youtube, video_id):
     if not os.path.exists(SRT_PATH):
         print("subtitle.srt 없음 → 자막 업로드 건너뜀")
@@ -144,9 +167,14 @@ def upload_caption(youtube, video_id):
     print(f"자막 업로드 완료 ({CAPTION_NAME})")
 
 
-def build_description(hashtags):
+def build_description(hashtags, gpt=None):
     tags_str = " ".join(hashtags)
-    return f"{INFO_BLOCK}\n\n{tags_str}{CHANNEL_FOOTER}"
+    body = f"{INFO_BLOCK}\n\n{tags_str}{CHANNEL_FOOTER}"
+    if gpt:
+        lf_url = gpt.get("active_longform_url", "")
+        if lf_url:
+            body = f"▼ くわしい経済解説はこちら→ {lf_url}\n\n" + body
+    return body
 
 
 def upload_video(youtube, title, description, tags, publish_at):
@@ -193,7 +221,7 @@ def main():
     slot = gpt.get("slot", "18")
 
     publish_at = get_publish_at(slot)
-    description = build_description(hashtags)
+    description = build_description(hashtags, gpt)
 
     print(f"제목      : {title}")
     print(f"슬롯      : {slot}")
@@ -202,6 +230,7 @@ def main():
     creds = authenticate()
     youtube = build("youtube", "v3", credentials=creds)
     video_id = upload_video(youtube, title, description, hashtags, publish_at)
+    upload_thumbnail(youtube, video_id)
     upload_caption(youtube, video_id)
 
     result_url = f"https://www.youtube.com/watch?v={video_id}"

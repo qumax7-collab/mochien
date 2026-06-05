@@ -14,6 +14,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 import longform_link
+import article_score
 
 sys.stdout.reconfigure(encoding="utf-8")
 load_dotenv()
@@ -37,7 +38,7 @@ _SIGNOFF_PATTERNS = [
     re.escape(SIGNOFF_DEFAULT_KO),
     re.escape(SIGNOFF_DEFAULT_JA),
     re.escape(SIGNOFF_FUNNEL_JA),
-    r"以上、モチエンが[^。！]*[。！]",   # JA 변형 대비
+    r"以上、モチエン[^。！]*[。！]",      # JA 변형 대비 (が 없는 변형 포함)
     r"이상,?\s*모찌엔이었습니다[!！]?",  # KO 변형 대비
 ]
 _SIGNOFF_RE = re.compile(
@@ -45,11 +46,12 @@ _SIGNOFF_RE = re.compile(
     re.MULTILINE,
 )
 
-# ===== 허용 emotion 값 =====
-VALID_EMOTIONS = {
+# ===== 허용 expression / direction 값 =====
+VALID_EXPRESSIONS = {
     "smile", "happy", "surprised", "shocked", "worried",
-    "angry", "anxious", "sad", "neutral", "shy", "embarrassed", "sleepy",
+    "angry", "anxious", "sad", "base",
 }
+VALID_DIRECTIONS = {"up", "down", "none"}
 
 # ===== KO 단계: 시스템 프롬프트 =====
 SYSTEM_PROMPT_KO = """\
@@ -57,7 +59,7 @@ SYSTEM_PROMPT_KO = """\
 출력은 반드시 { 로 시작하고 } 로 끝나는 순수 JSON만 출력하세요.
 ```json 같은 마크다운 기호는 절대 금지.
 아래 키 외에는 절대 추가하지 마세요:
-  title_ko, hook_ko, script_ko, korean_summary, image_prompt, emotion, short_title
+  title_ko, hook_ko, script_ko, korean_summary, image_prompt, expression, direction, short_title, thumb_headline_ko
 
 【톤 가드 규칙】
 금지 어휘: 충격 / 경고 / 위기 / 폭락 / 폭등 / 긴급
@@ -76,11 +78,53 @@ USER_PROMPT_KO_BODY = """\
 【출력 필드】
 - title_ko      : 30자 이내 한국어 제목 (시청자 생활·손득·놀라움 직결 / 숫자·질문형 우선)
 - hook_ko       : 시청자 생활 직결 첫 후킹 문장 한국어 (아래 ①② 규칙 적용 / 2~3문장)
-- script_ko     : 전체 스크립트 한국어 (300~400자 / 마지막 문장은 반드시 "이상, 모찌엔이었습니다!")
+- script_ko     : 전체 스크립트 한국어 (300~400자)
 - korean_summary: 한국어 1줄 요약 (50자 이내)
 - image_prompt  : Pexels 검색용 영어 키워드 (장소·시간대·앵글·소재 중 2~3개 명시 / "no people b-roll" 추가)
-- emotion       : smile / happy / surprised / shocked / worried / angry / anxious / sad / neutral / shy / embarrassed / sleepy 중 1개
+- expression: サムネイル用キャラクター表情を1つ選ぶこと。
+
+【選び方の手順(必ずこの順で考えること)】
+ステップ1: 記事の支配的な感情トーンを一行で言語化する。
+  例: 「明確な好材料・家計改善」「悪材料・負担増」「衝撃・速報的下落」
+ステップ2: そのトーンに最も合うexpressionを下記から1つ選ぶ。
+ステップ3: 選んだexpressionがhook/thumb_headlineのフレーム
+  (前向き/否定的/驚き/不安)と一致するか確認。一致しなければ再選択。
+
+【許可された9種とマッピング例】
+happy   — 明確な好材料・家計改善
+  例: 「春闘で大企業賃上げ率3年連続5%超」→ happy
+smile   — 軽い好材料・安定・改善
+  例: 「ガソリン価格、補助金で170円水準で安定」→ smile
+worried — 悪材料・家計負担増・じわじわ悪化
+  例: 「米価が4週ぶりに上昇」→ worried
+sad     — 深刻な悪材料・大幅損失
+  例: 「日銀の含み損45兆円規模に拡大」→ sad
+shocked — 衝撃的な急騰急落・速報的事件
+  例: 「日経平均が1日で5%急落」→ shocked
+surprised — 意外な結果・反転・予想外
+  例: 「予想に反し、消費者物価が下落」→ surprised
+angry   — 怒り誘発・不公正・転嫁
+  例: 「大手企業が補助金を価格に反映せず」→ angry
+anxious — 不確実な見通し・先行き不透明
+  例: 「日銀総裁、利上げ判断は経済情勢次第」→ anxious
+base    — 純粋に中立的な情報説明(極力避ける、表情のある選択を優先)
+
+【両面記事の処理ルール(重要)】
+記事に「安定」「補助金」「支援策」「改善」など前向き語が含まれ、
+かつ全体トーンも安定・改善方向であれば、worried/sadを選ばずsmile/happyを選ぶこと。
+逆にこれらの語が含まれても全体トーンが「依然高水準」「効果限定的」
+「先行き不透明」など否定的であれば、hook/thumb_headlineのフレームに従うこと。
+
+【絶対禁止】
+shy / embarrassed / sleepy は絶対に選ばない(自動選択では使用不可)。
+- direction     : 기사 주요 경제적 방향성 — "up"(상승·호재) / "down"(하락·악재) / "none"(방향 판별 불가·고착·복합) 중 1개
+  ※수치가 있어도 방향이 애매하면 none이 맞음(예: 170엔 고착→none) / 상승·하락이 명확하면 up/down을 적극 선택
 - short_title   : 6~10자 핵심 키워드 한국어
+- thumb_headline_ko: 썸네일용 14자 이내 한국어 헤드라인 (일본어 변환용 초안). 마침표·물음표 금지.
+  【숫자 우선 규칙】기사에 %(퍼센트)·금액·배수·순위 등 핵심 수치가 있으면 반드시 그 수치를 포함할 것.
+  수치 여러 개면 가장 임팩트 큰 것 하나. 수치가 진짜 없는 기사만 단어형 허용.
+  좋은 예: 「집세+12%」「원유-6%」「170엔의 벽」 / 나쁜 예: 「최고」(수치 누락)·「비용 부담」(수치 누락)·본문 토막 금지
+- script 첫 문장은 hook 내용을 반복하지 말 것. hook 다음 정보·상세부터 시작할 것.
 
 【① hook_ko 규칙 — 간결·임팩트·궁금증】
 다음 5개 규칙을 순서대로 모두 지킬 것.
@@ -148,7 +192,7 @@ SYSTEM_PROMPT_JA = """\
 出力は必ず { で始まり } で終わる純粋なJSONのみ。
 ```json などのマークダウン記号は絶対に使用禁止。
 以下のキー以外は絶対に追加しないこと:
-  title, hook, hook_korean, script, hashtags, korean_summary, emotion, image_prompt, short_title,
+  title, hook, hook_korean, script, hashtags, korean_summary, expression, direction, image_prompt, short_title, thumb_headline,
   backtranslate_hook, backtranslate_script
 人名・企業名・役職名は正確に表記すること。略称・誤字・当て字は絶対禁止。
 hashtagsは必ずJSON配列で出力すること。
@@ -187,9 +231,11 @@ USER_PROMPT_JA_BODY = """\
 - script        : 日本語スクリプト（モチエンキャラクター適用 / 冒頭挨拶禁止 / サインオフは含めないこと — コードが自動追加する）
 - hashtags      : JSON配列 / 日本語・英語のみ（韓国語タグ絶対禁止）/ #Shorts必須
 - korean_summary: 下記 korean_summary をそのまま転記（変更禁止）
-- emotion       : 下記 emotion をそのまま転記（変更禁止）
+- expression    : 下記 expression をそのまま転記（変更禁止）
+- direction     : 下記 direction をそのまま転記（変更禁止）
 - image_prompt  : 下記 image_prompt をそのまま転記（変更禁止）
 - short_title   : 6〜10字の日本語核心キーワード
+- thumb_headline  : 下記 thumb_headline_ko を日本語14字以内に変換。句読点・疑問符禁止。
 - backtranslate_hook   : 上記 hook の日本語を自然な韓国語に逆翻訳（검수용）
 - backtranslate_script : 上記 script の日本語を自然な韓国語に逆翻訳（검수용）
 
@@ -240,8 +286,10 @@ def stage_ko(title: str, article_body: str) -> dict:
     )
     data = _gpt_call(SYSTEM_PROMPT_KO, user)
 
-    if data.get("emotion") not in VALID_EMOTIONS:
-        data["emotion"] = "neutral"
+    if data.get("expression") not in VALID_EXPRESSIONS:
+        data["expression"] = "base"
+    if data.get("direction") not in VALID_DIRECTIONS:
+        data["direction"] = "none"
 
     # 사인오프: GPT가 무시하고 넣었을 경우 제거 후 고정 문구 부착
     body = _strip_signoff(data.get("script_ko", ""))
@@ -270,8 +318,10 @@ def stage_ja(ko_data: dict) -> dict:
         f"script_ko     : {ko_data.get('script_ko', '')}\n"
         f"korean_summary: {ko_data.get('korean_summary', '')}\n"
         f"image_prompt  : {ko_data.get('image_prompt', '')}\n"
-        f"emotion       : {ko_data.get('emotion', 'neutral')}\n"
+        f"expression    : {ko_data.get('expression', 'base')}\n"
+        f"direction     : {ko_data.get('direction', 'none')}\n"
         f"short_title   : {ko_data.get('short_title', '')}\n"
+        f"thumb_headline_ko: {ko_data.get('thumb_headline_ko', '')}\n"
     )
     user = USER_PROMPT_JA_BODY + "\n韓国語原稿:\n" + ko_block
     data = _gpt_call(SYSTEM_PROMPT_JA, user)
@@ -282,14 +332,27 @@ def stage_ja(ko_data: dict) -> dict:
         hashtags = hashtags.split()
     data["hashtags"] = hashtags
 
-    # emotion fallback
-    if data.get("emotion") not in VALID_EMOTIONS:
-        data["emotion"] = ko_data.get("emotion", "neutral")
+    # expression / direction fallback (JA 전기 실패 시 KO값 복원)
+    if data.get("expression") not in VALID_EXPRESSIONS:
+        data["expression"] = ko_data.get("expression", "base")
+    if data.get("direction") not in VALID_DIRECTIONS:
+        data["direction"] = ko_data.get("direction", "none")
+
+    # ── 토픽 브리지: article.json 에서 match_topic_id 계산 ──
+    matched_topic_id = None
+    try:
+        with open(ARTICLE_FILE, encoding="utf-8") as _f:
+            _article = json.load(_f)
+        _topic = article_score.match_topic(_article)
+        matched_topic_id = _topic["id"] if _topic else None
+    except Exception:
+        pass
+    data["matched_topic_id"] = matched_topic_id
 
     # ── 사인오프 처리 ──────────────────────────────────────
     # script: 본문만 남긴 뒤 활성 롱폼 여부에 따라 사인오프 부착
     script_body = _strip_signoff(data.get("script", ""))
-    active = longform_link.get_active()
+    active = longform_link.get_active_for_topic(matched_topic_id)
     if active:
         data["script"] = script_body + " " + SIGNOFF_FUNNEL_JA
         data["active_longform_url"]   = active.get("url", "")

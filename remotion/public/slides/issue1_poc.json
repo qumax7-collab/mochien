@@ -1,0 +1,118 @@
+{
+  "topic_id": "yen-rate",
+  "fps": 30,
+  "total_frames": 1004,
+  "total_sec": 33.47,
+  "slides": [
+    {
+      "type": "text",
+      "text": "뉴스에서 엔저라는 말, 들어보셨을 겁니다.",
+      "keywords": [
+        "엔저"
+      ],
+      "duration_sec": 3.15
+    },
+    {
+      "type": "text",
+      "text": "달러 대비 엔화 환율은 최근 몇 년 사이 크게 변했습니다.",
+      "keywords": [],
+      "duration_sec": 3.6
+    },
+    {
+      "type": "text",
+      "text": "2023년 6월에는 1달러당 약 144엔 수준이었습니다.",
+      "keywords": [
+        "144엔"
+      ],
+      "duration_sec": 3.55
+    },
+    {
+      "type": "text",
+      "text": "2026년 5월 현재, 환율은 약 159엔까지 올랐습니다.",
+      "keywords": [
+        "159엔"
+      ],
+      "duration_sec": 3.6
+    },
+    {
+      "type": "text",
+      "text": "핵심 원인은 일본과 미국의 금리 차이에 있습니다.",
+      "keywords": [
+        "금리 차이"
+      ],
+      "duration_sec": 3.35
+    },
+    {
+      "type": "text",
+      "text": "미국이 금리를 올리는 동안, 일본은 낮은 금리를 유지했습니다.",
+      "keywords": [],
+      "duration_sec": 3.7
+    },
+    {
+      "type": "chart",
+      "chart_data": {
+        "topicId": "yen-rate",
+        "titleJa": "円安の推移",
+        "unitLabel": "円",
+        "sourceLabel": "도쿄시장 USD/JPY 스팟 중심시세",
+        "labels": [
+          "'23/6",
+          "'23/9",
+          "'23/12",
+          "'24/3",
+          "'24/6",
+          "'24/9",
+          "'24/12",
+          "'25/3",
+          "'25/6",
+          "'25/9",
+          "'25/12",
+          "'26/3",
+          "'26/5"
+        ],
+        "values": [
+          144.88,
+          149.44,
+          141.62,
+          151.25,
+          160.95,
+          142.65,
+          157.83,
+          149.48,
+          144.74,
+          148.83,
+          156.3,
+          159.8,
+          159.3
+        ],
+        "yTicks": [
+          140,
+          150,
+          160,
+          170
+        ],
+        "latestValue": 159.3,
+        "latestLabel": "'26/5",
+        "yMin": 135,
+        "yMax": 170
+      },
+      "duration_sec": 5.8
+    },
+    {
+      "type": "text",
+      "text": "투자자들은 저금리 통화인 엔화를 팔고 달러를 삽니다.",
+      "keywords": [
+        "투자자"
+      ],
+      "duration_sec": 3.45
+    },
+    {
+      "type": "text",
+      "text": "이것이 엔화 가치를 낮추는 핵심 메커니즘입니다.",
+      "keywords": [
+        "엔화 가치"
+      ],
+      "duration_sec": 3.3
+    }
+  ]
+}

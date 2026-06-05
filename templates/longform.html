@@ -11,7 +11,10 @@
 .draft-text  { font-size: .9rem; line-height: 1.7; white-space: pre-wrap; }
 .cite-tag    { color: #7fa3cc; font-size: .82rem; }
 .revise-area { width: 100%; min-height: 70px; padding: .6rem; background: var(--input-bg, #1e2030); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: .88rem; resize: vertical; box-sizing: border-box; margin-top: .5rem; }
-.edit-area   { width: 100%; min-height: 180px; padding: .6rem; background: var(--input-bg, #1e2030); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: .9rem; line-height: 1.7; resize: vertical; box-sizing: border-box; font-family: inherit; }
+.edit-area   { width: 100%; min-height: 180px; padding: .6rem; background: var(--input-bg, #1e2030); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: .9rem; line-height: 1.7; resize: vertical; box-sizing: border-box; font-family: inherit; overflow: hidden; }
+.gen-mode-tabs { display: flex; gap: .5rem; margin-bottom: 1.2rem; }
+.gen-mode-tab  { padding: .4rem 1rem; border-radius: 6px; font-size: .85rem; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-sub); transition: background .15s; }
+.gen-mode-tab.active { background: var(--accent, #1B2A4A); color: #fff; border-color: var(--accent, #1B2A4A); }
 .verify-box  { background: #1a2a1a; border: 1px solid #2a4a2a; border-radius: 8px; padding: 1rem; margin-top: .8rem; display: none; }
 .verify-label{ font-size: .78rem; color: #7ab87a; margin-bottom: .4rem; }
 .ja-box      { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
@@ -28,13 +31,6 @@
 </header>
 
 <main class="container">
-{% if not both_done %}
-  <div class="alert alert-error">슬롯 09·18이 모두 완성된 후 롱폼 생성이 가능합니다.</div>
-  <div style="text-align:center;margin-top:2rem">
-    <a href="/" class="btn btn-primary">← 홈으로</a>
-  </div>
-{% else %}
-
   <!-- 단계 표시 탭 -->
   <div class="wizard-tabs">
     <div class="wizard-tab active" id="tab-1">① 한국어 초안 검토</div>
@@ -46,10 +42,14 @@
   <!-- ① 한국어 초안 검토 -->
   <div id="step-1" class="wizard-step active">
     <div class="fetch-zone">
-      <p class="hint">당일 슬롯 09·18 기사를 기반으로 거시 원리형 한국어 초안을 생성합니다.<br>
-      GPT-4.1 5회 호출 — 예상 3~5분 소요. 생성 후 내용 확인 후 일본어 변환을 진행하세요.</p>
 
-        <!-- 발행 슬롯 선택 -->
+      <!-- 생성 모드 탭 -->
+      <div class="gen-mode-tabs">
+        <button class="gen-mode-tab active" id="tab-mode-article" onclick="setGenMode('article')">📰 기사 기반</button>
+        <button class="gen-mode-tab"        id="tab-mode-topic"   onclick="setGenMode('topic')">🗂 토픽 직접 지정</button>
+      </div>
+
+      <!-- 발행 슬롯 선택 (공통) -->
       <div style="margin-bottom:1rem; display:flex; align-items:center; gap:.8rem">
         <label style="font-size:.88rem; font-weight:600; white-space:nowrap">📅 발행 슬롯</label>
         <select id="lf-slot-select" class="btn btn-ghost"
@@ -60,9 +60,32 @@
         </select>
       </div>
 
-      <div id="ko-action-row" style="display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:1rem">
-        <button id="btn-gen-ko" class="btn btn-primary btn-lg" onclick="genKo()">
-          📄 한국어 초안 생성
+      <!-- [A] 기사 기반 패널 -->
+      <div id="panel-article">
+        {% if not both_done %}
+        <p class="hint" style="color:#e5a300; margin-bottom:.6rem">⚠️ 슬롯 09·18 모두 완성 후 사용 가능합니다.</p>
+        {% endif %}
+        <div id="ko-action-row" style="display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:1rem">
+          <button id="btn-gen-ko" class="btn btn-primary btn-lg" onclick="genKo()"
+                  {% if not both_done %}disabled{% endif %}>
+            📄 한국어 초안 생성
+          </button>
+        </div>
+      </div>
+
+      <!-- [B] 토픽 직접 지정 패널 -->
+      <div id="panel-topic" style="display:none; margin-bottom:1rem">
+        <p class="hint">토픽뱅크 active 토픽을 직접 선택합니다. 슬롯 09·18 완성 여부와 무관하게 사용 가능합니다.</p>
+        <div style="margin-bottom:.8rem">
+          <label style="font-size:.88rem; font-weight:600; display:block; margin-bottom:.4rem">토픽 선택</label>
+          <select id="topic-select" onchange="onTopicChange(this)"
+                  style="width:100%; padding:.45rem .7rem; font-size:.88rem; background:var(--input-bg,#1e2030); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer">
+            <option value="">-- 토픽을 선택하세요 --</option>
+          </select>
+          <p id="topic-principle" class="hint" style="margin-top:.5rem; display:none; color:#7fa3cc; font-size:.85rem; line-height:1.5"></p>
+        </div>
+        <button id="btn-gen-ko-topic" class="btn btn-primary btn-lg" onclick="genKoTopic()" disabled>
+          📄 토픽 기반 초안 생성
         </button>
       </div>
 
@@ -249,17 +272,59 @@
     </div>
   </div>
 
-{% endif %}
 </main>
 
 <script>
 const selectedBgs = {};
 const lfBgPages   = {0: 1};
-let verifyVisible = false;
-let selectedSlot  = "sun";
+let verifyVisible   = false;
+let selectedSlot    = "sun";
+let selectedTopicId = "";
 
-// 페이지 로드 시 기존 KO 초안 확인
+// ── 모드 전환 ─────────────────────────────────────────────
+function setGenMode(mode) {
+  document.getElementById("panel-article").style.display = mode === "article" ? "block" : "none";
+  document.getElementById("panel-topic").style.display   = mode === "topic"   ? "block" : "none";
+  document.getElementById("tab-mode-article").className =
+    "gen-mode-tab" + (mode === "article" ? " active" : "");
+  document.getElementById("tab-mode-topic").className =
+    "gen-mode-tab" + (mode === "topic" ? " active" : "");
+}
+
+// ── 토픽 드롭다운 ─────────────────────────────────────────
+function onTopicChange(sel) {
+  selectedTopicId = sel.value;
+  const opt = sel.selectedOptions[0];
+  const principleEl = document.getElementById("topic-principle");
+  if (selectedTopicId && opt?.dataset?.principle) {
+    principleEl.textContent = "📌 " + opt.dataset.principle;
+    principleEl.style.display = "block";
+  } else {
+    principleEl.style.display = "none";
+  }
+  document.getElementById("btn-gen-ko-topic").disabled = !selectedTopicId;
+}
+
+// 페이지 로드 시 토픽 목록 fetch + 기존 KO 초안 확인
 (async () => {
+  // 토픽 목록 로드
+  const tr = await fetch("/api/longform/topics").catch(() => null);
+  if (tr && tr.ok) {
+    const td = await tr.json();
+    const sel = document.getElementById("topic-select");
+    td.topics.forEach(t => {
+      const opt = document.createElement("option");
+      opt.value = t.id;
+      const marker = t.made ? "✅" : "⬜";
+      const dateStr = t.made_date ? ` (${t.made_date})` : "";
+      opt.textContent = `${marker} ${t.title_ko}　/　${t.title_ja}${dateStr}`;
+      opt.dataset.principle = t.principle || "";
+      if (t.made) opt.style.color = "#888";
+      sel.appendChild(opt);
+    });
+  }
+
+  // 기존 KO 초안 확인
   const r = await fetch("/api/longform/script/ko/read").catch(() => null);
   if (!r || !r.ok) return;
   const d = await r.json();
@@ -275,6 +340,11 @@ document.getElementById("revise-input")?.addEventListener("input", e => {
   document.getElementById("btn-revise").disabled = !e.target.value.trim();
 });
 
+// edit-area 편집 시 실시간 높이 추적
+["ko-intro", "ko-issue1", "ko-issue2", "ko-outro"].forEach(id => {
+  document.getElementById(id)?.addEventListener("input", e => autoResize(e.target));
+});
+
 async function loadExistingKo() {
   const r = await fetch("/api/longform/script/ko/read").catch(() => null);
   if (!r || !r.ok) { alert("로드 실패"); return; }
@@ -282,15 +352,27 @@ async function loadExistingKo() {
   if (d.exists) renderKoDraft(d);
 }
 
-async function genKo() {
-  document.getElementById("btn-gen-ko").style.display = "none";
+// ── KO 생성 ──────────────────────────────────────────────
+async function genKo()      { await _genKoWith(null); }
+async function genKoTopic() { if (selectedTopicId) await _genKoWith(selectedTopicId); }
+
+async function _genKoWith(topicId) {
+  document.getElementById("btn-gen-ko").disabled = true;
+  document.getElementById("btn-gen-ko-topic").disabled = true;
   document.getElementById("ko-existing-box").style.display = "none";
   document.getElementById("ko-loading").style.display = "flex";
   document.getElementById("ko-draft-area").style.display = "none";
 
-  const r = await fetch("/api/longform/script/ko", { method: "POST" });
+  const body = topicId ? { topic_id: topicId } : {};
+  const r = await fetch("/api/longform/script/ko", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
   document.getElementById("ko-loading").style.display = "none";
-  document.getElementById("btn-gen-ko").style.display = "inline-flex";
+  document.getElementById("btn-gen-ko").disabled = false;
+  document.getElementById("btn-gen-ko-topic").disabled = !selectedTopicId;
 
   if (!r.ok) {
     alert("초안 생성 실패: " + await r.text());
@@ -328,6 +410,12 @@ async function reviseKo() {
   document.getElementById("btn-revise").disabled = true;
 }
 
+function autoResize(el) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+
 function renderKoDraft(d) {
   // 모드·토픽 정보
   const modeEl = document.getElementById("ko-mode-info");
@@ -337,15 +425,22 @@ function renderKoDraft(d) {
     <div class="reason-text">${escHtml(d.reason_ko || "")}</div>
   `;
 
-  // 섹션 내용
-  document.getElementById("ko-intro").value           = d.intro?.script_ko || "";
+  // 섹션 내용 + 자동 높이 조정
+  const pairs = [
+    ["ko-intro",  d.intro?.script_ko || ""],
+    ["ko-issue1", d.issues?.[0]?.script_ko || ""],
+    ["ko-issue2", d.issues?.[1]?.script_ko || ""],
+    ["ko-outro",  d.outro?.script_ko || ""],
+  ];
   document.getElementById("ko-issue1-label").textContent = d.issues?.[0]?.title_ko || "이슈1";
-  document.getElementById("ko-issue1").value          = d.issues?.[0]?.script_ko || "";
   document.getElementById("ko-issue2-label").textContent = d.issues?.[1]?.title_ko || "이슈2";
-  document.getElementById("ko-issue2").value          = d.issues?.[1]?.script_ko || "";
-  document.getElementById("ko-outro").value           = d.outro?.script_ko || "";
+  pairs.forEach(([id, val]) => {
+    document.getElementById(id).value = val;
+  });
 
+  // display:block 먼저 → 레이아웃 확정 후 scrollHeight 측정
   document.getElementById("ko-draft-area").style.display = "block";
+  pairs.forEach(([id]) => autoResize(document.getElementById(id)));
 }
 
 async function saveDraftKo() {
