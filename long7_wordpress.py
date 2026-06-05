@@ -59,6 +59,32 @@ ISSUE_THUMB_FILES = {
     "issue2": "long_thumb_issue2.jpg",
 }
 
+SOURCE_INST_JA = {
+    "estat": "総務省統計局 e-Stat",
+    "boj":   "日本銀行 時系列統計",
+    "fred":  "米連邦準備制度（FRED）",
+}
+FALLBACK_SOURCE = "NHK ニュース / Yahoo Japan ビジネス"
+
+
+def _source_line(slug_keyword: str) -> str:
+    """topic_id → 실제 사용 데이터 소스 기관명. 토픽 없으면 뉴스 fallback."""
+    try:
+        with open("topic_bank.json", encoding="utf-8") as f:
+            bank = json.load(f)["topics"]
+        topic = next((t for t in bank if t["id"] == slug_keyword), None)
+        if not topic or not topic.get("data_sources"):
+            return FALLBACK_SOURCE
+        seen: list[str] = []
+        for src in topic["data_sources"]:
+            inst = SOURCE_INST_JA.get(src.get("source", ""))
+            if inst and inst not in seen:
+                seen.append(inst)
+        return " / ".join(seen) if seen else FALLBACK_SOURCE
+    except Exception:
+        return FALLBACK_SOURCE
+
+
 FURIGANA_PAT   = re.compile(r'[（(][^）)]*[）)]')  # ⑤ excerpt 후리가나 제거
 OPEN_BRACKETS  = set('「『（(')                     # ① 句点 분할 시 내부 무시용
 CLOSE_BRACKETS = set('」』）)')
@@ -313,6 +339,9 @@ def build_html_body(data: dict, yt_url, issue_img_urls: dict = None) -> str:
         BLOG_OUTRO_TMPL.format(url=yt_url) if yt_url else BLOG_OUTRO_NO_URL
     )
 
+    source_attr  = _source_line(data.get("_slug_keyword", ""))
+    source_block = f'<p><small><strong>参考データ</strong>：{source_attr}</small></p>\n'
+
     html = (
         f"<h2>今日のニュース</h2>\n"
         f"{intro_html}\n\n"
@@ -326,6 +355,7 @@ def build_html_body(data: dict, yt_url, issue_img_urls: dict = None) -> str:
         f"{to_paragraphs(issue2['script'])}\n\n"
         f"<h2>まとめ</h2>\n"
         f"{to_paragraphs(outro_script)}\n"
+        f"{source_block}"
         f"{blog_outro}\n"
         f"{AD_SLOT_3}\n"
     )
