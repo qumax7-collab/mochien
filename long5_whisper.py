@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 import json
 import subprocess
 from openai import OpenAI
@@ -48,10 +49,32 @@ KNOWN_ASR_ERRORS = [
 ]
 
 # ===== 자막 스타일 (1920×1080 기준) =====
-FONT_SIZE      = 72    # 쇼츠 132px → 가로형 비율 조정
+FONT_SIZE      = 90    # 쇼츠 132px → 가로형 비율 조정 / 40~60대 가독성 기준
 OUTLINE_SIZE   = 4
 WORDS_PER_LINE = 6     # 가로 화면이 넓으므로 쇼츠(4)보다 많게
 GAP_THRESHOLD  = 0.4
+
+YEAR_PAT = re.compile(r'20\d{2}年')
+
+
+def extract_script_years(text: str) -> set:
+    """스크립트 텍스트에서 20XX年 패턴 추출 → 정답 연도 집합."""
+    return set(YEAR_PAT.findall(text))
+
+
+def correct_year_tokens(segments: list, script_years: set) -> tuple:
+    """자막 연도 토큰을 대본 정답 집합과 대조해 교정. 연도 이외 수정 없음."""
+    if not script_years:
+        return segments, 0
+    fixed = 0
+    for seg in segments:
+        for wrong in YEAR_PAT.findall(seg["text"]):
+            if wrong not in script_years:
+                best = min(script_years, key=lambda y: abs(int(y[:4]) - int(wrong[:4])))
+                print(f"  [연도 교정] {wrong} → {best}")
+                seg["text"] = seg["text"].replace(wrong, best)
+                fixed += 1
+    return segments, fixed
 
 
 def apply_rule_corrections(segments):
@@ -248,6 +271,25 @@ def main():
     print(f"세그먼트 수: {len(segments)}")
     segments = apply_glossary(segments)
     segments = apply_rule_corrections(segments)
+
+    print("\n=== 2-1단계: 연도 토큰 대본 대조 교정 ===")
+    script_years: set = set()
+    if os.path.exists(LONG_SCRIPT_PATH):
+        try:
+            with open(LONG_SCRIPT_PATH, encoding="utf-8") as f:
+                d = json.load(f)
+            combined = " ".join(
+                d.get(k, {}).get("script", "")
+                for k in ["intro", "issue1", "issue2", "outro"]
+            )
+            script_years = extract_script_years(combined)
+        except Exception:
+            pass
+    print(f"대본 연도: {sorted(script_years) if script_years else '없음'}")
+    segments, n_yr = correct_year_tokens(segments, script_years)
+    if n_yr:
+        print(f"  연도 교정 {n_yr}건")
+
     for s in segments[:5]:
         print(f"  [{s['start']:.2f}s - {s['end']:.2f}s] {s['text']}")
 

@@ -1,7 +1,9 @@
 import sys
 import os
+import re
 import json
 import subprocess
+import requests
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -16,6 +18,9 @@ SRT_FILE = "subtitle.srt"
 GPT_RESULT_PATH = "gpt_result.json"
 GLOSSARY_PATH   = "glossary.json"
 
+# 자막 커버리지 검증
+SUBTITLE_COVERAGE_THRESHOLD = 2.0   # 첫 자막 시작이 이 값(초)을 초과하면 업로드 금지
+
 # 자막 스타일
 FONT_SIZE = 132
 OUTLINE_SIZE = 4
@@ -25,6 +30,28 @@ MAX_LINE_CHARS = 8       # 자막 한 줄 최대 글자 수 (132px × 8 = 1056px
 
 # 고유명사 교정
 GPT_CORRECTION_MODEL = "gpt-4.1-mini"
+
+YEAR_PAT = re.compile(r'20\d{2}年')
+
+
+def extract_script_years(text: str) -> set:
+    """스크립트 텍스트에서 20XX年 패턴 추출 → 정답 연도 집합."""
+    return set(YEAR_PAT.findall(text))
+
+
+def correct_year_tokens(segments: list, script_years: set) -> tuple:
+    """자막 연도 토큰을 대본 정답 집합과 대조해 교정. 연도 이외 수정 없음."""
+    if not script_years:
+        return segments, 0
+    fixed = 0
+    for seg in segments:
+        for wrong in YEAR_PAT.findall(seg["text"]):
+            if wrong not in script_years:
+                best = min(script_years, key=lambda y: abs(int(y[:4]) - int(wrong[:4])))
+                print(f"  [연도 교정] {wrong} → {best}")
+                seg["text"] = seg["text"].replace(wrong, best)
+                fixed += 1
+    return segments, fixed
 
 
 def wrap_text(text, sep):
@@ -70,9 +97,9 @@ def transcribe(api_key):
         try:
             with open(GPT_RESULT_PATH, encoding="utf-8") as f:
                 gpt = json.load(f)
-            title_hook = f"{gpt.get('title', '')} {gpt.get('hook', '')}".strip()
-            if title_hook:
-                initial_prompt = f"モチエン {title_hook}"
+            title = gpt.get('title', '').strip()
+            if title:
+                initial_prompt = f"モチエン {title}"
         except Exception:
             pass
     print(f"Whisper API 전송 중: {INPUT_AUDIO}")
@@ -112,6 +139,52 @@ def group_words(words):
             current = []
 
     return segments
+
+
+def _send_telegram(message):
+    """자막 검증 실패 텔레그램 알림 (실패해도 파이프라인 계속 중단 처리는 호출측에서)."""
+    token   = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": message},
+            timeout=5,
+        )
+    except Exception:
+        pass
+
+
+def validate_subtitle_coverage(srt_path, threshold_sec=SUBTITLE_COVERAGE_THRESHOLD):
+    """
+    SRT 첫 이벤트 시작이 threshold_sec 초과이면 sys.exit(1).
+    더미 자막·자동 보정 금지. 실패 사유를 콘솔·텔레그램으로 출력.
+    """
+    with open(srt_path, encoding="utf-8") as f:
+        content = f.read()
+
+    m = re.search(r"(\d{2}):(\d{2}):(\d{2}),(\d{3})\s*-->", content)
+    if not m:
+        msg = f"[자막 검증 실패] {srt_path}: 타임코드를 파싱할 수 없습니다. 업로드 금지."
+        print(msg)
+        _send_telegram(msg)
+        sys.exit(1)
+
+    h, mn, s, ms = int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4))
+    first_start = h * 3600 + mn * 60 + s + ms / 1000
+
+    if first_start > threshold_sec:
+        msg = (
+            f"[자막 커버리지 불합격] 첫 자막 시작: {first_start:.3f}초 "
+            f"(임계값: {threshold_sec}초) — 도입부 {first_start:.1f}초 무자막. 업로드 금지."
+        )
+        print(msg)
+        _send_telegram(msg)
+        sys.exit(1)
+
+    print(f"[자막 커버리지 OK] 첫 자막 시작: {first_start:.3f}초 (임계값: {threshold_sec}초 이내)")
 
 
 # 규칙 기반 선처리: (잘못된 표기, 올바른 표기)
@@ -341,6 +414,21 @@ def main():
     print("\n=== 2-1단계: 고유명사 교정 ===")
     segments = correct_proper_nouns(segments, api_key)
 
+    print("\n=== 2-2단계: 연도 토큰 대본 대조 교정 ===")
+    script_years: set = set()
+    if os.path.exists(GPT_RESULT_PATH):
+        try:
+            with open(GPT_RESULT_PATH, encoding="utf-8") as f:
+                gpt = json.load(f)
+            combined = f"{gpt.get('hook', '')} {gpt.get('script', '')}"
+            script_years = extract_script_years(combined)
+        except Exception:
+            pass
+    print(f"대본 연도: {sorted(script_years) if script_years else '없음'}")
+    segments, n_yr = correct_year_tokens(segments, script_years)
+    if n_yr:
+        print(f"  연도 교정 {n_yr}건")
+
     for s in segments[:5]:
         print(f"  [{s['start']:.2f}s - {s['end']:.2f}s] {s['text']}")
 
@@ -356,6 +444,9 @@ def main():
     with open(SRT_FILE, "w", encoding="utf-8") as f:
         f.write(srt_content)
     print(f"{SRT_FILE} 저장 완료")
+
+    print("\n=== 3-1단계: 자막 커버리지 검증 ===")
+    validate_subtitle_coverage(SRT_FILE)
 
     print("\n=== 4단계: FFmpeg 자막 합성 ===")
     if not burn_subtitles(font_dir):
