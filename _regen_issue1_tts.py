@@ -4,7 +4,6 @@ intro / issue2 / outro 음성 파일은 무변경 재사용.
 """
 import sys
 import os
-import re
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -24,44 +23,6 @@ from long2_tts import (
 )
 
 REUSE_SECTIONS = ["long_voice_intro.mp3", "long_voice_issue2.mp3", "long_voice_outro.mp3"]
-
-_PCT_PAT  = re.compile(r'\d+\.?\d*[%％]')
-_YEAR_MON = re.compile(r'20\d{2}年\d*月?')
-
-
-def check_outro_dirty():
-    """outro에 issue 수치(%)·연월이 잔류하는지 검사. 경고만, 중단 없음."""
-    if not os.path.exists(LONG_SCRIPT_FILE):
-        print("[outro 검사 건너뜀] long_script.json 없음")
-        return
-
-    with open(LONG_SCRIPT_FILE, encoding="utf-8") as f:
-        data = json.load(f)
-
-    issue_text = " ".join(
-        data.get(k, {}).get("script", "") for k in ["issue1", "issue2"]
-    )
-    outro_text = data.get("outro", {}).get("script", "")
-
-    issue_pcts  = set(_PCT_PAT.findall(issue_text))
-    outro_pcts  = set(_PCT_PAT.findall(outro_text))
-    issue_dates = set(_YEAR_MON.findall(issue_text))
-    outro_dates = set(_YEAR_MON.findall(outro_text))
-
-    dirty_pcts  = outro_pcts  - issue_pcts
-    dirty_dates = outro_dates - issue_dates
-
-    if dirty_pcts or dirty_dates:
-        print("\n[⚠ outro dirty 검사 — 불일치 발견]")
-        if dirty_pcts:
-            print(f"  비율(%) outro에만 있음: {sorted(dirty_pcts)}")
-            print(f"  issue1·2 비율:         {sorted(issue_pcts)}")
-        if dirty_dates:
-            print(f"  연월 outro에만 있음:   {sorted(dirty_dates)}")
-            print(f"  issue1·2 연월:         {sorted(issue_dates)}")
-        print("  → outro에 구 수치 잔류 가능성. 대본 확인 후 outro TTS를 재생성하세요.")
-    else:
-        print("\n[outro 검사 OK] 비율(%)·연월 일치 확인")
 
 
 def main():
@@ -103,9 +64,6 @@ def main():
     print(f"  연결 완료 ({size_mb:.1f}MB)")
 
     build_chapters()
-
-    print("\n=== outro dirty 검사 ===")
-    check_outro_dirty()
     print("\n=== issue1 TTS 재생성 완료 ===")
 
 

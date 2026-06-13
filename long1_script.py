@@ -40,6 +40,38 @@ DATA_BLOCK_DEFAULT_MONTHS = 60    # data_months 미지정 토픽의 fetch 기간
 DATA_BLOCK_TREND_MONTHS   = 12    # 주 소스 추이 표시 개월수
 DATA_BLOCK_HIST_MONTHS    = [12, 36, 60]  # 과거 비교 오프셋 (1년전, 3년전, 5년전)
 
+CHART_TAG_RULES = """\
+【차트 태그 규칙 — 이슈 전 섹션 공통】
+배치 원칙 (한 문단 = 한 차트):
+  · 차트가 필요한 주제는 그 주제만 다루는 독립 문단으로 분리한다.
+  · 여는 태그(===차트[항목, 시점]===)는 해당 문단의 맨 첫 줄.
+  · 닫는 태그(===차트끝===)는 해당 문단의 맨 끝 줄.
+  · 한 문단의 내레이션 전체 = 그 차트의 음성 문장. 문단 중간에 태그를 끼워 넣지 않는다.
+  · 한 문단 안에 여는 태그를 2개 이상 쓰지 않는다.
+
+형식:
+  ===차트[항목, 시점]===
+  (이 차트 주제만 다루는 내레이션 문단)
+  ===차트끝===
+
+항목 표기:
+  · 단일 항목: [食料, 시점]
+  · 비교 차트: [A vs B, 시점]  ← 반드시 " vs " 로 연결. 콤마로 항목 나열 금지 (예: [食料, 総合, 시점] → 금지).
+
+시점 표기:
+  · 단일 시점: [항목, 2026-04]
+  · 기간(추이): [항목, 2025-04→2026-04]  ← "→" 로 연결.
+
+절대 금지:
+  · 항목 없는 태그: ===차트=== 또는 ===차트[, 시점]=== — 항목이 비어 있으면 출력하지 않는다.
+  · 짝 없는 태그: 여는 태그(===차트[…]===)에는 반드시 닫는 태그(===차트끝===)가 뒤따라야 한다.
+  · 음성문장 없는 차트 태그: 차트 태그 내부(===차트끝=== 전)에 반드시 내레이션 문장을 포함할 것.
+    내레이션 없이 비어 있는 차트 태그 금지. 음성문장이 채워진 차트 태그로 섹션을 시작하는 것은 허용.
+  · 문단 중간 삽입: 차트 태그를 일반 문장 사이에 끼워 넣지 않는다. 태그는 반드시 문단 경계에만 위치.
+  · raw 수치: 태그 [ ] 안과 내레이션에 숫자 수치를 직접 쓰지 않는다 (화면 차트가 담당).
+  · 항목 임의 생성: data_block에 실존하는 항목명만 사용.\
+"""
+
 
 # ===== 일본어 변환 시스템 프롬프트 (JA 단계 — モチエン 페르소나) =====
 SYSTEM_JA = """\
@@ -81,14 +113,15 @@ SYSTEM_JA = """\
 - すべて自然な日本語の文章として統合すること
 - 「背景として〜」「実はここがポイントです」などの繋ぎ言葉を使うこと
 - 誤読しやすい漢字にはふりがなを括弧で併記すること（例：財務省（ざいむしょう））
-- アウトロの末尾は必ず以下の2行で締めること:
-  「以上、モチエンがお伝えしました！
+- アウトロの末尾は必ず以下の3行で締めること:
+  「皆さんはどう思いますか？コメントで教えてください！
+   以上、モチエンがお伝えしました！
    チャンネル登録お願いします！」
 
 【話者視点 — 全セクション共通（永続ルール）】
 モチエンは日本人の話者が日本の視聴者に語りかけるチャンネルです。
 [禁止]「日本の場合」「日本では」のように自国を外部から分析するような表現。
-[推奨]「私たちの食卓では」「日本に住む私たちにとっては」/ 主語省略（例：「食料価格が上がると…」）。
+[推奨]「私たちの生活では」「日本に住む私たちにとっては」/ 主語省略（例：「物価が上がると…」）。
 [例外] 他国と明示的に比較する文脈でのみ「日本は〜」の使用可。
 
 【変換ルール】
@@ -108,17 +141,13 @@ SYSTEM_KO = """\
 【최우선 출력 규칙】
 script_ko에는 시청자에게 그대로 읽어줄 완성 문장만. 작업 지시·메타 설명·괄호 라벨 절대 금지.
 
-【시청자 전제 — 전 섹션 공통】
-이 대본의 시청자는 일본에 사는 일본인이다. 다음을 전제로 쓴다:
-- 시청자에게 일본은 '자국'. 해외여행의 예로 '일본 여행'을 들지 말 것(해외=일본 밖).
-- 시청자는 엔화로 급여를 받고 엔화로 생활한다. '엔화로 월급을 받는다면' 같은 조건문 금지.
-- 생활 예시는 일본 거주자의 일상(일본 마트·일본 물가·일본 직장) 기준.
-- 한국·한국인 시점의 비유·예시·환전 상황을 쓰지 말 것.
-
-【화자 시점 — 전 섹션 공통 (영구 규칙)】
+【시청자·화자 시점 — 전 섹션 공통 (영구 규칙)】
 모찌엔은 일본인 화자가 일본 시청자에게 말하는 채널이다.
+시청자에게 일본은 '자국'. 생활 예시는 일본 거주자의 일상(일본 마트·일본 물가·일본 직장) 기준.
+시청자는 엔화로 급여를 받고 엔화로 생활한다. '엔화로 월급을 받는다면' 같은 조건문 금지.
+해외여행의 예로 '일본 여행'을 들지 말 것(해외=일본 밖). 한국·한국인 시점의 비유·예시 금지.
 [금지] "일본의 경우" / "일본에서는" 처럼 자국을 외부에서 분석하는 표현.
-[권장] "우리 식탁에서는" / "일본에 사는 우리에게는" / 주어 생략(예: "식품 가격이 오르면…").
+[권장] "우리 생활에서는" / "일본에 사는 우리에게는" / 주어 생략(예: "물가가 오르면…").
 [예외] 다른 나라와 명시적으로 비교하는 맥락에서만 "일본은~" 지칭 가능.
 
 【절대 금지 — 완화 불가】
@@ -131,9 +160,9 @@ script_ko에는 시청자에게 그대로 읽어줄 완성 문장만. 작업 지
 이미 가진 공공데이터를 분해·연결·인과 해석하는 것은 적극 권장한다.
 "이미 일어난 일이 왜 그렇게 됐는가"를 끝까지 설명하는 것은 예측이 아니라 메커니즘 설명이다.
 데이터 근거 블록이 있는 경우, 아래 순서로 전개한다:
-  ① 분해: 무엇이 오르고 무엇이 내렸는지 수치로 분리
+  ① 분해: 블록에 여러 하위 항목이 있는 경우만 — 항목별 방향·크기 변화를 수치로 분리
   ② 연결: 각 항목 변동의 인과 사슬 (왜 그렇게 됐는가)
-  ③ 반직관: 체감과 통계의 괴리, 또는 상식과 다른 포인트
+  ③ 반직관: 예상을 벗어나는 사실, 또는 상식과 다른 포인트 (체감·통계 괴리 있으면 포함)
 
 【principle 사용 규칙】
 principle은 '내용 설계도'다. 서술 방향·핵심 원리를 제시할 뿐이다.
@@ -143,11 +172,14 @@ principle 문장을 그대로 대본에 복사하지 말 것. 화자 말투·경
 1. 경제 입문자 기준. 전문 용어는 쉽게 설명. 뉴스는 원리의 '입구' — 인과 메커니즘 설명까지.
    구어 해설체(~습니다/~죠/~이에요) 통일. 명사 종결("늘어남") 및 메모체 금지.
 2. 데이터 근거 블록 수치만 인용. 블록 밖 수치 생성 절대 금지.
-   수치 언급 시 기준시점(예: '2026年3月時点') 명시. '今日' '今週' '先月' 등 상대 시점 표현 금지.
+   수치 언급 시 기준시점은 데이터 근거 블록에 표시된 형식 그대로 사용. '今日' '今週' '先月' 등 상대 시점 표현 금지.
    블록이 없으면 수치 없이 원리로만.
-3. 출력은 JSON만. 마크다운(``` 등) 절대 금지.
-   대본 본문에 내부 라벨(issue1/issue2/intro/outro/이슈1/이슈2/なぜ/誰が 등) 금지. 섹션 연결은 구어체로.
-4. 기사 수치·고유명사 인용 시 [출처: 기사1] 또는 [출처: 기사2] 표기.\
+3. 이슈 섹션(issue1·issue2)은 해당 이슈의 핵심 수치를 본문에 최소 1개 포함할 것(누락 금지).
+   수치 표현: 자릿수가 많아 구어로 읽기 불편한 큰 수는 어림으로 풀 것 (예: 731,205명 → "약 73만 명").
+   짧고 자연스러운 수는 그대로 읽을 것 (예: 출산율 1.2 / 170엔).
+   어림은 data_block 실값에서 반올림으로 유도하는 것만 허용. 데이터에 없는 수 생성 절대 금지.
+4. 출력은 JSON만. 마크다운(``` 등) 절대 금지.
+   대본 본문에 내부 라벨(issue1/issue2/intro/outro/이슈1/이슈2/なぜ/誰が 등) 금지. 섹션 연결은 구어체로.\
 """
 
 
@@ -179,6 +211,22 @@ def _trend_line(obs: list, latest_date: str, n: int) -> str:
     return " / ".join(f"{o['date']}:{o['value']:+.1f}" for o in tail)
 
 
+def _normalize_date_label(date_str: str, frequency: str) -> str:
+    """latest_date → 데이터 블록·ref_date_block 표시용 라벨 변환.
+    ANNUAL: 'YYYY' / 'YYYY-MM-DD' → 'YYYY年'
+    MONTHLY: 'YYYY-MM' → 'YYYY年M月'
+    """
+    if not date_str:
+        return date_str
+    if frequency == "ANNUAL":
+        return f"{date_str[:4]}年"
+    if frequency == "MONTHLY" and len(date_str) >= 7:
+        parts = date_str.split("-")
+        if len(parts) >= 2:
+            return f"{parts[0]}年{int(parts[1])}月"
+    return date_str
+
+
 def _fetch_source(src: dict, months: int = DATA_BLOCK_DEFAULT_MONTHS):
     """단일 data_source dict를 fetch. 실패(sys.exit 포함) 시 None 반환."""
     try:
@@ -202,10 +250,12 @@ def _fetch_source(src: dict, months: int = DATA_BLOCK_DEFAULT_MONTHS):
         return None
 
 
-def build_data_block(topic: dict) -> str:
+def build_data_block(topic: dict) -> tuple:
     """
     topic의 data_sources를 fetch해서 GPT 주입용 데이터 근거 블록 텍스트 구성.
-    전체 fetch 실패 시 빈 문자열 반환.
+    반환: (block_text: str, issue1_ref_date: str)
+    issue1_ref_date = primary 소스의 latest_date (없으면 첫 소스, 전체 실패면 "").
+    전체 fetch 실패 시 ("", "") 반환.
 
     - 단일 소스 토픽: 기존 포맷 유지 (풍부 포맷 + 전년동월 비교)
     - 다중 소스 토픽: 비교 스냅샷 1줄 + 주 소스(과거 비교·추이) + 보조 소스(압축)
@@ -213,17 +263,10 @@ def build_data_block(topic: dict) -> str:
     """
     sources = topic.get("data_sources", [])
     if not sources:
-        return ""
+        return "", ""
 
     fetch_months = topic.get("data_months", DATA_BLOCK_DEFAULT_MONTHS)
     is_multi     = len(sources) > 1
-
-    header = [
-        "【데이터 근거 블록】",
-        "아래 수치만 인용 가능. 블록 밖의 수치·주장·예측 생성 절대 금지.",
-        "에버그린 규칙: 수치 언급 시 반드시 '○○年○月時点' 기준시점 명시. 상대적 시점 표현 금지.",
-        "",
-    ]
 
     # fetch all sources
     fetched: list = []  # [(src_dict, data_dict)]
@@ -236,7 +279,25 @@ def build_data_block(topic: dict) -> str:
         fetched.append((src, data))
 
     if not fetched:
-        return ""
+        return "", ""
+
+    primary_entry   = next(((s, d) for s, d in fetched if s.get("primary")), fetched[0])
+    primary_freq    = primary_entry[1].get("frequency", "")
+    issue1_ref_date = _normalize_date_label(
+        primary_entry[1].get("latest_date", ""), primary_freq
+    )
+
+    if primary_freq == "ANNUAL":
+        _time_rule = "연간 데이터 — 기준시점은 연도만 표기(예: '2024年時点'). 月 추가 금지."
+    else:
+        _time_rule = "기준시점은 연월 명시(예: '2026年4月時点')."
+
+    header = [
+        "【데이터 근거 블록】",
+        "아래 수치를 근거로 대본 작성. 자연스러운 어림 허용(예: 727,288 → '약 73万'·'70万 중반'). 단 실제값과 다른 자릿수·구간으로 오해되는 표현 금지(예: 727,288을 '70万 조금 넘음' NG — 실제 73万 수준). 블록 밖 수치·주장·예측 생성 절대 금지.",
+        f"에버그린 규칙: 수치 언급 시 기준시점 명시 필수. {_time_rule} 상대적 시점 표현 금지.",
+        "",
+    ]
 
     body: list[str] = []
 
@@ -250,8 +311,8 @@ def build_data_block(topic: dict) -> str:
             short   = parts[1].split("(")[0] if len(parts) > 1 else desc_ko[:8]
             val     = data.get("latest_value")
             snap_parts.append(f"{short}:{val:+.1f}")
-        snap_date = fetched[0][1].get("latest_date", "")
-        body.append(f"품목별 비교 스냅샷 (前年同月比, {snap_date}기준): " + " / ".join(snap_parts))
+        snap_date_label = _normalize_date_label(fetched[0][1].get("latest_date", ""), first_freq)
+        body.append(f"품목별 비교 스냅샷 (前年同月比, {snap_date_label}기준): " + " / ".join(snap_parts))
         body.append("")
 
     # ── 소스별 상세 출력 ─────────────────────────────
@@ -261,8 +322,10 @@ def build_data_block(topic: dict) -> str:
         desc   = src.get("desc_ko", src.get("source", ""))
         obs    = data.get("observations", [])
         latest = data.get("latest_value")
-        ld     = data.get("latest_date", "")
-        unit   = data.get("unit") or data.get("units", "")
+        ld       = data.get("latest_date", "")
+        unit     = data.get("unit") or data.get("units", "")
+        freq     = data.get("frequency", "")
+        ld_label = _normalize_date_label(ld, freq)
 
         if src.get("primary") or not is_multi:
             # ── 풍부 포맷 (주 소스 또는 단일 소스) ──
@@ -272,10 +335,11 @@ def build_data_block(topic: dict) -> str:
                 pd       = obs[-2]["date"]
                 diff     = latest - prev
                 sign     = "+" if diff >= 0 else ""
-                diff_str = f" / 직전 대비: {sign}{diff:.2f} (직전값: {prev}, {pd})"
+                pd_label = _normalize_date_label(pd, freq)
+                diff_str = f" / 직전 대비: {sign}{diff:.2f} (직전값: {prev}, {pd_label})"
 
             body.append(f"{tag}{desc}")
-            body.append(f"       최신값: {latest}  단위: {unit}  기준시점: {ld}{diff_str}")
+            body.append(f"       최신값: {latest}  단위: {unit}  기준시점: {ld_label}{diff_str}")
 
             if is_multi and data.get("frequency") == "MONTHLY":
                 # 과거 비교 (1년전, 3년전, 5년전) — 월차 다중 소스에서만
@@ -315,11 +379,11 @@ def build_data_block(topic: dict) -> str:
                 if yoy_val is not None else ""
             )
             body.append(f"{tag}{desc}")
-            body.append(f"       최신값: {latest}  기준시점: {ld}{yoy_str}")
+            body.append(f"       최신값: {latest}  기준시점: {ld_label}{yoy_str}")
 
         success += 1
 
-    return "\n".join(header + body) if success > 0 else ""
+    return ("\n".join(header + body), issue1_ref_date) if success > 0 else ("", "")
 
 
 # ─────────────────────────────────────────
@@ -554,6 +618,113 @@ def call_issue_retry(client, name: str, prompt: str, result: dict) -> tuple:
     return call_ko_section(client, name + "_retry", prompt)
 
 
+def _validate_numerics(ko_data: dict) -> None:
+    """
+    이슈 섹션 script_ko의 단위 붙은 수치(%, 円, 万, 兆, 億)가
+    _data_block에서 역추적 가능한지 검사.
+    역추적 불가 수치 발견 시 sys.exit(1). 과검출 우선(안전측).
+    data_block 없으면 건너뜀.
+    """
+    import re as _re
+
+    data_block = ko_data.get("_data_block", "")
+    if not data_block:
+        print("  [수치 검증 건너뜀] _data_block 없음")
+        return
+
+    # data_block에서 모든 숫자 수집 (정수·소수 포함)
+    block_nums = set(_re.findall(r"\d+(?:\.\d+)?", data_block))
+
+    # 단위 붙은 수치 패턴 (년/월/일 문맥 제외)
+    _date_ctx = _re.compile(r"\d{4}[年]\d{1,2}[月](?:\d{1,2}[日])?|\d{4}[年]")
+    _num_unit  = _re.compile(r"(\d+(?:\.\d+)?)\s*[%％円万兆億]")
+
+    flagged = []
+    for idx, issue in enumerate(ko_data.get("issues", []), 1):
+        text = issue.get("script_ko", "")
+        # 날짜 문맥 제거 후 수치 추출
+        text_stripped = _date_ctx.sub("", text)
+        for m in _num_unit.finditer(text_stripped):
+            num_str = m.group(1)
+            if num_str in block_nums:
+                continue
+            flagged.append(
+                f"  issue{idx}: '{m.group(0)}' — _data_block 미포함 (data_block 외 수치 생성 의심)"
+            )
+
+    if flagged:
+        print("\n[수치 검증 실패] data_block 밖 수치 검출:")
+        for f in flagged:
+            print(f)
+        print("  → data_block에 없는 수치는 발화 금지. --stage ko 재생성 또는 수동 수정 필요.")
+        sys.exit(1)
+
+    print(f"  [수치 검증 OK] 이슈 수치 → data_block 역추적 완료")
+
+
+def _check_outro_dirty(ko_data: dict) -> None:
+    """
+    outro script_ko에 issue1·2 수치(%)·연월이 잔류하는지 검사.
+    잔류 탐지·경고까지만. 자동 재생성 금지.
+    """
+    import re as _re
+    _pct  = _re.compile(r'\d+\.?\d*[%％]')
+    _year = _re.compile(r'20\d{2}年\d*月?')
+
+    issues = ko_data.get("issues", [])
+    issue_text = " ".join(i.get("script_ko", "") for i in issues)
+    outro_text = ko_data.get("outro", {}).get("script_ko", "")
+
+    issue_pcts  = set(_pct.findall(issue_text))
+    outro_pcts  = set(_pct.findall(outro_text))
+    issue_dates = set(_year.findall(issue_text))
+    outro_dates = set(_year.findall(outro_text))
+
+    dirty_pcts  = outro_pcts  - issue_pcts
+    dirty_dates = outro_dates - issue_dates
+
+    if dirty_pcts or dirty_dates:
+        print("\n  [⚠ outro dirty 검사 — 불일치 발견]")
+        if dirty_pcts:
+            print(f"    비율(%) outro에만 있음: {sorted(dirty_pcts)}")
+            print(f"    issue1·2 비율:         {sorted(issue_pcts)}")
+        if dirty_dates:
+            print(f"    연월 outro에만 있음:   {sorted(dirty_dates)}")
+            print(f"    issue1·2 연월:         {sorted(issue_dates)}")
+        print("    → outro에 구 수치 잔류 가능성. --stage ko 재실행 또는 수동 수정 필요.")
+    else:
+        print("  [outro dirty 검사 OK] 비율(%)·연월 일치 확인")
+
+
+def validate_ko_issues(ko_data: dict) -> None:
+    """
+    각 이슈 섹션 첫 차트 태그 내부 음성문장이 비어 있으면 sys.exit(1).
+    음성문장이 채워진 차트 태그로 시작하는 것은 정상(통과).
+    """
+    import re as _re
+    chart_pat = _re.compile(
+        r'===차트\[([^\]]+)\]===[ \t]*\n?(.*?)\n?[ \t]*===차트끝===',
+        _re.DOTALL,
+    )
+    errors = []
+    for idx, issue in enumerate(ko_data.get("issues", []), 1):
+        script = issue.get("script_ko", "")
+        m = chart_pat.search(script)
+        if m and not m.group(2).strip():
+            errors.append(
+                f"  issue{idx}: 첫 차트 태그 [{m.group(1).strip()}] 내부 음성문장 비어있음"
+            )
+    if errors:
+        print("\n[검증 실패] 음성문장 없는 차트 태그 검출:")
+        for e in errors:
+            print(e)
+        print("  → --stage ko를 다시 실행하거나 long_script_ko.json을 직접 수정하세요.")
+        sys.exit(1)
+    print("  [검증 통과] 이슈 섹션 첫 차트 내레이션 확인 완료")
+    _validate_numerics(ko_data)
+    _check_outro_dirty(ko_data)
+
+
 def stage_ko(client, r_list, bank, history, revise=None, topic_override=None) -> dict:
     """
     KO 단계: 한국어 거시 원리형 대본 생성 → long_script_ko.json 저장.
@@ -591,12 +762,15 @@ def stage_ko(client, r_list, bank, history, revise=None, topic_override=None) ->
             print(f"  [경고] topic_id '{topic_id}'가 topic_bank에 없습니다.")
         angles = judgment
 
-    issue1_angle = angles.get("issue1_angle", "원리·메커니즘")
-    issue2_angle = angles.get("issue2_angle", "가계 생활 체감")
+    issue1_angle     = angles.get("issue1_angle", "원리·메커니즘")
+    exp_dist         = (topic_entry or {}).get("experience_distance", "indirect")
+    data_struct      = (topic_entry or {}).get("data_structure",      "single-series")
+    _issue2_fallback = "가계 생활 체감" if exp_dist == "direct" else "세부 영향·구조 분석"
+    issue2_angle     = angles.get("issue2_angle", _issue2_fallback)
 
     # ── 데이터 근거 블록 fetch ────────────────────────────
     print("  데이터 근거 블록 fetch 중...")
-    data_block = build_data_block(topic_entry) if topic_entry else ""
+    data_block, issue1_ref_date = build_data_block(topic_entry) if topic_entry else ("", "")
     if not data_block:
         if DATA_BLOCK_ALL_FAIL_ABORT:
             print("[오류] 데이터 근거 블록 fetch 전체 실패.")
@@ -620,13 +794,27 @@ def stage_ko(client, r_list, bank, history, revise=None, topic_override=None) ->
             f"■ 기사2: {r_list[1]['title']} / {r_list[1].get('korean_summary', '')}"
         )
     else:
-        article_block = (
-            "【기사 없음】\n"
-            "이 원리가 시청자 일상에서 언제 체감되는지를 도입 소재로 쓰세요.\n"
-            "(예: 경기가 좋다/나쁘다는 뉴스가 나올 때 느끼는 막연한 의문)"
-        )
+        if exp_dist == "direct":
+            article_block = (
+                "【기사 없음】\n"
+                "이 원리가 시청자 일상에서 언제 체감되는지를 도입 소재로 쓰세요.\n"
+                "(예: 장바구니 가격이 오를 때, 전기료 고지서를 받을 때 드는 의문)"
+            )
+        else:
+            article_block = (
+                "【기사 없음】\n"
+                "이 원리가 뉴스·통계에서 어떻게 드러나는지를 도입 소재로 쓰세요.\n"
+                "일상 체감 장면을 억지로 붙이지 않아도 됨. 통계 수치나 원리적 의문 활용 권장.\n"
+                "(예: 경기가 좋다/나쁘다는 뉴스가 나올 때 느끼는 막연한 의문)"
+            )
 
     # ── 2. 인트로 — 첫 15초 콜드오픈 (질문형) ───────────
+    _intro_hook_hint = (
+        "방향 예시: 체감 사례와 통계의 역설을 연결하는 의문으로. "
+        "예: \"에너지 가격은 내렸는데 왜 장바구니는 더 무거운가\""
+        if exp_dist == "direct" else
+        "방향 예시: 통계 수치나 원리 자체에서 나오는 의문으로. 일상 체감 장면을 억지로 붙이지 않아도 됨."
+    )
     print("[KO 2/5] 인트로 한국어 초안 생성 중...")
     intro_prompt = f"""\
 롱폼 영상의 인트로(첫 15초 콜드오픈)를 한국어로 작성하세요.{revise_prefix}
@@ -639,7 +827,7 @@ def stage_ko(client, r_list, bank, history, revise=None, topic_override=None) ->
 
 규칙:
 - 데이터에서 나온 반직관적 의문으로 열 것.
-  방향 예시: "에너지 가격은 내렸는데 왜 장바구니는 더 무거운가" 처럼 통계의 역설을 미끼로.
+  {_intro_hook_hint}
 - 인트로에서 답·결론·수치를 주지 않는다. 의문을 던지고 끝까지 봐야 풀리게.
 - 인사·자기소개 금지 / 3~5문장으로 간결하게
 
@@ -654,14 +842,25 @@ JSON 출력:
     print(f"      완료 ({len(intro_result.get('script_ko', ''))}자)")
 
     # ── 3. 이슈1 — 「なぜ」: 인과 메커니즘 설명 ─────────
+    _issue1_scene_rule = (
+        "- 일상 비유 또는 구체 장면을 활용해 설명할 것."
+        if exp_dist == "direct" else
+        "- 원리·인과 구조 중심으로 설명할 것. 자연스러운 일상 예시는 활용 가능하지만 억지 장면 금지."
+    )
     print("[KO 3/5] 이슈1(なぜ) 한국어 초안 생성 중...")
+    ref_date_block = (
+        f"\n\n【이슈1 기준 시점 — 코드 확정값】\n"
+        f"대표 수치 기준시점: {issue1_ref_date}\n"
+        f"이 시점을 대본 내러티브와 차트 태그 양쪽에 그대로 사용할 것."
+        if issue1_ref_date else ""
+    )
     issue1_prompt = f"""\
 롱폼 이슈1 섹션을 한국어로 작성하세요.{revise_prefix}
 
 【이슈1 역할 — 원리 + 대표 수치】
-"왜 항목마다 방향이 갈리는가"의 메커니즘·개념 설명 담당.
-큰 대표 수치 1~2개(예: 총합 vs 食料 전년동월비 대비)는 허용.
-세부 품목 분해(穀類/生鮮食品/エネルギー 각각)는 이슈2에서 다룬다.
+principle이 제시한 메커니즘·인과 구조를 설명하는 섹션.
+data_block에서 큰 대비를 보여주는 대표 수치 1~2개는 허용.
+세부 항목 분해는 이슈2에서 다룬다.
 
 【이슈1 각도】{issue1_angle}
 이 각도 하나를 처음부터 끝까지 한 흐름으로 깊게 풀 것. 여러 갈래로 얕게 훑지 말 것.
@@ -671,17 +870,14 @@ JSON 출력:
 {topic_ja}
 설명 방향: {principle}
 
-【인트로 핵심 질문】
-{intro_result.get('script_ko', '')}
+【인트로 핵심 질문 — 컨텍스트 전용, 반복 금지】
+{intro_result.get('script_ko', '')}{ref_date_block}
 
 규칙:
-- 일상 비유 또는 구체 장면을 활용해 설명할 것.
-- 대표 수치는 data_block 최신월 기준. 이슈2와 기준 시점을 통일한다.
+- 인트로 본문을 그대로 반복하지 말 것. 이슈1은 인트로 다음 내용부터 시작할 것.
+{_issue1_scene_rule}
 
-차트 태그 형식: ===차트[항목명, 시점]=== 음성문장 ===차트끝===
-- [ ] 안: 무엇을 그릴지 지정 (data_block에 실제 존재하는 항목명만). 예: "총합 vs 食料, 최신월"
-- 태그 안 음성문장: 수치를 말로 풀어 표현 ("두 배 넘게 올랐습니다" 류). raw 수치 숫자는 불필요 (화면 차트가 보여줌).
-- 이슈1은 차트 1개. 수치 없는 서술이 이어질 때만 닫는다 (짧은 깜빡임 금지).
+{CHART_TAG_RULES}
 
 JSON 출력:
 {{
@@ -699,15 +895,30 @@ JSON 출력:
     print(f"      완료 ({len(issue1_result.get('script_ko', ''))}자)")
 
     # ── 4. 이슈2 — 「誰が」: 데이터 근거 영향 설명 ──────
+    if data_struct == "multi-item":
+        _issue2_role = (
+            "【이슈2 역할 — 세분화 + 의미 반전】\n"
+            "이슈1의 대표 수치를 data_block의 세부 항목별로 분해하고, 예상과 다른 사실(반전)을 드러내는 섹션.\n"
+            "이슈1에서 설명한 원리·개념을 반복하지 말 것. 세부 항목 수치 분해가 이 섹션의 핵심."
+        )
+    else:
+        _issue2_role = (
+            "【이슈2 역할 — 심화 + 의미 반전】\n"
+            "이슈2 각도에서 이슈1의 원리를 다른 층위로 심화하는 섹션.\n"
+            "이슈1에서 설명한 원리·개념을 반복하지 말 것. 이슈2 각도에서 새로운 반전 포인트를 드러내는 것이 핵심."
+        )
+    _issue2_scene_rule = (
+        "- 수치 변화를 시청자 일상의 구체 장면으로 연결할 것."
+        if exp_dist == "direct" else
+        "- 수치 변화의 경제·사회적 영향을 원리적으로 설명할 것. 억지 일상 장면 금지."
+    )
     print("[KO 4/5] 이슈2(誰が) 한국어 초안 생성 중...")
     data_section = data_block if data_block else "(데이터 블록 없음 — 수치 없이 원리로만 설명)"
 
     issue2_prompt = f"""\
 롱폼 이슈2 섹션을 한국어로 작성하세요.{revise_prefix}
 
-【이슈2 역할 — 세분화 + 의미 반전】
-이슈1에서 보인 큰 대비를 식품 내부 품목별로 쪼개고, 예상과 다른 사실(반전)을 드러내는 섹션.
-이슈1에서 설명한 원리·개념을 반복하지 말 것. 세부 품목 수치 분해가 이 섹션의 핵심.
+{_issue2_role}
 
 【이슈2 각도】{issue2_angle}
 이 각도 하나를 처음부터 끝까지 한 흐름으로 깊게 풀 것. 여러 갈래로 얕게 훑지 말 것.
@@ -718,22 +929,14 @@ JSON 출력:
 {data_section}
 
 수치 분석:
-- 食料 내부 품목별 분해: 穀類/生鮮食品/エネルギー 각각의 전년동월비를 제시할 것.
-- 반전 포인트 강조: 穀類(곡물)은 한때 급등했다 꺾임 / エネルギーは오히려 하락 중 등.
-- 전년 동월 대비로 "작년 이맘때와 비교해 어떻게 달라졌는가"를 시청자 체감 장면으로.
-- 수치는 시청자 일상의 구체 장면으로 연결할 것.
-
-차트 태그 형식: ===차트[항목명, 시점]=== 음성문장 ===차트끝===
-- [ ] 안: 무엇을 그릴지 지정 (data_block에 실제 존재하는 항목명만).
-  최신월 기준: "食料 vs 総合, 최신월" / 추이: "穀類 전년동월비 추이, 2025-04→2026-04"
-- 태그 안 음성문장: 수치를 말로 풀어 표현. raw 수치 숫자 불필요 (화면 차트가 보여줌).
-- 수치가 연달아 나오는 구간은 하나의 차트 블록으로 묶는다 (짧은 깜빡임 금지).
-- 수치 없는 서술이 이어질 때만 ===차트끝=== 으로 닫는다. 바로 다음에 수치가 이어지면 닫지 않는다.
-- ===차트[...]=== / ===차트끝=== 은 반드시 문장 경계에서만 열고 닫는다 (단어 중간 금지).
-- 차트 블록 개수 제한 없음.
+- data_block의 주요 항목을 분해해 각각의 방향·크기 변화를 제시할 것.
+- 이슈1의 대표 수치와 다른 방향이거나 예상을 벗어나는 항목이 있다면 반전 포인트로 강조.
+{_issue2_scene_rule}
 
 【앞 섹션 요약】
 {issue1_result.get('summary_ko', '')}
+
+{CHART_TAG_RULES}
 
 JSON 출력:
 {{
@@ -766,7 +969,8 @@ JSON 출력:
 이슈2: {issue2_result.get('summary_ko', '')}
 
 구성:
-1. 인트로 질문에 직접 답변으로 시작: "왜 이런 현상이 일어나는지는 ○○이기 때문입니다."
+1. 이슈1·이슈2에서 설명한 내용을 근거로 삼아, 인트로가 던진 바로 그 질문에 대한 답으로 시작할 것.
+   질문 형태에 맞춰 답하고, 고정 문구("왜 이런 현상이 일어나는지는 ○○이기 때문입니다" 류)를 쓰지 말 것.
 2. 오늘 원리를 알면 이런 뉴스를 다르게 읽을 수 있는 포인트 1가지
 3. 아래 사인오프로 끝낼 것 (한 글자도 변경 금지):
    「여러분은 어떻게 생각하시나요？ 댓글로 알려주세요！
@@ -817,6 +1021,8 @@ JSON 출력:
         },
     }
 
+    ko_data["_data_block"] = data_block   # 수치 역추적 검증용
+
     if os.path.exists(LONG_SCRIPT_KO_FILE):
         shutil.copy2(LONG_SCRIPT_KO_FILE, LONG_SCRIPT_KO_BAK_FILE)
         print(f"  백업: {LONG_SCRIPT_KO_BAK_FILE}")
@@ -831,6 +1037,7 @@ JSON 출력:
         + len(ko_data["outro"]["script_ko"])
     )
     print(f"\n  KO 완료 | 총 {total_chars}자 | 토큰 {total_tokens:,} | 토픽: {topic_id}")
+    validate_ko_issues(ko_data)
     return ko_data
 
 
@@ -859,12 +1066,7 @@ def stage_ja(client) -> dict:
 아래 한국어 대본을 モチエン 일본어 대본으로 변환하세요.
 
 변환 시 주의:
-- 한국어 [출처: ○○] 태그는 자연스럽게 일본어 문장에 녹여 넣거나 삭제 (태그 그대로 남기지 말 것)
-- ===차트[...]=== ([ ] 안 항목 지정 포함) 와 ===차트끝=== 태그는 위치·내용 모두 그대로 보존할 것 (번역·삭제 금지)
 - 내용(사실·논리 구조)은 충실히 보존하고 어조만 モチエン 페르소나로 변환
-- 인트로 첫 문장은 반드시 시청자의 의문을 대신 짚는 콜드오픈
-- 아웃트로 마지막은 「以上、モチエンがお伝えしました！」로 끝낼 것
-- 원리형 제목 강제: 사건형(○○が起きた) 금지, 원리형(なぜ○○なのか) 권장
 
 【한국어 대본】
 {ko_draft_text}

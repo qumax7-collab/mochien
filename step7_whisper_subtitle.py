@@ -40,16 +40,30 @@ def extract_script_years(text: str) -> set:
 
 
 def correct_year_tokens(segments: list, script_years: set) -> tuple:
-    """자막 연도 토큰을 대본 정답 집합과 대조해 교정. 연도 이외 수정 없음."""
+    """자막 연도 토큰을 대본 정답 집합과 대조해 교정.
+    정답 연도 1종일 때만 강제 교정. 2종 이상이면 경고 후 sys.exit(1)."""
     if not script_years:
         return segments, 0
+    mismatches = {
+        year
+        for seg in segments
+        for year in YEAR_PAT.findall(seg["text"])
+        if year not in script_years
+    }
+    if not mismatches:
+        return segments, 0
+    if len(script_years) >= 2:
+        print(f"  [⚠ 연도 가드] Whisper 불일치: {sorted(mismatches)}")
+        print(f"  대본 연도 {len(script_years)}종: {sorted(script_years)} — 자동 교정 불가")
+        print("  자막을 수동 확인하세요.")
+        sys.exit(1)
+    correct = next(iter(script_years))
     fixed = 0
     for seg in segments:
         for wrong in YEAR_PAT.findall(seg["text"]):
-            if wrong not in script_years:
-                best = min(script_years, key=lambda y: abs(int(y[:4]) - int(wrong[:4])))
-                print(f"  [연도 교정] {wrong} → {best}")
-                seg["text"] = seg["text"].replace(wrong, best)
+            if wrong != correct:
+                print(f"  [연도 교정] {wrong} → {correct}")
+                seg["text"] = seg["text"].replace(wrong, correct)
                 fixed += 1
     return segments, fixed
 
