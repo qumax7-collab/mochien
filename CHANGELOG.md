@@ -1044,5 +1044,8 @@
 ✅  [백로그 완료] pronunciation.json 연도 일괄 등록 (2024~2030年) — 커밋 8874292
         가나 표기(にせんにじゅうXねん) 확정 / 2024~2030年 7종 일괄 추가
 
+✅  [백로그 완료] Whisper 연도 토큰 대본 대조 가드 — 커밋 7baff7a
+        long5_whisper.py + step7_whisper_subtitle.py correct_year_tokens() / 정답 1종→강제교정 / 2종+→sys.exit(1)
+
 ✅  [백로그 완료] outro dirty 자동 검사 안전장치 — 커밋 7baff7a
         long1_script.py _check_outro_dirty() 신설 / 매 빌드 자동 실행 (경고만, 중단 없음)

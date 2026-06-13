@@ -652,8 +652,10 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
           YouTube: c-8JP-deMtA (private, 예약 2026-06-14 18:00 JST — 검수 전 공개 주의)
           WordPress: post_id=56 (예약 2026-06-12 21:00 JST)
           구 영상 4DaX2KzJsuM: 비공개 유지 (삭제는 운영자 최종 확인 후)
-🔜  작업 5-3 — 음성·자막 동기화 + long4 합성 = 첫 완성본 / 운영자 검수 게이트 지점
-🔜  작업 5-4 — 템플릿 N종 확장 + GitHub Actions Node 셋업
+✅  작업 5-3 — 음성·자막 동기화 + long4 합성 = 첫 완성본 / 운영자 검수 게이트 지점
+        yen-rate 재합성·발행으로 실현(_yqDDY_RYlI)
+🔶  작업 5-4 — 템플릿 N종 확장 + GitHub Actions Node 셋업 (부분완료)
+        템플릿 확장(시인성 패스 2c24b49 + BarView bd97c77) 완료 / Node 셋업은 보류
 🔜  선제작 (작업 4 재개) — 작업 5 완성 후 토픽뱅크 상위 토픽 점진 비축
 🔜  34. 롱폼 추가 개선 (챕터 밀도·섹션 구성 최적화)
 
