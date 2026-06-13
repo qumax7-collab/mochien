@@ -1,0 +1,14 @@
+{
+  "chartData": {
+    "type": "bar",
+    "titleJa": "食品カテゴリ別 CPI 前年比",
+    "unitLabel": "%",
+    "items": [
+      { "label": "生鮮食品",   "value": 9.8 },
+      { "label": "穀類",       "value": 5.2 },
+      { "label": "肉類",       "value": 3.7 },
+      { "label": "乳製品",     "value": 2.1 },
+      { "label": "食品全体",   "value": 4.3 }
+    ]
+  }
+}

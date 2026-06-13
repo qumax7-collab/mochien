@@ -74,6 +74,22 @@ const LIST_KW_FS    = 72;
 const LIST_APPEAR   = 15;
 const LIST_BOX_STARTS = [15, 35, 55] as const;
 
+// ── Bar 모드 레이아웃 ─────────────────────────────────────────
+const BAR_CONTENT_LEFT  = 120;   // 전체 왼쪽 여백
+const BAR_LABEL_W       = 360;   // 항목명 영역 너비
+const BAR_TRACK_W       = 1100;  // 막대 트랙 최대 너비
+const BAR_ROW_H         = 110;   // 행 높이
+const BAR_ROW_GAP       = 30;    // 행 간격
+const BAR_START_Y       = 230;   // 첫 막대 상단 Y
+const BAR_FILL_H        = 60;    // 막대 채움 높이
+const BAR_TITLE_FS      = 68;    // 제목 폰트
+const BAR_LABEL_FS      = 44;    // 항목명 폰트
+const BAR_VALUE_FS      = 52;    // 수치 폰트
+const BAR_STAGGER       = 10;    // 항목별 등장 딜레이 (프레임)
+const BAR_GROW_FRAMES   = 55;    // 막대 성장 프레임 수
+const BAR_TITLE_APPEAR  = 22;    // 제목/항목 페이드인 프레임
+const BAR_VALUE_AREA_W  = 200;   // 수치 라벨 영역 너비
+
 // ── Dynamic helpers ───────────────────────────────────────────
 function toXDyn(i: number, n: number, w: number): number {
   return (i / (n - 1)) * w;
@@ -90,8 +106,10 @@ export type SeriesData = {
   latestLabel: string;
 };
 
+export type BarItem = { label: string; value: number };
+
 export type ChartData = {
-  type?:        "single" | "compare" | "list";
+  type?:        "single" | "compare" | "list" | "bar";
   topicId?:     string;
   titleJa:      string;
   unitLabel:    string;
@@ -110,6 +128,8 @@ export type ChartData = {
   // list
   title?:  string;
   points?: string[];
+  // bar (수평 막대 다항목 / 3~5개)
+  items?:  BarItem[];
 };
 
 export type NavyDarkProps = {
@@ -472,6 +492,89 @@ const ListView: React.FC<{ chartData: ChartData; frame: number }> = ({ chartData
 };
 
 // ═══════════════════════════════════════════════════════════════
+// Bar モード (수평 막대 다항목 / 3~5개)
+// ═══════════════════════════════════════════════════════════════
+const BarView: React.FC<{ chartData: ChartData; frame: number }> = ({ chartData, frame }) => {
+  const items     = (chartData.items ?? []).slice(0, 5);
+  const titleJa   = chartData.titleJa  ?? "";
+  const unitLabel = chartData.unitLabel ?? "";
+
+  const maxVal  = Math.max(...items.map(it => it.value), 1);
+  const titleOp = interpolate(frame, [0, BAR_TITLE_APPEAR], [0, 1], { extrapolateRight: "clamp" });
+
+  return (
+    <>
+      {/* 제목 */}
+      <div style={{
+        position: "absolute", left: BAR_CONTENT_LEFT, top: 60,
+        opacity: titleOp,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ width: 8, height: BAR_TITLE_FS, backgroundColor: RED, borderRadius: 4, flexShrink: 0 }} />
+          <span style={{ fontFamily, fontWeight: 700, fontSize: BAR_TITLE_FS, color: WHITE, letterSpacing: "0.04em" }}>
+            {titleJa}
+          </span>
+        </div>
+        <div style={{ width: BAR_LABEL_W + BAR_TRACK_W + BAR_VALUE_AREA_W, height: 2, backgroundColor: RED, marginTop: 14, opacity: 0.5 }} />
+      </div>
+
+      {/* 막대 목록 */}
+      {items.map((item, i) => {
+        const startF = i * BAR_STAGGER;
+        const op     = interpolate(frame, [startF, startF + BAR_TITLE_APPEAR], [0, 1], {
+          extrapolateRight: "clamp", extrapolateLeft: "clamp",
+        });
+        const fillW  = interpolate(frame, [startF, startF + BAR_GROW_FRAMES], [0, (item.value / maxVal) * BAR_TRACK_W], {
+          extrapolateRight: "clamp", extrapolateLeft: "clamp",
+          easing: Easing.out(Easing.cubic),
+        });
+        const top    = BAR_START_Y + i * (BAR_ROW_H + BAR_ROW_GAP);
+        const barTop = (BAR_ROW_H - BAR_FILL_H) / 2;
+        return (
+          <div key={i} style={{
+            position: "absolute", left: BAR_CONTENT_LEFT, top,
+            width: BAR_LABEL_W + BAR_TRACK_W + BAR_VALUE_AREA_W,
+            opacity: op,
+          }}>
+            <div style={{
+              position: "absolute", left: 0, top: 0,
+              width: BAR_LABEL_W, height: BAR_ROW_H,
+              display: "flex", alignItems: "center",
+            }}>
+              <span style={{ fontFamily, fontWeight: 700, fontSize: BAR_LABEL_FS, color: WHITE_DIM }}>
+                {item.label}
+              </span>
+            </div>
+            <div style={{
+              position: "absolute", left: BAR_LABEL_W, top: barTop,
+              width: BAR_TRACK_W, height: BAR_FILL_H,
+              borderRadius: 6,
+              background: "rgba(255,255,255,0.07)",
+            }}>
+              <div style={{
+                position: "absolute", left: 0, top: 0,
+                width: fillW, height: BAR_FILL_H,
+                borderRadius: 6,
+                background: `linear-gradient(90deg, #B00000 0%, ${RED} 100%)`,
+              }} />
+            </div>
+            <div style={{
+              position: "absolute", left: BAR_LABEL_W + BAR_TRACK_W + 16, top: 0,
+              width: BAR_VALUE_AREA_W, height: BAR_ROW_H,
+              display: "flex", alignItems: "center",
+            }}>
+              <span style={{ fontFamily, fontWeight: 700, fontSize: BAR_VALUE_FS, color: RED }}>
+                {item.value.toFixed(1)}{unitLabel}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
 // メインコンポーネント
 // ═══════════════════════════════════════════════════════════════
 export const NavyDark: React.FC<NavyDarkProps> = ({ chartData }) => {
@@ -489,10 +592,12 @@ export const NavyDark: React.FC<NavyDarkProps> = ({ chartData }) => {
       }} />
 
       {chartType === "list"
-        ? <ListView  chartData={chartData!} frame={frame} />
-        : chartType === "compare" && chartData?.series1 && chartData?.series2
-          ? <CompareView chartData={chartData} frame={frame} />
-          : <SingleView  chartData={chartData} frame={frame} />
+        ? <ListView    chartData={chartData!} frame={frame} />
+        : chartType === "bar"
+          ? <BarView   chartData={chartData!} frame={frame} />
+          : chartType === "compare" && chartData?.series1 && chartData?.series2
+            ? <CompareView chartData={chartData} frame={frame} />
+            : <SingleView  chartData={chartData} frame={frame} />
       }
     </AbsoluteFill>
   );
