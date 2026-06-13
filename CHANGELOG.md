@@ -545,6 +545,37 @@
         - step9_youtube.py: build_notification()에 롱폼 링크 줄 추가
           · active_longform_url 있으면 "▼今週の解説：「{title}」\n{url}" 고정댓글에 포함
 
+✅  긴급 품질 수정 (2026-06-12) — yen-rate 수치 오발행 정정 + 데이터 역추적 게이트 신설
+        [TASK 0: 원인 진단]
+          · 쇼츠 자막 갭: voice.mp3 0~4.9초 hook 음성 존재 / Whisper 첫 세그먼트 9.739초 — VAD 미검출
+          · 롱폼 차트 미생성: chart_item_map.json 미등록 + long_render_charts.py 경고 무시 → Pexels 폴백
+          · 수치 오발행 근본 원인: yen-rate data_sources에 CPI 소스 없음 → data_block에 CPI 수치 없음
+            → GPT가 학습 데이터에서 2.8% 생성 (실제값 2026-04 기준 1.4%)
+        [TASK 1: 쇼츠 자막 커버리지 가드]
+          · step7_whisper_subtitle.py: SUBTITLE_COVERAGE_THRESHOLD=2.0 상수 추가
+          · validate_subtitle_coverage(srt_path): 첫 자막 타임코드 > 2.0초면 sys.exit(1)
+          · _send_telegram() 알림 + 더미·자동보정 폴백 금지
+        [A.1: chart_item_map + topic_bank 정비]
+          · chart_item_map.json: 消費者物価総合 (cpi_total) + USD/JPY スポット中心 (yen_rate) 2항목 추가
+          · topic_bank.json: yen-rate data_sources에 CPI e-Stat 소스 추가 (0003427113 / cdTab:3 / cdCat01:0001)
+          · long_render_charts.py: 미등록 항목 경고 → sys.exit(1) 격상 (폴백 없이 즉시 중단)
+          · cpi_total.mp4 / yen_rate.mp4 렌더 완료 (각 0.4MB)
+        [A.2: yen-rate issue1 1.4% 정정]
+          · Mitigation: YouTube 4DaX2KzJsuM private 전환 / WordPress 기존 블로그 삭제
+          · long_script_ko.json / long_script.json: 3곳 수정 (2.8%→1.4% / 2026-05-29→2026-04)
+          · long_chart_timestamps.json: issue1 time_hint 수정 (2026-05-29→2026-04)
+          · _regen_issue1_tts.py 신규 작성: issue1 TTS만 재생성 + intro/issue2/outro 재사용 concat
+            → long_voice_issue1.mp3 132초 재생성 / long_voice.mp3 5.7MB concat 완료
+        [B: 수치 역추적 게이트 신설]
+          · long1_script.py: stage_ko() 저장 시 ko_data["_data_block"] = data_block 주입
+          · _validate_numerics() 함수 신설: 이슈 script_ko 단위 붙은 수치 → _data_block 역추적
+            data_block 밖 수치 발견 시 sys.exit(1) / 슬랙 0 (±10% 어림 허용 없음)
+        [yen-rate 신규 영상 재제작]
+          · long4_ffmpeg.py: 재합성 / long5_whisper.py: 자막 282세그먼트
+          · YouTube 신규 private 업로드: ID c-8JP-deMtA (예약 2026-06-14 18:00 JST)
+          · WordPress 신규 발행: post_id=56, URL https://mochien.com/?p=56 (예약 2026-06-12 21:00 JST)
+          · 운영자 검수 후 public 전환 예정 (YouTube 예약 자동 공개 주의)
+
 ✅  세션 E (2026-05-23) — 기사 선택 UI — 생활밀착 점수 + 토픽뱅크 매치
         - life_keywords.json 신규 생성
           · 생활밀착 키워드 37개, 가중치 2~3 (给料·物価·年金·光熱費 등)
@@ -802,5 +833,216 @@
             raw 수치 금지 / 항목은 data_block 실존 항목만 / TTS 전 전체 제거 / JA 변환 시 보존
         [검증] food-prices KO 대본이 real-wage 교정본(4:21) 대비
           분해·반전(穀類 27.4%→1.2%)·인과·자국민 시점 개선 확인
-        [미해결] 이슈1 대표 수치 시점 통일 미완 (프롬프트 덧대기 2회 실패)
-          → 다음 세션: data_block에서 최신월 고정 코드 구조적 해결로 전환
+        [후속 완료 — 작업 5-2B, 2026-06-07] 이슈1 대표 수치 최신월 고정
+          → long1_script.py:719-742 ref_date_block / issue1_ref_date 코드 주입으로 구조적 해결
+          → food-prices 영상화 완료 (YouTube: https://www.youtube.com/watch?v=5PkNsC7bTkg)
+
+✅  작업 5-2(B) 완료 (2026-06-07) — 롱폼 품질 버그 수정 + 문단별 배경 선택
+        [Bug 1] remotion/src/mochien/NavyDark.tsx
+          · SingleView 게이지 카드 "USD/JPY"·"東京市場 中心値" 하드코딩 → props 동적화
+            axisXLabel / axisYLabel 필드 추가 / chartData 또는 기본값 fallback
+        [Bug 2] long1_script.py: validate_ko_issues()
+          · 이슈 섹션 첫 차트 태그에 내부 음성문장 없으면 에러 출력 + sys.exit(1)
+          · 자동 교정·침묵 클립 생성 금지 — 에러 중단만 (--stage ko 재실행 유도)
+        [프롬프트 정비] long1_script.py
+          · A-1: ja_prompt "変換時の注意" 중복 4줄 제거
+          · A-2: SYSTEM_JA 사인오프 3줄 통일 (SYSTEM_KO outro_prompt 줄 구성과 일치)
+            「皆さんはどう思いますか？コメントで教えてください！
+             以上、モチエンがお伝えしました！
+             チャンネル登録お願いします！」
+          · A-3: issue1·issue2 프롬프트 food-prices 전용 하드코딩 → 범용 data_block 기반으로 교체
+            issue1 역할: 원리+핵심 수치 집중 / issue2 역할: 세분화+반전+차트 다수 범용화
+          · B-1: SYSTEM_KO "시청자 전제"+"화자 시점" → "시청자·화자 시점 — 전 섹션 공통" 통합 (중복 제거)
+        [차트 루프] long4_ffmpeg.py
+          · build_chart_video_cmd(): tpad(마지막 프레임 동결) → stream_loop -1 + -t 루프로 전환
+            차트 클립 재생 후 화면이 멈추지 않고 반복 재생됨
+        [문단별 배경 선택] webui.py / webui_runner.py / long4_ffmpeg.py / longform.html
+          · GET /api/longform/paragraphs: long_script.json 차트 태그 제거 후 이슈별 문단 추출
+          · GET /api/longform/pexels/para/{section_key}/{para_idx}: 문단별 Pexels 후보 조회
+          · POST /api/longform/select-bg: idx(int) → key(string) 전환 ("intro"/"issue1_p0" 등)
+          · long4_ffmpeg.py: get_narration_paras() + get_bg_paragraphs() 헬퍼 추가
+            narration 블록을 script 문단 수만큼 비율 분할, 각 문단에 long_bg_issue1_p{i}.mp4 적용
+            paragraph bg 파일 전부 없으면 단일 bg fallback (standalone 모드 하위 호환)
+          · longform.html: 정적 3슬롯 → 동적 슬롯 (문단 맥락 60자 미리보기 + 미선택 카운트 표시)
+        [웹 UI 기타]
+          · longform.html: 📊 차트 렌더링 LF_STEPS 추가 (Long2 음성생성 뒤 / Long4 합성 앞)
+        [Japan 키워드]
+          · long3_pexels.py + webui.py /api/longform/pexels: "japan" 미포함 시 자동 접두어 추가
+        [자막 크기]
+          · long5_whisper.py: FONT_SIZE 72 → 90 (40~60대 가독성 우선)
+        [완료] 이슈1 대표 수치 최신월 고정 — ref_date_block 코드 주입 (long1_script.py:719-742)
+          build_data_block() primary latest_date → issue1_ref_date → 이슈1 프롬프트 "코드 확정값" 주입
+        [완료] food-prices 영상화 — long_output.mp4 222.4 MB / YouTube 업로드 완료
+          topic_history: 2026-06-07 / https://www.youtube.com/watch?v=5PkNsC7bTkg
+
+✅  MD 동기화 + national-debt 보류 마킹 (2026-06-08)
+        [2편차 검증 통과]
+          · yen-rate 토픽으로 동일 프롬프트 실행
+          · 곡물 오염 없음 / 이슈1(원리)·이슈2(세분화+반전) 역할 분리 정상 확인
+          · 프롬프트 틀(SYSTEM_KO + ref_date_block 주입 포함) 안정성 검증됨
+        [national-debt 보류 마킹]
+          · topic_bank.json status: active → hold
+          · status_reason: FRED GGGDTAJPA188N (IMF 연간) 최신값 2023년 — 2026 발행 부적합
+          · 미발행 토픽 (topic_history 미등록). 데이터 보간·추정 금지.
+          · 향후 과제: 재무성 분기별 국채 잔고 시리즈로 소스 교체 검토
+
+✅  프롬프트 구조 재배치 완료 (2026-06-08) — 토픽 전용 하드코딩 10건 플래그 기반 분기 전환
+        수정 파일: topic_bank.json / long1_script.py (stage_ko)
+        [1단계] topic_bank.json: experience_distance + data_structure 필드 추가
+          · experience_distance direct(5): food-prices / real-wage / energy-dependency / consumption-tax / interest-rate
+          · experience_distance indirect(9): yen-rate / inflation-deflation / trade-balance / gdp-growth /
+            business-cycle / central-bank / aging-social-security / irregular-employment / declining-birthrate
+          · data_structure multi-item(1): food-prices만
+          · data_structure single-series(13): 나머지 active 토픽 전체
+          · hold 토픽(national-debt / cashless-society): null
+        [1단계] long1_script.py stage_ko(): exp_dist / data_struct 읽기 경로 추가
+          · 기본값: indirect + single-series (food-prices 강제를 피하는 안전한 방향)
+        [2단계] experience_distance 분기 5건
+          · A1 인트로 방향 예시: direct=체감+역설 연결 / indirect=통계·원리 의문 (일상 장면 강제 없음)
+          · A2 기사없음 도입소재: direct=일상 체감 언제 / indirect=뉴스·통계 드러남
+          · B1 이슈1 장면규칙: direct=일상 비유 활용 / indirect=원리·인과 중심 (억지 장면 금지)
+          · B2 이슈2 장면연결: direct=일상 구체 장면 연결 / indirect=경제·사회 영향 원리적 설명
+          · D1 issue2_angle fallback: direct="가계 생활 체감" / indirect="세부 영향·구조 분석"
+        [3단계] data_structure 분기 2건
+          · C1 SYSTEM_KO ①분해: "블록에 여러 하위 항목이 있는 경우만" 조건 추가
+            ③반직관: "체감과 통계의 괴리" → "예상을 벗어나는 사실 … 괴리 있으면 포함"(generic화)
+          · C2 이슈2 역할 텍스트: multi-item="세부 항목 분해가 핵심" / single-series="이슈2 각도로 심화"
+        [4단계] food-prices 명시 표현 범용화 3건
+          · A3 SYSTEM_KO: "우리 식탁에서는" → "우리 생활에서는" / "식품 가격이 오르면" → "물가가 오르면"
+          · A4 SYSTEM_JA: "私たちの食卓では" → "私たちの生活では" / "食料価格が上がると" → "物価が上がると"
+          · E1 SYSTEM_KO: '2026年3月時点' 예시 → "데이터 근거 블록에 표시된 형식 그대로 사용"
+
+✅  SYSTEM_KO 이슈 수치 필수 규칙 추가 (2026-06-08)
+        수정 파일: long1_script.py (SYSTEM_KO)
+        · 규칙 3 신규 삽입: 이슈 섹션(issue1·issue2) 핵심 수치 최소 1개 필수 포함 (누락 금지)
+        · 수치 표현 조건부: 큰 수(구어 불편) → 어림 풀어 표현 (예: 731,205명 → "약 73만 명")
+          짧고 자연스러운 수 → 그대로 (예: 출산율 1.2 / 170엔)
+        · 어림 허용 범위: data_block 실값에서 반올림만. 블록 밖 수 생성 절대 금지.
+        · 기존 규칙 3(JSON 출력)·4(출처 표기) → 4·5로 번호 조정
+        [배경] declining-birthrate 재생성 때 GPT가 출생수 수치를 본문에서 통째 누락
+          → 기존 "어림 표현" 지시가 선택사항처럼 읽혀 수치 없이 추세 서술로 회피
+          → 누락 금지를 강제 요건으로 격상 + 어림/그대로 조건부 정리
+
+✅  작업 5-2(C) 완료 (2026-06-09) — 3-포인트 텍스트 모드 (ListView)
+        [1단계] 태그 파서 확장 (long2_tts.py)
+          · CHART_TAG_TYPES = {"list"} 식별자 집합 도입
+          · 태그 문법 확장: ===차트[제목, 포인트1 / 포인트2 / 포인트3, list]=== 음성문장 ===차트끝===
+          · 마지막 칸이 CHART_TAG_TYPES에 있으면 list 분기, 없으면 기존 2칸 chart 경로 유지
+          · 포인트 파싱: 슬래시(/) 분리 / 콤마 포함 포인트 중간 칸 rejoin으로 안전하게 처리
+          · long_chart_timestamps.json 출력: type=="list" 블록에 title + points 필드 추가
+          · 검증 스크립트 _verify_parser.py 생성 — 8/8 케이스 PASS
+        [2단계] list 타입 fetch 우회 (long_render_charts.py)
+          · collect_list_blocks(): type=="list" 블록 수집 / points 3개가 아니면 sys.exit(1)
+          · build_list_props(): title·points → Remotion props JSON 직접 생성 (fetch 없음)
+          · list 블록 key 패턴: list_{section}_{idx} / timestamps 재저장 시 key 주입
+          · 기존 chart fetch·dedup·렌더 경로 무변경 / chart 렌더 루프 뒤에 list 렌더 루프 추가
+        [3단계] ListView 컴포넌트 (remotion/src/mochien/NavyDark.tsx)
+          · ChartData type에 type:"list" + title?: string + points?: string[] 필드 추가
+          · ListView 컴포넌트 신설:
+            - 제목 1줄 (왼쪽 8px 레드 사이드바 + 흰색 텍스트 78px)
+            - 키워드 박스 3개 세로 배치 (PANEL_BG 배경 + 레드 왼쪽 보더 + borderRadius 14)
+            - stagger 등장: 각 박스 15·35·55프레임 시작 / translateX(-50→0) ease-out
+          · 최종 분기: type=="list" → ListView / type=="compare" → CompareView / 기본 → SingleView
+          · 기존 SingleView·CompareView 코드 무변경
+        [4단계] long4_ffmpeg.py — list 타입 분기 추가
+          · elif ts["type"] == "list": 분기 — key로 Remotion out/*.mp4 검색
+          · mp4 없으면 Pexels 배경으로 자동 폴백 (경고 출력)
+        [렌더 검증]
+          · remotion/out/list_test.mp4 608KB / 150프레임 렌더 성공 확인
+        [수정 파일] long2_tts.py / long_render_charts.py / long4_ffmpeg.py / remotion/src/mochien/NavyDark.tsx
+        [신규 파일] _verify_parser.py / remotion/public/chart_data/list_test.json
+
+✅  롱폼 웹 UI 버그 수정 (2026-06-11)
+        - longform.html: goStep(1) 복귀 시 한국어 초안 사라지는 버그 수정
+          convertToJa() 호출 시 ko-draft-area를 display:none으로 숨기는데,
+          goStep(1)이 탭만 전환하고 draft area를 복원하지 않아 발생
+          → goStep(1) 호출 시 ko-intro 텍스트에어리어에 내용 있으면 ko-draft-area 재표시
+          (초안 미생성 상태는 영향 없음 — 빈 textarea 조건으로 구분)
+
+✅  쇼츠 배경 영상 자동 선택 전환 (2026-06-10)
+        - 수동 배경 선택 단계(/shorts/{slot}/background) UI 흐름에서 제거
+          확인 대본 화면 → 영상 생성 화면 직행 (3단계 → 2단계)
+        - webui_runner.py: run_shorts_stream(slot, gpt, bg_url) → run_shorts_stream(slot, gpt)
+          BG 단계 내부에서 fetch_pexels_candidates(image_prompt, 6, 1) 호출 → candidates[0] 자동 채택
+          채택 즉시 save_used_video(url, thumb) 호출 → used_videos.json 기록
+          → 이후 검색에서 동일 영상 자동 제외 (기존 30일 중복 방지 로직 재사용)
+        - webui.py: page_generate · api_shorts_stream 의 bg_url 체크 제거
+        - templates/confirm_script.html: 버튼 문구 "배경 영상 선택" → "영상 생성 시작"
+          location.href /background → /generate
+        - templates/generate.html: 뒤로가기 링크 /background → /script
+
+✅  웹 UI 배경 선택 개선 + 기사 제외 타이밍 변경 (2026-06-10)
+        [Pexels 검색어 직접 입력]
+          · webui.py: /api/shorts/{slot}/pexels에 q 쿼리 파라미터 추가
+            q 있으면 커스텀 검색어 / 없으면 image_prompt 기본값
+          · select_background.html: 현재 검색어 <code id="active-query"> 동적 표시
+            커스텀 검색어 입력창 + 🔍 검색(Enter 지원) + ↩ 원래대로 버튼
+            로드 후 API 응답의 query 필드로 실제 사용 검색어 항상 반영
+          · static/style.css: .input-field 스타일 추가 (다크모드 통일)
+        [이전/다음 영상 페이지 버튼]
+          · select_background.html: 단일 "다른 영상 보기" → "← 이전 영상 / 다음 영상 →" 2버튼
+            _pageCount=1 이면 이전 버튼 숨김 / 2+ 되면 표시
+            검색어 변경·리셋 시 페이지 1로 초기화 (이전 버튼 자동 숨김)
+            하단 힌트: "세트 N / 검색어: ..." 항상 표시
+        [기사 제외 타이밍 — 대본 확인 즉시 → YouTube 업로드 성공 후]
+          · webui_runner.py: save_slot_gpt_result()에 webui_published: False 플래그 추가
+          · webui_runner.py: mark_slot_published(slot) 신규 함수
+            output/{today}/{slot}_gpt_result.json의 webui_published를 True로 갱신
+          · webui_runner.py: run_shorts_stream() step9 성공 직후 mark_slot_published() 호출
+          · webui.py: get_today_used_urls() 로직 변경
+            webui_published=True → 제외 / webui_published=False → 재선택 가능
+            webui_published 키 없음 = 자동화 파이프라인 파일 → 기존대로 항상 제외 (하위 호환)
+        [서버 재시작 후 상태 복원]
+          · webui.py: _try_restore_gpt(slot) 헬퍼 신규
+            output/{today}/{slot}_gpt_result.json에 webui_published 키 있으면 SLOT_STATE 복원
+          · page_script() / page_background(): SLOT_STATE 비면 자동 복원 시도
+            복원 성공 → 그대로 진행 / 실패 → 기사 선택 페이지로 이동
+
+✅  yen-rate outro 수치 정정 + 재합성 (2026-06-13)
+        [배경] 2026-06-12 긴급 수정 시 issue1 TTS만 재생성하고 outro MP3 원본 재사용
+          → outro 음성에 구 수치 "2.8%/2026-05-29" 잔류 → 운영자 확인 후 정정 요청
+        [텍스트 수정 — 3곳]
+          · long_script.json outro: "2026年5月29日には…2.8％" → "2026年4月時点で…約1.4％"
+            표기 일치: issue1 정정본 기준 「2026年4月時点で」「前年同月比で」「約1.4％」그대로 사용
+          · long_script_ko.json outro: "2026년 5월 29일 기준…2.8%" → "2026년 4월 기준…약 1.4%"
+          · long_script_ko.json issue1 summary_ko: 동일 수치 정정 (TTS 미사용이나 정합성)
+        [재생성 1회차 — 2026-06-13]
+          · _regen_outro_tts.py 신규 생성 (_regen_issue1_tts.py 동일 구조 / outro용)
+          · outro TTS 단독 재생성 (1075KB) / intro+issue1+issue2 재사용 concat
+          · long_chapters.json 갱신: 00:00/00:29/02:41/05:04
+          · long4_ffmpeg.py 재합성 → long_output_no_sub.mp4 (290.3MB)
+            issue1 消費者物価総合 차트 29.6s ✅ / issue2 USD/JPY 차트 15.6s ✅ (Pexels 폴백 없음)
+          · long5_whisper.py 자막 합성 → long_output.mp4 (288.1MB / 281세그먼트)
+        [2026年 TTS 오발음 정정 — 2026-06-13]
+          [문제] 운영자가 outro 음성에서 "2016년 4월"로 들린다고 보고
+          [원인] pronunciation.json에 "2026年" 항목 없음 → ElevenLabs가 2026→2016으로 오독
+          [조치] pronunciation.json "2026年": "二千二十六年" 추가
+          [검증] Whisper 전사 3회 시도 결과:
+            · "2016" 미출현 (전 시도) ✅
+            · "1.4%" 정상 ✅
+            · "2026" 직접 전사 불가 — Whisper가 일본어 연도를 "2020年"으로 전사 (Whisper 한계)
+            → 수동 청취 확인 필요 (운영자)
+          [재합성 2회차]
+          · outro TTS 재생성 (1068KB) / 전체 concat
+          · long_chapters.json 갱신: 00:00/00:29/02:41/05:04
+          · long4_ffmpeg.py → long_output_no_sub.mp4 (290.1MB)
+          · long5_whisper.py → long_output.mp4 (287.8MB / 281세그먼트)
+        [중단] 업로드·재발행은 운영자 수동 청취 확인 후 별도 지시 대기
+
+✅  yen-rate 재발방지 가드 3종 (2026-06-13) — 커밋 8874292 / 7baff7a
+        [가드 1] pronunciation.json 연도 가나 일괄 등록
+          2024~2030年 7종 がな표기 추가 (にせんにじゅうXねん 형식)
+          yen-rate 건에서 2026年 오발음(ElevenLabs 2016→2020) 원인이 pronunciation.json 미등록
+        [가드 2] Whisper 연도 토큰 대본 대조 가드
+          long5_whisper.py + step7_whisper_subtitle.py: correct_year_tokens() 로직 확정
+          정답 연도 1종 → 불일치 Whisper 토큰 강제 교정
+          정답 연도 2종+ → 불일치 발견 시 경고 + sys.exit(1) (오교정 방지 / 거리 휴리스틱 금지)
+        [가드 3] outro dirty 검사 — long1_script.py 영구 편입
+          _check_outro_dirty() 신설 / validate_ko_issues() 말미에서 호출
+          outro에 issue1·2 미등장 수치(%)·연월 잔류 시 경고 출력 / 매 --stage ko 빌드 자동 실행
+
+✅  [백로그 완료] pronunciation.json 연도 일괄 등록 (2024~2030年) — 커밋 8874292
+        가나 표기(にせんにじゅうXねん) 확정 / 2024~2030年 7종 일괄 추가
+
+✅  [백로그 완료] outro dirty 자동 검사 안전장치 — 커밋 7baff7a
+        long1_script.py _check_outro_dirty() 신설 / 매 빌드 자동 실행 (경고만, 중단 없음)

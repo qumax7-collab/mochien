@@ -71,8 +71,16 @@ RSS (NHK cat6/cat5 + Yahoo Japan 비즈니스) 최대 5개 수집
    → long_script_ko.json (KO 검토) / long_script.json (JA 완성) / long_script_verify.json
    [영구 규칙] 자국민 시점: "일본의 경우"·「日本では」 등 외부인 말투 금지
      "우리 식탁에서는" 류 권장 / 타국 비교 시만 "일본은~" 허용 (SYSTEM_KO·JA 양쪽)
-   [영구 규칙] 차트 태그 B안: ===차트[항목명, 시점]=== 음성문장 ===차트끝===
-     항목은 data_block 실존 항목만 / raw 수치 금지(말로 풀어 표현) / TTS 전 전체 제거 안전망
+   [영구 규칙] 차트 태그 문법:
+     데이터 차트: ===차트[항목명, 시점]=== 음성문장 ===차트끝===
+       항목은 data_block 실존 항목만 / raw 수치 금지(말로 풀어 표현)
+     텍스트 리스트: ===차트[제목, 포인트1 / 포인트2 / 포인트3, list]=== 음성문장 ===차트끝===
+       포인트 정확히 3개 / fetch 없이 대본 텍스트 그대로 Remotion props로 전달
+     공통: TTS 전 전체 제거 안전망 / 내부 음성문장 비어있으면 long1 validate에서 sys.exit(1)
+   [NavyDark.tsx 뷰 모드 3종]
+     SingleView  — type:"single" 또는 미지정: 게이지 링 아크 + 꺾은선 차트 (fetch 필요)
+     CompareView — type:"compare": 두 값 카드 + 이중 꺾은선 차트 (fetch 필요)
+     ListView    — type:"list": 제목 1줄 + 키워드 박스 3개 순차 등장 (fetch 없음 / 대본 텍스트만)
 → long2_tts.py: 4섹션 TTS → long_voice.mp3 + long_chapters.json 생성 (ffprobe 길이 측정)
 → long3_pexels.py: 3개 배경 영상 다운로드
 → long4_ffmpeg.py: 섹션별 클립 생성 → concat → long_output_no_sub.mp4
@@ -450,7 +458,8 @@ C:\mochien\
   ├── output_video_subtitled.mp4
   ├── long_script.json
   ├── long_voice.mp3 / long_voice_intro.mp3 … long_voice_outro.mp3
-  ├── long_bg_main.mp4 / long_bg_issue1~3.mp4
+  ├── long_bg_main.mp4 / long_bg_issue1.mp4 / long_bg_issue2.mp4
+  ├── long_bg_issue1_p0.mp4 … / long_bg_issue2_p0.mp4 … (문단별 bg / webui 선택 시 / 없으면 단일 bg fallback)
   ├── long_clip_intro.mp4 … long_clip_outro.mp4
   ├── long_output_no_sub.mp4
   ├── long_output.mp4
@@ -589,10 +598,60 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
           Work 1: CPI 6종 데이터 + 10년 시계열 + build_data_block 풍부화
           Work 2: SYSTEM_KO 금지/허용 분리 + 출처 자동화 + food-prices 활성화
           Work 3+5: 섹션 역할 분리 + 자국민 시점·차트 태그 B안 영구 규칙
-          미해결 → 다음 세션: 이슈1 대표 수치 최신월 고정 (구조적 해결)
-🔜  작업 5-2(B) — 이슈1·2 대본 차트 태그(B안) + 최신월 고정 코드 구조
-          기존 ===차트=== → ===차트[항목명, 시점]=== B안으로 전환 완료
-          이슈1 대표 수치 최신월 고정 프롬프트 2회 실패 → data_block 코드로 박는 방식으로 전환
+          후속 완료 (작업 5-2B, 2026-06-07): 이슈1 대표 수치 최신월 고정 — ref_date_block 코드 주입
+✅  작업 5-2(B) 완료 (2026-06-07) — 롱폼 품질 버그 수정 + 문단별 배경 선택
+          [Bug 2] long1_script.py: validate_ko_issues() — 차트 태그 내부 음성문장 비어있으면 sys.exit(1)
+          [Bug 1] NavyDark.tsx: SingleView 게이지 카드 USD/JPY·東京市場 하드코딩 → props 동적화
+          [차트 루프] long4_ffmpeg.py: tpad freeze → stream_loop -1 루프 전환
+          [문단별 bg] webui.py·webui_runner.py·long4_ffmpeg.py·longform.html 4종
+            narration 블록을 script 문단 수만큼 분할, 각 문단 long_bg_issue1_p{i}.mp4 적용
+            /api/longform/paragraphs + select-bg key(string) 전환 / 동적 슬롯 + 맥락 60자 표시
+          [프롬프트 정비] long1_script.py: A-1 ja_prompt 중복 / A-2 사인오프 3줄 통일 /
+            A-3 issue1·2 food-prices 전용 하드코딩 범용화 / B-1 SYSTEM_KO 섹션 통합
+          [기타] long3_pexels.py·webui.py "japan" 접두어 자동 추가 / long5_whisper.py 자막 90px
+✅  작업 5-2 잔여 완료 (2026-06-07) — 이슈1 대표 수치 최신월 고정 + food-prices 영상화
+✅  프롬프트 구조 재배치 완료 (2026-06-08) — 토픽 전용 하드코딩 10건 플래그 기반 분기 전환
+        topic_bank.json: experience_distance(direct/indirect) + data_structure(multi-item/single-series) 플래그 — 14개 active 토픽 전체 / hold 2건 null
+        long1_script.py stage_ko(): exp_dist / data_struct 읽기 경로 추가
+        2단계 exp_dist 5건: A1 인트로 방향 예시 / A2 기사없음 도입소재 / B1 이슈1 장면규칙 / B2 이슈2 장면연결 / D1 issue2_angle fallback
+        3단계 data_struct 2건: C1 SYSTEM_KO ①분해 조건부(multi-item만) / C2 이슈2 역할 텍스트 분기(세분화↔심화)
+        4단계 범용화 3건: A3 SYSTEM_KO "우리 식탁에서는"→"우리 생활에서는" / A4 SYSTEM_JA 동일 / E1 기준시점 예시→데이터블록 형식 참조
+✅  SYSTEM_KO 이슈 수치 필수 규칙 추가 (2026-06-08)
+        long1_script.py SYSTEM_KO 규칙 3 신규 삽입 (기존 3·4 → 4·5)
+        이슈 섹션(issue1·issue2) 핵심 수치 최소 1개 필수 포함(누락 금지)
+        큰 수 → 어림 풀어 표현 / 짧은 수 → 그대로 / data_block 밖 수 생성 금지
+        [배경] declining-birthrate 재생성 시 GPT가 출생수 수치를 통째 누락 → 규칙 강제화
+✅  작업 5-2(C) 완료 (2026-06-09) — 3-포인트 텍스트 모드 (ListView)
+        [태그 파서] long2_tts.py: CHART_TAG_TYPES 집합 도입 / list 타입 분기 추가
+          태그 문법: ===차트[제목, P1 / P2 / P3, list]=== 음성문장 ===차트끝===
+          포인트 슬래시(/) 분리 / 콤마 포함 포인트 안전 처리 / 8케이스 검증 PASS
+        [fetch 우회] long_render_charts.py: collect_list_blocks() + build_list_props()
+          포인트 3개 아니면 sys.exit(1) / key = list_{section}_{idx} / timestamps 재저장
+        [ListView] remotion/src/mochien/NavyDark.tsx: ListView 컴포넌트 신설
+          제목 1줄(레드 사이드바) + 키워드 박스 3개 stagger 등장(15/35/55프레임)
+          type=="list" 분기 추가 / SingleView·CompareView 무변경
+        [long4 분기] long4_ffmpeg.py: list 타입 elif 추가 / mp4 없으면 Pexels 폴백
+        [검증] remotion/out/list_test.mp4 608KB / 150프레임 렌더 성공
+        [백로그] list 포인트 가변 개수 지원 / 80% 카드+블러배경 레이아웃(전 모드 공통)
+✅  긴급 품질 수정 완료 (2026-06-12) — yen-rate 수치 오발행 정정 + 데이터 역추적 게이트
+        [쇼츠 자막 가드] step7_whisper_subtitle.py: validate_subtitle_coverage() 추가
+          첫 자막 타임코드 > 2.0초면 sys.exit(1) + 텔레그램 알림 / 더미·자동보정 폴백 금지
+        [차트 인프라 정비] chart_item_map.json: 消費者物価総合(cpi_total) + USD/JPY スポット中心(yen_rate) 추가
+          topic_bank.json: yen-rate data_sources CPI e-Stat 소스 추가
+          long_render_charts.py: 미등록 항목 sys.exit(1) 격상
+        [수치 오발행 정정] yen-rate issue1 2.8% → 1.4% (2026-04 CPI 実績)
+          KO/JA/timestamps 3파일 패치 / _regen_issue1_tts.py로 issue1 TTS 단독 재생성
+        [데이터 역추적 게이트] long1_script.py: _validate_numerics() 신설
+          이슈 발화 수치 ↔ data_block 역추적 / 불일치 시 sys.exit(1) / 슬랙 0
+        [outro dirty 가드] long1_script.py: _check_outro_dirty() 신설 / validate_ko_issues() 내 호출
+          outro에 issue1·2 미등장 수치(%)·연월 잔류 시 경고 / 매 --stage ko 빌드 자동 실행
+        [Whisper 연도 토큰 가드] long5_whisper.py + step7_whisper_subtitle.py: correct_year_tokens()
+          20XX年 대본 정답 대조 / 정답 1종 → 강제 교정 / 2종+ 불일치 → sys.exit(1)
+        [pronunciation 연도 등록] pronunciation.json: 2024~2030年 가나 7종 일괄 등록 (커밋 8874292)
+        [재발행] long4→5→6→7 재합성 완료
+          YouTube: c-8JP-deMtA (private, 예약 2026-06-14 18:00 JST — 검수 전 공개 주의)
+          WordPress: post_id=56 (예약 2026-06-12 21:00 JST)
+          구 영상 4DaX2KzJsuM: 비공개 유지 (삭제는 운영자 최종 확인 후)
 🔜  작업 5-3 — 음성·자막 동기화 + long4 합성 = 첫 완성본 / 운영자 검수 게이트 지점
 🔜  작업 5-4 — 템플릿 N종 확장 + GitHub Actions Node 셋업
 🔜  선제작 (작업 4 재개) — 작업 5 완성 후 토픽뱅크 상위 토픽 점진 비축
@@ -645,9 +704,10 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
   webui.bat          ← uvicorn webui:app --reload --port 8000 실행 배치
 
 쇼츠 화면 흐름 (슬롯별):
-  / → /shorts/{slot}/select → /shorts/{slot}/script → /shorts/{slot}/background → /shorts/{slot}/generate
+  / → /shorts/{slot}/select → /shorts/{slot}/script → /shorts/{slot}/generate
+  배경 영상은 영상 생성 시작 시 Pexels 검색 결과 상위를 자동 채택 (수동 선택 단계 제거)
   각 단계 중간 결과는 서버 인메모리 (SLOT_STATE) + 파일 동시 보존
-  [다시 생성] 무제한 / 기사·배경 선택 언제든 재진행 가능
+  [다시 생성] 무제한 / 기사 선택 언제든 재진행 가능
 
 롱폼 화면 흐름 (단일 페이지 위자드):
   /longform → ① 스크립트 생성 → ② 확인 → ③ 배경 3슬롯 선택 → ④ 생성 SSE

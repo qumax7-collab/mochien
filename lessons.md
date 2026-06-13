@@ -343,3 +343,18 @@
 - 실질임금 토픽은 e-Stat API로 최신 월별 데이터 취득 불가(매월근로통계 API DB 2016 정지).
   FRED+BOJ 합성으로 추정하는 방식은 신뢰도 문제로 채택 안 함.
   작업 2-4에서 家計調査 소비지출 기반 변형 또는 real-wage 토픽 보류 여부 결정 예정.
+- 수치 정정 시 issue 섹션만 고치면 outro에 구 수치가 잔류할 수 있음.
+  outro는 issue 수치를 요약·재인용하는 구조이므로 수치 변경 시 intro/issue/outro 전 섹션 점검 필수.
+  → 가드로 봉쇄됨: long1_script.py _check_outro_dirty() (커밋 7baff7a)
+- 연도·고유명사는 pronunciation.json에 가나(ひらがな) 표기로 등록해야 발음이 강제됨.
+  한자 표기 키(2026年 그대로)는 ElevenLabs가 무시하는 경우 있음.
+  등록 후 TTS 재생성 → Whisper로 전사 확인까지 해야 실제 발음 교정 여부 검증됨.
+  → 가드로 봉쇄됨: pronunciation.json 2024~2030年 가나 일괄 등록 (커밋 8874292)
+- Whisper 일본어 연도·수치 전사 오류 빈발: 발음은 정상이어도 Whisper가 엉뚱한 한자로 전사.
+  (예: "にせんにじゅうろくねん" → "200216年4月" / "やくいってんよんパーセント" → "984上昇")
+  TTS 재생성 후 Whisper 전사 결과를 대본 원문과 대조해 자막 오류 여부 확인 필수.
+  오류 발견 시 Whisper 재실행 금지(또 깨질 수 있음) → SRT/ASS 직접 수동 교정 후 FFmpeg 번인 재실행.
+  → 가드로 봉쇄됨: correct_year_tokens() 대본 대조 교정 (커밋 7baff7a)
+- active_longform.json 기록이 실제 YouTube 상태와 어긋날 수 있음.
+  삭제한 영상 ID가 active_longform에 남아있으면 쇼츠 펀넬 링크가 삭제된 영상을 가리킴.
+  업로드·삭제 전후로 active_longform.json 실물 확인 + 불일치 항목 수동 정리 필수.
