@@ -38,7 +38,7 @@ _SIGNOFF_PATTERNS = [
     re.escape(SIGNOFF_DEFAULT_KO),
     re.escape(SIGNOFF_DEFAULT_JA),
     re.escape(SIGNOFF_FUNNEL_JA),
-    r"以上、モチエン[^。！]*[。！]",      # JA 변형 대비 (が 없는 변형 포함)
+    r"以上(?:[（(][^）)]*[）)])?、モチエン[^。！]*[。！]",  # JA 변형 (후리가나 포함) 대비
     r"이상,?\s*모찌엔이었습니다[!！]?",  # KO 변형 대비
 ]
 _SIGNOFF_RE = re.compile(
