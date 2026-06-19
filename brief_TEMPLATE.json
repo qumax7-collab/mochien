@@ -1,0 +1,33 @@
+{
+  "_topic_id": "FILL_ME",
+  "_note": "long1_script.py --brief-file 로 주입. narrative는 GPT 프롬프트 주입용, screen_text/bg_section은 long4 렌더용.",
+
+  "forced_angles": {
+    "issue1": "",
+    "issue2": ""
+  },
+
+  "intro": {
+    "narrative": "",
+    "screen_text": [],
+    "bg_section": null
+  },
+
+  "issue1": {
+    "narrative": "",
+    "screen_text": [],
+    "bg_section": null
+  },
+
+  "issue2": {
+    "narrative": "",
+    "screen_text": [],
+    "bg_section": null
+  },
+
+  "outro": {
+    "narrative": "",
+    "screen_text": [],
+    "bg_section": null
+  }
+}

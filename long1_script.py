@@ -40,6 +40,26 @@ DATA_BLOCK_DEFAULT_MONTHS = 60    # data_months 미지정 토픽의 fetch 기간
 DATA_BLOCK_TREND_MONTHS   = 12    # 주 소스 추이 표시 개월수
 DATA_BLOCK_HIST_MONTHS    = [12, 36, 60]  # 과거 비교 오프셋 (1년전, 3년전, 5년전)
 
+def _inject_brief(prompt: str, brief_text: str) -> str:
+    """JSON 출력 지시 직전에 기획 척추 텍스트를 주입한다."""
+    if not brief_text:
+        return prompt
+    block = f"\n\n【기획 척추 — 반드시 준수】\n{brief_text}\n"
+    marker = "JSON 출력:"
+    if marker in prompt:
+        return prompt.replace(marker, block + marker, 1)
+    return prompt + block
+
+
+def _brief_section_text(brief: dict, key: str) -> str:
+    """brief 섹션 값을 텍스트로 추출.
+    구 포맷(string) / 신 포맷({"narrative": ...}) 양쪽 수용."""
+    val = brief.get(key) if brief else None
+    if isinstance(val, dict):
+        return val.get("narrative", "")
+    return val or ""
+
+
 CHART_TAG_RULES = """\
 【차트 태그 규칙 — 이슈 전 섹션 공통】
 배치 원칙 (한 문단 = 한 차트):
@@ -113,6 +133,10 @@ SYSTEM_JA = """\
 - すべて自然な日本語の文章として統合すること
 - 「背景として〜」「実はここがポイントです」などの繋ぎ言葉を使うこと
 - 誤読しやすい漢字にはふりがなを括弧で併記すること（例：財務省（ざいむしょう））
+- 1文の長さ: 日本語で40字以内を目安とする。
+  複文・長文は意味の単位で分割し、短い文で書くこと。
+  数値・データの正確性が優先 — 短くするために数値を省いたり意味を損なわないこと。
+  機械的な分断は禁止。意味が完結する単位でのみ分割すること。
 - アウトロの末尾は必ず以下の3行で締めること:
   「皆さんはどう思いますか？コメントで教えてください！
    以上、モチエンがお伝えしました！
@@ -179,7 +203,11 @@ principle 문장을 그대로 대본에 복사하지 말 것. 화자 말투·경
    짧고 자연스러운 수는 그대로 읽을 것 (예: 출산율 1.2 / 170엔).
    어림은 data_block 실값에서 반올림으로 유도하는 것만 허용. 데이터에 없는 수 생성 절대 금지.
 4. 출력은 JSON만. 마크다운(``` 등) 절대 금지.
-   대본 본문에 내부 라벨(issue1/issue2/intro/outro/이슈1/이슈2/なぜ/誰が 등) 금지. 섹션 연결은 구어체로.\
+   대본 본문에 내부 라벨(issue1/issue2/intro/outro/이슈1/이슈2/なぜ/誰が 등) 금지. 섹션 연결은 구어체로.
+5. 문장 길이: 일본어 기준 한 문장 40자 이내를 지향한다.
+   복문·만연체는 의미 단위로 분리해 짧은 문장으로 끊어 쓸 것.
+   수치·데이터의 정확성이 우선 — 짧게 만들려고 수치를 빼거나 의미를 훼손하지 말 것.
+   기계적 절단 금지. 의미가 완결되는 단위에서만 나눌 것.\
 """
 
 
@@ -581,7 +609,7 @@ JSON 출력:
 
 
 def call_backcheck(client, prompt: str):
-    """backcheck 역직역 전용. temperature 낮춤. 2회 실패 시 None 반환 — 영상 진행은 계속."""
+    """backcheck 역직역 전용. temperature 낮춤. 2회 실패 시 sys.exit(1) — 이전본 잔류 금지."""
     messages = [
         {"role": "system", "content": "일본어를 한국어로 역번역합니다. JSON만 출력."},
         {"role": "user",   "content": prompt},
@@ -589,17 +617,27 @@ def call_backcheck(client, prompt: str):
     last_err = None
     for attempt in range(2):
         try:
-            resp   = client.chat.completions.create(
+            resp    = client.chat.completions.create(
                 model=GPT_MODEL, messages=messages, temperature=BACKCHECK_TEMP,
             )
-            result = json.loads(resp.choices[0].message.content.strip())
+            content = (resp.choices[0].message.content or "").strip()
+            # 마크다운 코드 블록 제거
+            if content.startswith("```"):
+                lines   = content.splitlines()
+                end_idx = -1 if lines[-1].strip() == "```" else len(lines)
+                content = "\n".join(lines[1:end_idx]).strip()
+            if not content:
+                raise ValueError(
+                    f"빈 응답 (finish_reason={resp.choices[0].finish_reason})"
+                )
+            result = json.loads(content)
             return result, resp.usage
         except Exception as e:
             last_err = e
             if attempt == 0:
-                print(f"  [재시도] backcheck 실패 ({type(e).__name__})")
-    print(f"  [경고] backcheck 최종 실패 — 영상 진행엔 무영향: {last_err}")
-    return None
+                print(f"  [재시도] backcheck 실패 ({type(e).__name__}: {e})")
+    print(f"  [오류] backcheck 최종 실패: {last_err}")
+    sys.exit(1)
 
 
 def call_ko_section(client, name: str, prompt: str) -> tuple:
@@ -725,7 +763,7 @@ def validate_ko_issues(ko_data: dict) -> None:
     _check_outro_dirty(ko_data)
 
 
-def stage_ko(client, r_list, bank, history, revise=None, topic_override=None) -> dict:
+def stage_ko(client, r_list, bank, history, revise=None, topic_override=None, brief: dict = None) -> dict:
     """
     KO 단계: 한국어 거시 원리형 대본 생성 → long_script_ko.json 저장.
 
@@ -767,6 +805,15 @@ def stage_ko(client, r_list, bank, history, revise=None, topic_override=None) ->
     data_struct      = (topic_entry or {}).get("data_structure",      "single-series")
     _issue2_fallback = "가계 생활 체감" if exp_dist == "direct" else "세부 영향·구조 분석"
     issue2_angle     = angles.get("issue2_angle", _issue2_fallback)
+
+    if brief and brief.get("forced_angles"):
+        fa = brief["forced_angles"]
+        if fa.get("issue1"):
+            issue1_angle = fa["issue1"]
+            print(f"  [기획 척추] 이슈1 각도 강제: {issue1_angle}")
+        if fa.get("issue2"):
+            issue2_angle = fa["issue2"]
+            print(f"  [기획 척추] 이슈2 각도 강제: {issue2_angle}")
 
     # ── 데이터 근거 블록 fetch ────────────────────────────
     print("  데이터 근거 블록 fetch 중...")
@@ -837,6 +884,8 @@ JSON 출력:
   "image_prompt": "Pexels 검색 영어 키워드 (장소·시간대 구체적으로)"
 }}"""
 
+    if brief and _brief_section_text(brief, "intro"):
+        intro_prompt = _inject_brief(intro_prompt, _brief_section_text(brief, "intro"))
     intro_result, u = call_ko_section(client, "ko_intro", intro_prompt)
     total_tokens += u.total_tokens
     print(f"      완료 ({len(intro_result.get('script_ko', ''))}자)")
@@ -887,6 +936,8 @@ JSON 출력:
   "image_prompt": "Pexels 검색 영어 키워드"
 }}"""
 
+    if brief and _brief_section_text(brief, "issue1"):
+        issue1_prompt = _inject_brief(issue1_prompt, _brief_section_text(brief, "issue1"))
     issue1_result, u = call_ko_section(client, "ko_issue1", issue1_prompt)
     total_tokens += u.total_tokens
     issue1_result, u_retry = call_issue_retry(client, "ko_issue1", issue1_prompt, issue1_result)
@@ -946,6 +997,8 @@ JSON 출력:
   "image_prompt": "Pexels 검색 영어 키워드"
 }}"""
 
+    if brief and _brief_section_text(brief, "issue2"):
+        issue2_prompt = _inject_brief(issue2_prompt, _brief_section_text(brief, "issue2"))
     issue2_result, u = call_ko_section(client, "ko_issue2", issue2_prompt)
     total_tokens += u.total_tokens
     issue2_result, u_retry = call_issue_retry(client, "ko_issue2", issue2_prompt, issue2_result)
@@ -983,6 +1036,8 @@ JSON 출력:
   "image_prompt": "Pexels 검색 영어 키워드"
 }}"""
 
+    if brief and _brief_section_text(brief, "outro"):
+        outro_prompt = _inject_brief(outro_prompt, _brief_section_text(brief, "outro"))
     outro_result, u = call_ko_section(client, "ko_outro", outro_prompt)
     total_tokens += u.total_tokens
     print(f"      완료 ({len(outro_result.get('script_ko', ''))}자)")
@@ -1134,14 +1189,10 @@ JSON 출력:
   "outro_ko": "..."
 }}"""
 
-    bc = call_backcheck(client, backcheck_prompt)
-    if bc is not None:
-        verify_result, u = bc
-        total_tokens += u.total_tokens
-        with open(LONG_SCRIPT_VERIFY_FILE, "w", encoding="utf-8") as f:
-            json.dump(verify_result, f, ensure_ascii=False, indent=2)
-    else:
-        print(f"  backcheck 스킵 — {LONG_SCRIPT_VERIFY_FILE} 미갱신")
+    verify_result, u = call_backcheck(client, backcheck_prompt)
+    total_tokens += u.total_tokens
+    with open(LONG_SCRIPT_VERIFY_FILE, "w", encoding="utf-8") as f:
+        json.dump(verify_result, f, ensure_ascii=False, indent=2)
 
     print(f"\n  JA 완료 | 토큰 {total_tokens:,}")
     print(f"  제목: {ja_result.get('title', '')}")
@@ -1161,9 +1212,17 @@ def main():
                         help="KO 재생성 시 수정 요청 텍스트")
     parser.add_argument("--topic", type=str, default=None,
                         help="topic_id 직접 지정 (기사 없이 생성 / 예: --topic business-cycle)")
+    parser.add_argument("--brief-file", type=str, default=None,
+                        help="섹션별 기획 척추 JSON 파일 (예: brief_energy_dependency.json)")
     args = parser.parse_args()
 
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+    brief = None
+    if args.brief_file:
+        with open(args.brief_file, encoding="utf-8") as f:
+            brief = json.load(f)
+        print(f"  [기획 척추] {args.brief_file} 로드 완료 (topic: {brief.get('_topic_id', '?')})")
 
     if args.stage == "ja":
         print("=== [JA 단계] 일본어 변환 ===")
@@ -1188,14 +1247,14 @@ def main():
             sys.exit(1)
         print(f"\n=== [KO 단계] topic 직접 지정: {args.topic} ===")
         stage_ko(client, r_list=None, bank=bank, history=history,
-                 revise=args.revise, topic_override=topic_entry)
+                 revise=args.revise, topic_override=topic_entry, brief=brief)
     else:
         # 기존 기사 기반 경로
         print("=== 당일 쇼츠 gpt_result 로드 ===")
         results = load_today_results()
         r_list  = [results["09"], results["18"]]
         print("\n=== [KO 단계] 한국어 거시 원리형 초안 생성 ===")
-        stage_ko(client, r_list, bank, history, revise=args.revise)
+        stage_ko(client, r_list, bank, history, revise=args.revise, brief=brief)
 
     print(f"\n{LONG_SCRIPT_KO_FILE} 저장 완료")
 

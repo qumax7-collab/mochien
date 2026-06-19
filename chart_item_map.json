@@ -1,0 +1,145 @@
+{
+  "食料 vs 総合": {
+    "key": "food_vs_total",
+    "type": "compare",
+    "title_ja": "食料 vs 総合 CPI",
+    "unit": "%",
+    "series": [
+      {
+        "label": "食料",
+        "source": "estat",
+        "stats_data_id": "0003427113",
+        "filters": {"cdTab": "3", "cdCat01": "0002", "cdArea": "00000"}
+      },
+      {
+        "label": "総合",
+        "source": "estat",
+        "stats_data_id": "0003427113",
+        "filters": {"cdTab": "3", "cdCat01": "0001", "cdArea": "00000"}
+      }
+    ]
+  },
+  "穀類": {
+    "key": "grains",
+    "type": "single",
+    "title_ja": "穀類CPI（前年同月比）",
+    "unit": "%",
+    "series": [
+      {
+        "label": "穀類",
+        "source": "estat",
+        "stats_data_id": "0003427113",
+        "filters": {"cdTab": "3", "cdCat01": "0003", "cdArea": "00000"}
+      }
+    ]
+  },
+  "生鮮食品": {
+    "key": "fresh_food",
+    "type": "single",
+    "title_ja": "生鮮食品CPI（前年同月比）",
+    "unit": "%",
+    "series": [
+      {
+        "label": "生鮮食品",
+        "source": "estat",
+        "stats_data_id": "0003427113",
+        "filters": {"cdTab": "3", "cdCat01": "0157", "cdArea": "00000"}
+      }
+    ]
+  },
+  "エネルギー": {
+    "key": "energy",
+    "type": "single",
+    "title_ja": "エネルギーCPI（前年同月比）",
+    "unit": "%",
+    "series": [
+      {
+        "label": "エネルギー",
+        "source": "estat",
+        "stats_data_id": "0003427113",
+        "filters": {"cdTab": "3", "cdCat01": "0167", "cdArea": "00000"}
+      }
+    ]
+  },
+  "食料 vs コアコア": {
+    "key": "food_vs_core",
+    "type": "compare",
+    "title_ja": "食料 vs コアコア CPI",
+    "unit": "%",
+    "series": [
+      {
+        "label": "食料",
+        "source": "estat",
+        "stats_data_id": "0003427113",
+        "filters": {"cdTab": "3", "cdCat01": "0002", "cdArea": "00000"}
+      },
+      {
+        "label": "コアコア",
+        "source": "estat",
+        "stats_data_id": "0003427113",
+        "filters": {"cdTab": "3", "cdCat01": "0178", "cdArea": "00000"}
+      }
+    ]
+  },
+  "消費者物価総合": {
+    "key": "cpi_total",
+    "type": "single",
+    "title_ja": "消費者物価指数（前年同月比）",
+    "unit": "%",
+    "series": [
+      {
+        "label": "消費者物価総合",
+        "source": "estat",
+        "stats_data_id": "0003427113",
+        "filters": {"cdTab": "3", "cdCat01": "0001", "cdArea": "00000"}
+      }
+    ]
+  },
+  "USD/JPY スポット中心": {
+    "key": "yen_rate",
+    "type": "single",
+    "title_ja": "USD/JPY スポット中心（東京市場）",
+    "unit": "円",
+    "series": [
+      {
+        "label": "USD/JPY",
+        "source": "boj",
+        "db": "FM08",
+        "code": "FXERD05"
+      }
+    ]
+  },
+  "ドバイ原油": {
+    "key": "dubai_oil",
+    "type": "single",
+    "title_ja": "ドバイ原油価格",
+    "unit": "USD",
+    "series": [
+      {
+        "label": "ドバイ原油",
+        "source": "fred",
+        "code": "POILDUBUSDM"
+      }
+    ]
+  },
+  "原油 vs エネルギーCPI": {
+    "key": "energy_dual",
+    "type": "dual",
+    "title_ja": "原油価格 vs エネルギー負担",
+    "unit": "USD",
+    "unit2": "%",
+    "series": [
+      {
+        "label": "ドバイ原油",
+        "source": "fred",
+        "code": "POILDUBUSDM"
+      },
+      {
+        "label": "エネルギーCPI",
+        "source": "estat",
+        "stats_data_id": "0003427113",
+        "filters": { "cdTab": "3", "cdCat01": "0167", "cdArea": "00000" }
+      }
+    ]
+  }
+}

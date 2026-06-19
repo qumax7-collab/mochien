@@ -74,6 +74,12 @@ const LIST_KW_FS    = 72;
 const LIST_APPEAR   = 15;
 const LIST_BOX_STARTS = [15, 35, 55] as const;
 
+// ── Dual-axis mode layout ─────────────────────────────────────
+const DUAL_CW = 1210;   // 차트 그리기 영역 너비
+const DUAL_CH = 480;    // 차트 높이
+const DUAL_OX = 80;     // 좌축 레이블용 왼쪽 여백
+const DUAL_OY = 20;     // 상단 여백
+
 // ── Bar 모드 레이아웃 ─────────────────────────────────────────
 const BAR_CONTENT_LEFT  = 120;   // 전체 왼쪽 여백
 const BAR_LABEL_W       = 360;   // 항목명 영역 너비
@@ -109,7 +115,7 @@ export type SeriesData = {
 export type BarItem = { label: string; value: number };
 
 export type ChartData = {
-  type?:        "single" | "compare" | "list" | "bar";
+  type?:        "single" | "compare" | "list" | "bar" | "dual";
   topicId?:     string;
   titleJa:      string;
   unitLabel:    string;
@@ -130,6 +136,13 @@ export type ChartData = {
   points?: string[];
   // bar (수평 막대 다항목 / 3~5개)
   items?:  BarItem[];
+  // dual (이중 Y축: 좌=unitLabel, 우=unitLabel2)
+  unitLabel2?: string;
+  yMin2?:      number;
+  yMax2?:      number;
+  yTicks2?:    number[];
+  // X축 라벨 솎아내기: 지정 시 해당 인덱스만 표시, 미지정 시 step 기반 자동
+  labelIndices?: number[];
 };
 
 export type NavyDarkProps = {
@@ -165,7 +178,8 @@ const SingleView: React.FC<{ chartData?: ChartData; frame: number }> = ({ chartD
   const ap   = buildAreaPath(pts, CH);
   const last = pts[pts.length - 1];
 
-  const labelStep = data.length > 10 ? 3 : data.length > 6 ? 2 : 1;
+  const labelStep  = data.length > 10 ? 3 : data.length > 6 ? 2 : 1;
+  const pinLabels  = chartData?.labelIndices ? new Set(chartData.labelIndices) : null;
 
   const dynRange   = yMax - yMin;
   const targetProg = dynRange > 0
@@ -251,8 +265,7 @@ const SingleView: React.FC<{ chartData?: ChartData; frame: number }> = ({ chartD
             })}
             <line x1={0} y1={CH} x2={CW} y2={CH} stroke={GRID_C} strokeWidth={1.5} />
             {labels.map((lb, i) => {
-              const step = data.length > 10 ? 3 : data.length > 6 ? 2 : 1;
-              if (i % step !== 0) return null;
+              if (pinLabels ? !pinLabels.has(i) : (i % labelStep !== 0)) return null;
               return (
                 <text key={i} x={toXDyn(i, labels.length, CW)} y={CH + 30} textAnchor="middle" fill={AXIS_C} fontSize={16} fontFamily={fontFamily}>{lb}</text>
               );
@@ -316,8 +329,9 @@ const CompareView: React.FC<{ chartData: ChartData; frame: number }> = ({ chartD
     extrapolateRight: "clamp", easing: Easing.out(Easing.cubic),
   });
 
-  const labelStep = n > 20 ? 4 : n > 10 ? 3 : n > 6 ? 2 : 1;
-  const zeroY     = toYDyn(0, CMP_CH, yMin, yMax);
+  const labelStep  = n > 20 ? 4 : n > 10 ? 3 : n > 6 ? 2 : 1;
+  const pinLabels  = chartData.labelIndices ? new Set(chartData.labelIndices) : null;
+  const zeroY      = toYDyn(0, CMP_CH, yMin, yMax);
 
   return (
     <>
@@ -395,7 +409,7 @@ const CompareView: React.FC<{ chartData: ChartData; frame: number }> = ({ chartD
             })}
             <line x1={0} y1={CMP_CH} x2={CMP_CW} y2={CMP_CH} stroke={GRID_C} strokeWidth={1.5} />
             {labels.map((lb, i) => {
-              if (i % labelStep !== 0) return null;
+              if (pinLabels ? !pinLabels.has(i) : (i % labelStep !== 0)) return null;
               return (
                 <text key={i} x={toXDyn(i, n, CMP_CW)} y={CMP_CH + 32} textAnchor="middle" fill={AXIS_C} fontSize={16} fontFamily={fontFamily}>{lb}</text>
               );
@@ -575,6 +589,208 @@ const BarView: React.FC<{ chartData: ChartData; frame: number }> = ({ chartData,
 };
 
 // ═══════════════════════════════════════════════════════════════
+// Dual-axis モード (좌: 유가 USD, 우: CPI %)
+// ═══════════════════════════════════════════════════════════════
+const DualAxisView: React.FC<{ chartData: ChartData; frame: number }> = ({ chartData, frame }) => {
+  const s1 = chartData.series1!;
+  const s2 = chartData.series2!;
+  const labels     = chartData.labels     ?? [];
+  const titleJa    = chartData.titleJa;
+  const yMin       = chartData.yMin       ?? 50;
+  const yMax       = chartData.yMax       ?? 140;
+  const yTicks     = chartData.yTicks     ?? [60, 80, 100, 120];
+  const unitLabel  = chartData.unitLabel  ?? "USD";
+  const yMin2      = chartData.yMin2      ?? -15;
+  const yMax2      = chartData.yMax2      ?? 25;
+  const yTicks2    = chartData.yTicks2    ?? [-10, 0, 10, 20];
+  const unitLabel2 = chartData.unitLabel2 ?? "%";
+
+  const n     = labels.length;
+  const toYL  = (v: number) => toYDyn(v, DUAL_CH, yMin, yMax);
+  const toYR  = (v: number) => toYDyn(v, DUAL_CH, yMin2, yMax2);
+
+  const pts1  = s1.values.map((v, i) => ({ x: toXDyn(i, n, DUAL_CW), y: toYL(v) }));
+  const pts2  = s2.values.map((v, i) => ({ x: toXDyn(i, n, DUAL_CW), y: toYR(v) }));
+  const lp1   = buildLinePath(pts1);
+  const ap1   = buildAreaPath(pts1, DUAL_CH);
+  const lp2   = buildLinePath(pts2);
+  const last1 = pts1[pts1.length - 1];
+  const last2 = pts2[pts2.length - 1];
+  const zeroY = toYR(0);
+
+  const fi = interpolate(frame, [0, 22], [0, 1], { extrapolateRight: "clamp" });
+  const aw = interpolate(frame, [CHART_START, CHART_END], [0, DUAL_CW], {
+    extrapolateRight: "clamp", extrapolateLeft: "clamp",
+    easing: Easing.out(Easing.cubic),
+  });
+  const lo = interpolate(frame, [CHART_END, CHART_END + 12], [0, 1], {
+    extrapolateRight: "clamp", extrapolateLeft: "clamp",
+  });
+  const v1Anim = interpolate(frame, [0, COUNT_FRAMES], [0, s1.latestValue], {
+    extrapolateRight: "clamp", easing: Easing.out(Easing.cubic),
+  });
+  const v2Anim = interpolate(frame, [0, COUNT_FRAMES], [0, s2.latestValue], {
+    extrapolateRight: "clamp", easing: Easing.out(Easing.cubic),
+  });
+
+  const labelStep  = n > 20 ? 4 : n > 12 ? 3 : n > 6 ? 2 : 1;
+  const pinLabels  = chartData.labelIndices ? new Set(chartData.labelIndices) : null;
+
+  return (
+    <>
+      {/* 왼쪽 패널: 제목 + 두 값 카드 */}
+      <div style={{ position: "absolute", left: 0, top: 0, width: 430, height: 1080 }}>
+        <div style={{ position: "absolute", left: 36, top: 70, display: "flex", alignItems: "center", gap: 12, opacity: fi as unknown as number }}>
+          <div style={{ width: 5, height: 32, backgroundColor: RED, borderRadius: 3 }} />
+          <span style={{ fontFamily, fontWeight: 700, fontSize: 30, color: WHITE, letterSpacing: "0.04em" }}>{titleJa}</span>
+        </div>
+
+        {/* 카드 1: 두바이유 (좌축, WHITE — 중립) */}
+        <div style={{ position: "absolute", left: 40, top: 180, width: 350, padding: "26px 26px", borderRadius: 14, background: PANEL_BG, borderLeft: `6px solid ${WHITE_LINE}` }}>
+          <div style={{ fontFamily, fontSize: 20, color: WHITE_LINE, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 10, opacity: fi as unknown as number }}>
+            {s1.label}
+          </div>
+          <div style={{ fontFamily, fontSize: 88, color: WHITE, fontWeight: 700, lineHeight: 1 }}>
+            {v1Anim.toFixed(1)}
+          </div>
+          <div style={{ fontFamily, fontSize: 26, color: WHITE_LINE, fontWeight: 700, marginTop: 6, opacity: fi as unknown as number }}>
+            {unitLabel}/barrel
+          </div>
+        </div>
+
+        <div style={{ position: "absolute", left: 40, top: 505, width: 350, height: 1, backgroundColor: DIVIDER_C }} />
+
+        {/* 카드 2: 에너지CPI (우축, RED — 경고) */}
+        <div style={{ position: "absolute", left: 40, top: 525, width: 350, padding: "26px 26px", borderRadius: 14, background: PANEL_BG, borderLeft: `6px solid ${RED}` }}>
+          <div style={{ fontFamily, fontSize: 20, color: RED, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 10, opacity: fi as unknown as number }}>
+            {s2.label}
+          </div>
+          <div style={{ fontFamily, fontSize: 88, color: WHITE, fontWeight: 700, lineHeight: 1 }}>
+            {v2Anim >= 0 ? "+" : ""}{v2Anim.toFixed(1)}
+          </div>
+          <div style={{ fontFamily, fontSize: 26, color: RED, fontWeight: 700, marginTop: 6, opacity: fi as unknown as number }}>
+            {unitLabel2} 前年比
+          </div>
+        </div>
+      </div>
+
+      {/* 수직 구분선 */}
+      <div style={{ position: "absolute", left: 440, top: 80, width: 1, height: 920, backgroundColor: DIVIDER_C }} />
+
+      {/* 오른쪽: 이중 Y축 차트 */}
+      <div style={{ position: "absolute", left: 455, top: 0, width: 1465, height: 1080 }}>
+        {/* 범례 */}
+        <div style={{ position: "absolute", top: 120, left: 36, display: "flex", gap: 28, opacity: fi as unknown as number }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 28, height: 4, backgroundColor: WHITE_LINE, borderRadius: 2 }} />
+            <span style={{ fontFamily, fontSize: 20, color: WHITE_LINE, fontWeight: 700 }}>{s1.label}（左：{unitLabel}）</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 28, height: 4, backgroundColor: RED, borderRadius: 2 }} />
+            <span style={{ fontFamily, fontSize: 20, color: RED, fontWeight: 700 }}>{s2.label}（右：{unitLabel2}）</span>
+          </div>
+        </div>
+
+        <svg width={1430} height={620} viewBox="0 0 1430 620" style={{ position: "absolute", left: 10, top: 155 }}>
+          <defs>
+            <linearGradient id="agDual" x1={0} y1={0} x2={0} y2={DUAL_CH} gradientUnits="userSpaceOnUse">
+              <stop offset="0%"   stopColor={WHITE_LINE} stopOpacity={0.12} />
+              <stop offset="100%" stopColor={WHITE_LINE} stopOpacity={0} />
+            </linearGradient>
+            <clipPath id="cpDual"><rect x={0} y={-20} width={aw} height={DUAL_CH + 40} /></clipPath>
+          </defs>
+
+          <g transform={`translate(${DUAL_OX},${DUAL_OY})`} opacity={fi as unknown as number}>
+            {/* 좌축(유가) 눈금 + 수평 그리드 */}
+            {yTicks.map(t => {
+              const y = toYL(t);
+              if (y < -5 || y > DUAL_CH + 5) return null;
+              return (
+                <g key={`l${t}`}>
+                  <line x1={0} y1={y} x2={DUAL_CW} y2={y} stroke={GRID_C} strokeWidth={1} />
+                  <text x={-10} y={y + 5} textAnchor="end" fill={AXIS_C} fontSize={17} fontFamily={fontFamily}>{t}</text>
+                </g>
+              );
+            })}
+
+            {/* 좌축 단위 레이블 */}
+            <text x={-10} y={-8} textAnchor="end" fill={AXIS_C} fontSize={15} fontFamily={fontFamily}>{unitLabel}</text>
+
+            {/* 우축(에너지CPI) 눈금 — 그리드 없이 오른쪽만 */}
+            {yTicks2.map(t => {
+              const y = toYR(t);
+              if (y < -5 || y > DUAL_CH + 5) return null;
+              return (
+                <text key={`r${t}`} x={DUAL_CW + 12} y={y + 5} textAnchor="start"
+                  fill="rgba(229,0,0,0.65)" fontSize={17} fontFamily={fontFamily}>
+                  {t >= 0 ? "+" : ""}{t}%
+                </text>
+              );
+            })}
+
+            {/* 우축 단위 레이블 */}
+            <text x={DUAL_CW + 12} y={-8} textAnchor="start" fill="rgba(229,0,0,0.55)" fontSize={15} fontFamily={fontFamily}>{unitLabel2}</text>
+
+            {/* CPI 0% 기준선 (우축 스케일) */}
+            {zeroY >= -5 && zeroY <= DUAL_CH + 5 && (
+              <line x1={0} y1={zeroY} x2={DUAL_CW} y2={zeroY}
+                stroke="rgba(255,255,255,0.28)" strokeWidth={1.5} strokeDasharray="5 4" />
+            )}
+
+            {/* X축 베이스라인 */}
+            <line x1={0} y1={DUAL_CH} x2={DUAL_CW} y2={DUAL_CH} stroke={GRID_C} strokeWidth={1.5} />
+
+            {/* X축 레이블 */}
+            {labels.map((lb, i) => {
+              if (pinLabels ? !pinLabels.has(i) : (i % labelStep !== 0)) return null;
+              return (
+                <text key={i} x={toXDyn(i, n, DUAL_CW)} y={DUAL_CH + 32} textAnchor="middle"
+                  fill={AXIS_C} fontSize={16} fontFamily={fontFamily}>{lb}</text>
+              );
+            })}
+          </g>
+
+          {/* 시리즈 1: 두바이유 (WHITE 실선 + 옅은 면적 — 중립) */}
+          <g transform={`translate(${DUAL_OX},${DUAL_OY})`}>
+            <path d={ap1} fill="url(#agDual)" clipPath="url(#cpDual)" />
+            <path d={lp1} fill="none" stroke={WHITE_LINE} strokeWidth={LINE_STROKE} strokeLinecap="round" clipPath="url(#cpDual)" />
+          </g>
+
+          {/* 시리즈 2: 에너지CPI (RED 파선 — 경고) */}
+          <g transform={`translate(${DUAL_OX},${DUAL_OY})`}>
+            <path d={lp2} fill="none" stroke={RED} strokeWidth={LINE_STROKE_S2}
+              strokeLinecap="round" strokeDasharray="10 4" clipPath="url(#cpDual)" />
+          </g>
+
+          {/* 끝점 마커 */}
+          <g transform={`translate(${DUAL_OX},${DUAL_OY})`} opacity={lo as unknown as number}>
+            {/* s1 마커 (유가, WHITE — 중립) */}
+            <circle cx={last1.x} cy={last1.y} r={MARKER_S1_OUTER} fill={WHITE_LINE} />
+            <circle cx={last1.x} cy={last1.y} r={MARKER_S1_INNER} fill={BG_NAVY} />
+            <rect x={last1.x - 130} y={last1.y - 58} width={126} height={30} rx={15}
+              fill="rgba(8,16,32,0.90)" stroke={WHITE_LINE} strokeWidth={1.5} />
+            <text x={last1.x - 67} y={last1.y - 37} textAnchor="middle" fill={WHITE}
+              fontSize={17} fontWeight={700} fontFamily={fontFamily}>
+              {s1.latestValue.toFixed(1)} {unitLabel}
+            </text>
+
+            {/* s2 마커 (CPI, RED — 경고) */}
+            <circle cx={last2.x} cy={last2.y} r={MARKER_S2_OUTER} fill={RED} />
+            <circle cx={last2.x} cy={last2.y} r={MARKER_S2_INNER} fill={WHITE} />
+            <rect x={last2.x - 130} y={last2.y + 14} width={126} height={30} rx={15}
+              fill="rgba(8,16,32,0.90)" stroke={RED} strokeWidth={1.5} />
+            <text x={last2.x - 67} y={last2.y + 34} textAnchor="middle" fill={WHITE}
+              fontSize={17} fontWeight={700} fontFamily={fontFamily}>
+              {s2.latestValue >= 0 ? "+" : ""}{s2.latestValue.toFixed(1)} {unitLabel2}
+            </text>
+          </g>
+        </svg>
+      </div>
+    </>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
 // メインコンポーネント
 // ═══════════════════════════════════════════════════════════════
 export const NavyDark: React.FC<NavyDarkProps> = ({ chartData }) => {
@@ -595,9 +811,11 @@ export const NavyDark: React.FC<NavyDarkProps> = ({ chartData }) => {
         ? <ListView    chartData={chartData!} frame={frame} />
         : chartType === "bar"
           ? <BarView   chartData={chartData!} frame={frame} />
-          : chartType === "compare" && chartData?.series1 && chartData?.series2
-            ? <CompareView chartData={chartData} frame={frame} />
-            : <SingleView  chartData={chartData} frame={frame} />
+          : chartType === "dual" && chartData?.series1 && chartData?.series2
+            ? <DualAxisView chartData={chartData} frame={frame} />
+            : chartType === "compare" && chartData?.series1 && chartData?.series2
+              ? <CompareView chartData={chartData} frame={frame} />
+              : <SingleView  chartData={chartData} frame={frame} />
       }
     </AbsoluteFill>
   );

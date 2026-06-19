@@ -180,7 +180,7 @@
 
     <div class="action-row">
       <button id="btn-proceed" class="btn btn-primary btn-lg" onclick="proceed()">
-        ✅ 이대로 진행 → 배경 영상 선택
+        🎬 배경 영상 선택 →
       </button>
       <button class="btn btn-secondary btn-lg" onclick="backToKo()">
         ← KO 단계로 돌아가기
@@ -330,7 +330,7 @@ async function proceed() {
     const err = await r.json().catch(() => ({detail:"저장 실패"}));
     alert(err.detail || "저장 실패");
     document.getElementById("btn-proceed").disabled = false;
-    document.getElementById("btn-proceed").textContent = "✅ 이대로 진행 → 배경 영상 선택";
+    document.getElementById("btn-proceed").textContent = "🎬 배경 영상 선택 →";
     return;
   }
   location.href = `/shorts/${SLOT}/background`;

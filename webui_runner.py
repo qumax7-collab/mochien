@@ -12,6 +12,7 @@ from typing import AsyncGenerator
 
 from dotenv import load_dotenv
 from openai import OpenAI
+from webui_pexels import fetch_pexels_candidates, save_used_video
 
 load_dotenv()
 
@@ -52,11 +53,6 @@ TICK_Thumbnail  = 15.0
 TICK_Long4   = 40.0
 TICK_Long5   = 25.0
 
-LONG_BG_FILES = {
-    0: "long_bg_main.mp4",
-    1: "long_bg_issue1.mp4",
-    2: "long_bg_issue2.mp4",
-}
 
 LONG_SCRIPT_KO_FILE     = "long_script_ko.json"
 LONG_SCRIPT_VERIFY_FILE = "long_script_verify.json"
@@ -161,9 +157,10 @@ def save_slot_gpt_result(slot: str, gpt: dict, article: dict | None = None):
     now = datetime.now(JST)
     save = {
         **gpt,
-        "slot":          slot,
-        "article_url":   (article or {}).get("url", gpt.get("article_url", "")),
+        "slot":           slot,
+        "article_url":    (article or {}).get("url", gpt.get("article_url", "")),
         "raw_summary_jp": (article or {}).get("article_body", gpt.get("raw_summary_jp", "")),
+        "webui_published": False,  # 발행 완료 전까지 기사 재선택 허용
     }
     root_path = BASE / "gpt_result.json"
     root_path.write_text(json.dumps(save, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -173,6 +170,19 @@ def save_slot_gpt_result(slot: str, gpt: dict, article: dict | None = None):
     (slot_dir / f"{slot}_gpt_result.json").write_text(
         json.dumps(save, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+
+
+def mark_slot_published(slot: str):
+    """step9 업로드 성공 후 호출 — webui_published: True로 갱신."""
+    slot_file = BASE / "output" / datetime.now(JST).strftime("%Y-%m-%d") / f"{slot}_gpt_result.json"
+    if not slot_file.exists():
+        return
+    try:
+        data = json.loads(slot_file.read_text(encoding="utf-8"))
+        data["webui_published"] = True
+        slot_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        print(f"[webui] mark_slot_published 실패: {e}")
 
 
 # ── 서브프로세스 실행 (공용) ───────────────────────────────
@@ -265,7 +275,7 @@ async def _run_with_ticks(
 
 
 # ── 쇼츠 파이프라인 SSE ───────────────────────────────────
-async def run_shorts_stream(slot: str, gpt: dict, bg_url: str) -> AsyncGenerator[str, None]:
+async def run_shorts_stream(slot: str, gpt: dict, bg_url: str | None = None) -> AsyncGenerator[str, None]:
     """쇼츠 영상 생성 파이프라인 SSE 이벤트 제너레이터."""
 
     # gpt_result.json 준비
@@ -277,13 +287,28 @@ async def run_shorts_stream(slot: str, gpt: dict, bg_url: str) -> AsyncGenerator
             json.dumps({**gpt, "slot": slot}, ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
-    # ── 1. 배경 영상 다운로드 ──────────────────────────────
-    yield _ev("BG", 3, f"배경 영상 다운로드 중... ({ETA['BG']})")
-    try:
-        await asyncio.to_thread(download_video, bg_url, str(BASE / "background.mp4"))
-    except Exception as e:
-        yield _err("BG", str(e))
-        return
+    # ── 1. 배경 영상 다운로드 ─────────────────────────────
+    if bg_url:
+        yield _ev("BG", 3, f"선택한 배경 영상 다운로드 중... ({ETA['BG']})")
+        try:
+            await asyncio.to_thread(download_video, bg_url, str(BASE / "background.mp4"))
+        except Exception as e:
+            yield _err("BG", str(e))
+            return
+    else:
+        yield _ev("BG", 3, f"배경 영상 자동 검색 중... ({ETA['BG']})")
+        try:
+            image_prompt = gpt.get("image_prompt", "japanese economy news")
+            candidates = await asyncio.to_thread(fetch_pexels_candidates, image_prompt, 6, 1)
+            if not candidates:
+                raise Exception(f"Pexels 검색 결과 없음: '{image_prompt}'")
+            chosen = candidates[0]
+            bg_url = chosen["url"]
+            await asyncio.to_thread(save_used_video, bg_url, chosen.get("thumb", ""))
+            await asyncio.to_thread(download_video, bg_url, str(BASE / "background.mp4"))
+        except Exception as e:
+            yield _err("BG", str(e))
+            return
     yield _ev("BG", 12, "배경 영상 다운로드 완료 ✓")
 
     # ── 2. TTS ─────────────────────────────────────────────
@@ -349,6 +374,9 @@ async def run_shorts_stream(slot: str, gpt: dict, bg_url: str) -> AsyncGenerator
                 yt_url = url_candidate
                 break
 
+    # 발행 완료 마킹 — 이 기사는 이제 재선택 대상에서 제외
+    mark_slot_published(slot)
+
     # step10 검수: 백그라운드 실행 (완료를 기다리지 않음 — 텔레그램으로 결과 수신)
     asyncio.get_event_loop().run_in_executor(None, lambda: subprocess.run(
         [sys.executable, "step10_gemini_review.py", "--mode", "shorts"],
@@ -396,29 +424,28 @@ async def run_longform_stream(bg_urls: dict, slot: str = "sun") -> AsyncGenerato
     slot: 발행 슬롯 ("sun" | "thu")
     """
 
-    # ── 배경 영상: long3로 3개 자동 선택 후, 인트로·아웃트로는 사용자 선택으로 덮어쓰기 ──
+    # ── 배경 영상: long3_pexels.py로 섹션 기본 bg 다운로드 ──
+    # 섹션별 선택 배경(long_bg_brief_{section}.mp4)은 webUI 선택 시 이미 다운로드됨
+    # long3는 brief.bg_section 미설정 섹션의 폴백 bg를 담당
     yield _ev("Long3", 2, f"배경 영상 준비 중... ({ETA['BG']})")
-
-    # long3: 이슈1·2·인트로 자동 선택 (인트로는 나중에 교체)
     rc, _, stderr = await _run_proc("long3_pexels.py")
     if rc != 0:
         yield _err("Long3", stderr.decode(errors="replace"))
         return
-
-    # 사용자가 인트로·아웃트로 배경을 선택한 경우 덮어쓰기
-    main_bg = bg_urls.get(0)
-    if main_bg:
-        try:
-            await asyncio.to_thread(download_video, main_bg["url"], str(BASE / "long_bg_main.mp4"))
-        except Exception as e:
-            yield _err("Long3", f"long_bg_main.mp4: {e}")
-            return
-
     yield _ev("Long3", 8, "배경 영상 준비 완료 ✓")
 
     # ── long2: TTS ──────────────────────────────────────────
     failed = False
     async for ev in _run_with_ticks("long2_tts.py", "Long2", 10, 22, "롱폼 음성 생성 중...", 15.0):
+        yield ev
+        if '"step":"Error"' in ev:
+            failed = True
+    if failed:
+        return
+
+    # ── long_render_charts: 차트 데이터 fetch + Remotion 렌더 ──
+    failed = False
+    async for ev in _run_with_ticks("long_render_charts.py", "Charts", 23, 25, "차트 렌더 중...", 20.0):
         yield ev
         if '"step":"Error"' in ev:
             failed = True
@@ -487,3 +514,48 @@ async def run_longform_stream(bg_urls: dict, slot: str = "sun") -> AsyncGenerato
         capture_output=True, cwd=str(BASE),
     ))
     yield _ev("Done", 100, "롱폼 영상 생성 및 업로드 완료! 🎉", url=yt_url)
+
+
+# ── 배경만 재렌더 SSE (TTS·자막 보존) ───────────────────────
+async def run_longform_bg_only_stream() -> AsyncGenerator[str, None]:
+    """배경 재렌더 전용: long4(FFmpeg 합성) + 기존 ASS 자막 번인만 실행.
+    long2(TTS)·long5(Whisper) 재호출 없이 교정 완료된 자막 보존."""
+
+    ass_file = "long_subtitle.ass"
+    no_sub   = "long_output_no_sub.mp4"
+    output   = "long_output.mp4"
+
+    if not (BASE / ass_file).exists():
+        yield _err("Sub", f"{ass_file} 없음 — long5를 먼저 실행하세요")
+        return
+    if not (BASE / "long_voice_intro.mp3").exists():
+        yield _err("Long4", "long_voice_intro.mp3 없음 — long2를 먼저 실행하세요")
+        return
+
+    # long4: FFmpeg 섹션 합성 → long_output_no_sub.mp4
+    failed = False
+    async for ev in _run_with_ticks("long4_ffmpeg.py", "Long4", 5, 75, "롱폼 영상 합성 중...", TICK_Long4):
+        yield ev
+        if '"step":"Error"' in ev:
+            failed = True
+    if failed:
+        return
+
+    # 기존 ASS 자막 번인 (Whisper 재호출 없음)
+    yield _ev("Sub", 78, "기존 자막 번인 중...")
+    sub_cmd = [
+        "ffmpeg", "-y",
+        "-i", no_sub,
+        "-vf", f"ass={ass_file}",
+        "-c:v", "libx264", "-crf", "18", "-preset", "fast", "-pix_fmt", "yuv420p",
+        "-c:a", "copy",
+        output,
+    ]
+    r = await asyncio.get_event_loop().run_in_executor(
+        None, lambda: _run_sync_cmd(sub_cmd)
+    )
+    if r.returncode != 0:
+        yield _err("Sub", r.stderr.decode(errors="replace").strip()[-2000:])
+        return
+
+    yield _ev("Done", 100, "배경 재렌더 완료 ✓", url="")

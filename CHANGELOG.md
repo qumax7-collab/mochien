@@ -1049,3 +1049,72 @@
 
 ✅  [백로그 완료] outro dirty 자동 검사 안전장치 — 커밋 7baff7a
         long1_script.py _check_outro_dirty() 신설 / 매 빌드 자동 실행 (경고만, 중단 없음)
+
+✅  블로그 가독성·메타 개선 3건 (2026-06-18)
+        [배경] Yoast 진단: 문장 길이 경고(64% 초과) / H2 사이 600자 초과 / 메타 디스크립션 미설정
+        [작업 3] 문장 길이 단축 — long1_script.py
+          · SYSTEM_KO 규칙 5번 추가: "일본어 기준 한 문장 40자 이내 지향 / 의미 단위로 분리 /
+            수치·데이터 정확성 우선 — 수치 누락·의미 훼손 금지 / 기계적 절단 금지"
+          · SYSTEM_JA 【文章スタイル】에 「1文の長さ」규칙 추가 (동일 내용 일본어)
+          · 무결성 게이트(_validate_numerics / _check_outro_dirty / validate_ko_issues) 전부 무변경
+          · 다음 대본 생성분부터 운영자 KO 전문 검수 대상 (CC 통과 판정 불가)
+        [작업 1] 메타 디스크립션 실제 저장 — long7_wordpress.py
+          · _build_meta_desc(script) 신설
+            차트 태그·영상 전용 멘트·후리가나 제거 → META_DESC_MAX_CHARS(120) 이내
+            마지막 句点(。) 위치에서 절삭 (기존: 단순 120자 절삭으로 문장 중간 잘림)
+          · _patch_yoast_meta(post_id, meta_desc, focus_kw) 신설
+            WordPress REST API private meta(_yoast_wpseo_metadesc 등)는 신규 POST body에서
+            무시될 수 있음 → 글 생성 직후 별도 PATCH 전송으로 양쪽 커버
+          · publish_post(): resp_data.get("id")로 post_id 추출 → 성공 시 _patch_yoast_meta() 호출
+          · main(): meta_desc 생성 로직을 _build_meta_desc(intro_text) 단일 호출로 교체
+        [작업 2] 이슈 섹션 H3 소제목 삽입 — long7_wordpress.py
+          · 상수 추가: H3_PARA_THRESHOLD=3 / H3_INSERT_AT=[1,3] / ISSUE_H3_TEXTS=["背景と仕組み","生活への影響"]
+          · _inject_h3(paras_html) 신설: to_paragraphs() 결과에 H3 삽입
+            단락 수 < H3_PARA_THRESHOLD면 skip (에러 아님)
+            H3_INSERT_AT 인덱스 단락 직후, 다음 단락이 있을 때만 삽입
+          · build_html_body(): issue1·issue2 양쪽에 _inject_h3(to_paragraphs(...)) 래핑
+            intro·outro는 기존 to_paragraphs() 유지 (단락 수 적어 H3 불필요)
+        [변경 파일 2종] long1_script.py / long7_wordpress.py (대본 무변경 — 작업1·2)
+
+✅  작업 5-4(A) 완료 (2026-06-18) — energy-dependency 이중 Y축 차트 (DualAxisView) 신설 + 빌더 연동
+        [배경] energy-dependency 토픽 서사: 유가 하락에도 가계 에너지 부담 고착 → "통념 vs 사실 반전" 콜드오픈
+          두바이유(USD)와 에너지CPI(%) 단위가 다르므로 기존 CompareView(공유 Y축) 사용 불가
+          → 좌/우 독립 Y축을 가진 DualAxisView 컴포넌트 신설
+        [데이터 소스 추가] topic_bank.json — energy-dependency
+          · 기존: FRED POILDUBUSDM (두바이유 월별 USD) 단독
+          · 추가: e-Stat 0003427113 / cdTab:3 / cdCat01:0167 (에너지CPI 전년동월비 %)
+          · data_structure: single-series → multi-item / primary 소스: FRED 유지
+        [DualAxisView 컴포넌트] remotion/src/mochien/NavyDark.tsx
+          · ChartData type 확장: type:"dual" / unitLabel2 / yMin2 / yMax2 / yTicks2 필드 추가
+          · DUAL_* 레이아웃 상수 추가 (DUAL_CW=1210 / DUAL_CH=480 / DUAL_OX=80 / DUAL_OY=20)
+          · 왼쪽 패널: 제목 + 값 카드 2개 (ドバイ原油=WHITE_LINE / エネルギーCPI=RED)
+          · 오른쪽 SVG: 좌 Y축(유가 USD, 회색 눈금) / 우 Y축(CPI %, RED 눈금)
+            유가: WHITE_LINE 실선 + 흰 면적 그라데이션(opacity 0.12)
+            CPI: RED 점선(10 4 패턴) + RED 마커(외곽 RED / 내부 WHITE)
+            CPI 0% 기준선 파선 / 각 계열 끝 레이블 표시
+          · 색상 의미: WHITE=중립 맥락(유가) / RED=경고(에너지 부담) — 서사 방향 반영
+          · 메인 switch 분기 추가: type=="dual" → DualAxisView (type=="compare" 위에 배치)
+          · 기존 SingleView / CompareView / ListView / BarView 무변경 (회귀 없음)
+        [dual 빌더] data/make_chart_json.py
+          · _yticks() 대범위 수정: span>80 → interval=20 (기존 span>30→10만 있어 oil 눈금 9개 과밀)
+          · _build_dual_item() 신규: 두 소스 fetch → 공통 월 교집합(1개월 시차 자동 처리)
+            → step 서브샘플 → 각 계열 독립 Y범위 계산 → Remotion props dict 반환
+          · make_chart_json_from_item() dispatch: type=="dual" 분기 추가
+          · CLI: python data/make_chart_json.py --item "原油 vs エネルギーCPI" --months 36 --step 3
+        [chart_item_map.json 신규 항목]
+          · "原油 vs エネルギーCPI": key=energy_dual / type=dual / unit=USD / unit2=%
+            series[0]: FRED POILDUBUSDM (ドバイ原油)
+            series[1]: e-Stat 0003427113 / cdCat01:0167 (エネルギーCPI)
+        [실제 데이터 렌더 결과]
+          · energy_dual.json 생성: 21포인트(60개월 캐시 공통 교집합 / step=3)
+            ドバイ原油 최신값 105.3 USD (좌축 50~140) / エネルギーCPI 최신값 -3.9% (우축 -20~30)
+            2026-03 이란 공습 스파이크($126.71) 우측 끝에 시각적으로 표현됨
+          · energy_dual.mp4 렌더 성공 (485 kB / 150프레임)
+        [회귀 테스트 통과]
+          · yen_rate (single): 159.3円 게이지+꺾은선 정상 ✅
+          · food_vs_total (compare): 食料+3.5% / 総合+1.4% 이중선 정상 ✅
+        [변경 파일 4종] remotion/src/mochien/NavyDark.tsx / data/make_chart_json.py /
+                        chart_item_map.json / topic_bank.json (energy-dependency)
+        [신규 파일 2종] remotion/public/chart_data/energy_dual_dummy.json (테스트용)
+                        remotion/public/chart_data/energy_dual.json (실 데이터)
+        [보류] energy-dependency 롱폼 대본 생성은 내일 별도 진행

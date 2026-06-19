@@ -12,6 +12,8 @@ import requests
 from dotenv import load_dotenv
 from openai import OpenAI
 import article_score as _article_score
+import longform_link
+from step3_chatgpt import _strip_signoff, SIGNOFF_DEFAULT_JA, SIGNOFF_FUNNEL_JA
 
 sys.stdout.reconfigure(encoding="utf-8")
 load_dotenv()
@@ -82,7 +84,6 @@ hashtagsは必ずJSON配列で出力すること。例: ["#Shorts", "#経済", "
 - 数字を出すときは必ず一度立ち止まって解説する
 - 経済の話を生活の手触りに翻訳する役割
 - 政治的立場は取らない、事実と影響だけ語る
-- 末尾は必ず「以上、モチエンがお伝えしました！」
 
 【モチエンが繰り返し使うフレーズ】
 - 「これ、実はあなたの○○に関わってきます」
@@ -139,8 +140,7 @@ USER_PROMPT = """
 - 落ち着いていて信頼感がある話し方（40〜60代向け）
 - 難しい経済用語はやさしい言葉に言い換える
 - 視聴者を「あなた」と呼ぶ
-- スクリプト末尾は必ず下記で締めること:
-  「以上、モチエンがお伝えしました！」
+- scriptのサインオフはコードが自動追加するため、scriptに含めないこと
 
 【title ルール】
 - 30字以内
@@ -555,7 +555,7 @@ def fetch_articles(limit: int = MAX_ARTICLES):
 # ChatGPT
 # ─────────────────────────────────────────
 
-def call_chatgpt(title, article_body):
+def call_chatgpt(title, article_body, article=None):
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
     user_prompt = USER_PROMPT.format(title=title, article_body=article_body)
     response = client.chat.completions.create(
@@ -580,6 +580,28 @@ def call_chatgpt(title, article_body):
     if missing:
         raise Exception(f"필수 키 누락: {missing}")
     _check_furigana(data.get("script", ""))
+
+    # 사인오프: GPT 생성 분 제거 → 캐논 부착 (펀넬 분기)
+    script_body = _strip_signoff(data.get("script", ""))
+    matched_topic_id = None
+    if article:
+        try:
+            topic = _article_score.match_topic(article)
+            matched_topic_id = topic["id"] if topic else None
+        except Exception:
+            pass
+    data["matched_topic_id"] = matched_topic_id
+    active = longform_link.get_active_for_topic(matched_topic_id)
+    if active:
+        data["script"] = script_body + " " + SIGNOFF_FUNNEL_JA
+        data["active_longform_url"]   = active.get("url", "")
+        data["active_longform_title"] = active.get("title_ja", "")
+        print(f"  [깔때기] {data['active_longform_title']} — {data['active_longform_url']}")
+    else:
+        data["script"] = script_body + " " + SIGNOFF_DEFAULT_JA
+        data["active_longform_url"]   = ""
+        data["active_longform_title"] = ""
+
     return data
 
 
@@ -648,7 +670,7 @@ def single_main():
             tg_edit(message_id, loading_text)
 
         try:
-            gpt = call_chatgpt(article["title"], article["article_body"])
+            gpt = call_chatgpt(article["title"], article["article_body"], article=article)
         except BlockedArticleError:
             print(f"  [차단] 투자 관련 주제 → 다음 기사로")
             tg_edit(message_id, "⚠️ 이 기사는 투자 관련 주제로 차단되었습니다. 다음 후보로 넘어갑니다.")
@@ -723,7 +745,7 @@ def batch_main():
 
     def call_safe(article):
         try:
-            return call_chatgpt(article["title"], article["article_body"])
+            return call_chatgpt(article["title"], article["article_body"], article=article)
         except BlockedArticleError as e:
             print(f"  [차단] {article['title'][:20]}: {e}")
             return None

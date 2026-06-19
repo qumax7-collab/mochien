@@ -1,0 +1,54 @@
+{
+  "issue1": [
+    {
+      "type": "narration",
+      "start": 0.0,
+      "end": 28.003
+    },
+    {
+      "type": "chart",
+      "start": 28.003,
+      "end": 39.102,
+      "item": "ドバイ原油",
+      "time_hint": "2025-04→2026-04"
+    },
+    {
+      "type": "narration",
+      "start": 39.102,
+      "end": 94.645
+    }
+  ],
+  "issue2": [
+    {
+      "type": "chart",
+      "start": 0.0,
+      "end": 19.505,
+      "item": "エネルギー",
+      "time_hint": "2023-01→2023-12"
+    },
+    {
+      "type": "chart",
+      "start": 19.505,
+      "end": 56.935,
+      "item": "エネルギー",
+      "time_hint": "2024-01→2025-03"
+    },
+    {
+      "type": "narration",
+      "start": 56.935,
+      "end": 60.743
+    },
+    {
+      "type": "chart",
+      "start": 60.743,
+      "end": 89.675,
+      "item": "原油 vs エネルギーCPI",
+      "time_hint": "2026-01→2026-03"
+    },
+    {
+      "type": "narration",
+      "start": 89.675,
+      "end": 101.471
+    }
+  ]
+}

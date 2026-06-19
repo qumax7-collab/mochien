@@ -84,9 +84,13 @@ def select_best_video(videos, used_ids):
 
 def get_image_prompt(data, key):
     if key == "intro":
-        return data["intro"]["image_prompt"]
-    idx = int(key[-1]) - 1  # issue1 → 0
-    return data["issues"][idx]["image_prompt"]
+        query = data["intro"]["image_prompt"]
+    else:
+        idx   = int(key[-1]) - 1  # issue1 → 0
+        query = data["issues"][idx]["image_prompt"]
+    if "japan" not in query.lower():
+        query = "japan " + query
+    return query
 
 
 def search_videos(query, api_key):

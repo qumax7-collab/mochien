@@ -84,6 +84,20 @@ code, pre { font-family: "Consolas", "Courier New", monospace; }
 .section-title h2 { font-size: 1.2rem; font-weight: 700; color: #fff; }
 .hint { font-size: .82rem; color: var(--text-sub); margin-top: .25rem; }
 
+/* ── 인풋 ────────────────────────────────────────────── */
+.input-field {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: .9rem;
+  padding: .38rem .75rem;
+  outline: none;
+  transition: border-color .15s;
+}
+.input-field:focus { border-color: var(--red); }
+.input-field::placeholder { color: var(--text-sub); }
+
 /* ── 버튼 ─────────────────────────────────────────────── */
 .btn {
   display: inline-flex;

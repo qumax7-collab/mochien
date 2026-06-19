@@ -13,9 +13,10 @@ from jinja2 import Environment, FileSystemLoader
 
 from webui_runner import (
     run_fetch_articles, run_call_gpt_ko, run_translate_ja, save_slot_gpt_result,
-    run_shorts_stream, run_long1_script, run_longform_stream,
+    run_shorts_stream, run_long1_script, run_longform_stream, run_longform_bg_only_stream,
     run_long1_ko, run_long1_ja,
     LONG_SCRIPT_KO_FILE, LONG_SCRIPT_VERIFY_FILE,
+    download_video as _download_video,
 )
 
 LONG_SCRIPT_KO_BAK_FILE = "long_script_ko.bak.json"
@@ -43,7 +44,8 @@ SLOT_STATE: dict = {
 LONGFORM_STATE: dict = {
     "is_running": False,
     "script": None,
-    "bg_urls": {},   # {0: url, 1: url, 2: url}
+    "bg_urls": {},        # 레거시 (문단별 선택 — 현재 미사용)
+    "section_bgs": {},    # 섹션별 배경 선택 결과 {intro/issue1/issue2/outro: {url,thumb,path}}
 }
 
 # 표정 허용값 (자동 풀 9종 + 수동 전용 3종)
@@ -69,6 +71,10 @@ def validate_slot(slot: str):
         raise HTTPException(400, "슬롯은 09 또는 18")
 
 def get_today_used_urls() -> set:
+    """오늘 이미 사용 확정된 기사 URL 세트.
+    webui_published 키가 있으면 True일 때만 제외 (발행 전은 재선택 가능).
+    키가 없으면 자동화 파이프라인 생성 파일로 보고 항상 제외.
+    """
     used: set = set()
     today_dir = BASE / "output" / today_jst()
     if not today_dir.exists():
@@ -77,11 +83,32 @@ def get_today_used_urls() -> set:
         try:
             data = json.loads(f.read_text(encoding="utf-8"))
             url = data.get("article_url", "")
-            if url:
+            if not url:
+                continue
+            published = data.get("webui_published")
+            # webui_published 키 없음 = 자동화 파이프라인 → 항상 제외
+            # webui_published=True  = webui에서 발행 완료 → 제외
+            # webui_published=False = webui에서 미발행 → 제외 안 함 (재사용 가능)
+            if published is None or published is True:
                 used.add(url)
         except Exception:
             pass
     return used
+
+
+def _try_restore_gpt(slot: str) -> dict | None:
+    """SLOT_STATE가 비어있을 때 오늘 슬롯 파일에서 gpt 데이터 복원."""
+    slot_file = BASE / "output" / today_jst() / f"{slot}_gpt_result.json"
+    if not slot_file.exists():
+        return None
+    try:
+        data = json.loads(slot_file.read_text(encoding="utf-8"))
+        # webui 생성 파일만 복원 (webui_published 키 존재 여부로 판단)
+        if "webui_published" in data:
+            return data
+    except Exception:
+        pass
+    return None
 
 
 # ── 페이지 라우트 ─────────────────────────────────────────
@@ -105,9 +132,13 @@ async def page_script(request: Request, slot: str):
     gpt_ko = SLOT_STATE[slot].get("gpt_ko")
     gpt    = SLOT_STATE[slot].get("gpt")
     if not gpt_ko and not gpt:
-        return templates.TemplateResponse(request, "select_article.html", {
-            "slot": slot, "error": "먼저 기사를 선택해주세요.",
-        })
+        gpt = _try_restore_gpt(slot)
+        if gpt:
+            SLOT_STATE[slot]["gpt"] = gpt
+        else:
+            return templates.TemplateResponse(request, "select_article.html", {
+                "slot": slot, "error": "먼저 기사를 선택해주세요.",
+            })
     return templates.TemplateResponse(request, "confirm_script.html", {
         "slot": slot, "gpt_ko": gpt_ko, "gpt": gpt,
     })
@@ -117,9 +148,13 @@ async def page_background(request: Request, slot: str):
     validate_slot(slot)
     gpt = SLOT_STATE[slot].get("gpt")
     if not gpt:
-        return templates.TemplateResponse(request, "select_article.html", {
-            "slot": slot, "error": "먼저 기사를 선택해주세요.",
-        })
+        gpt = _try_restore_gpt(slot)
+        if gpt:
+            SLOT_STATE[slot]["gpt"] = gpt
+        else:
+            return templates.TemplateResponse(request, "select_article.html", {
+                "slot": slot, "error": "먼저 기사를 선택해주세요.",
+            })
     return templates.TemplateResponse(request, "select_background.html", {
         "slot": slot, "image_prompt": gpt.get("image_prompt", "japanese economy"),
     })
@@ -128,9 +163,9 @@ async def page_background(request: Request, slot: str):
 async def page_generate(request: Request, slot: str):
     validate_slot(slot)
     state = SLOT_STATE[slot]
-    if not state.get("gpt") or not state.get("bg_url"):
+    if not state.get("gpt"):
         return templates.TemplateResponse(request, "select_article.html", {
-            "slot": slot, "error": "기사와 배경 영상을 모두 선택해주세요.",
+            "slot": slot, "error": "먼저 기사를 선택해주세요.",
         })
     return templates.TemplateResponse(request, "generate.html", {
         "slot":     slot,
@@ -239,10 +274,10 @@ async def api_set_expression(slot: str, request: Request):
 
 # ── API: 배경 영상 ────────────────────────────────────────
 @app.get("/api/shorts/{slot}/pexels")
-async def api_pexels(slot: str, page: int = Query(default=1, ge=1)):
+async def api_pexels(slot: str, page: int = Query(default=1, ge=1), q: str = Query(default="")):
     validate_slot(slot)
     gpt   = SLOT_STATE[slot].get("gpt") or {}
-    query = gpt.get("image_prompt", "japanese economy news")
+    query = q.strip() if q.strip() else gpt.get("image_prompt", "japanese economy news")
     candidates = await asyncio.to_thread(fetch_pexels_candidates, query, 6, page)
     return {"candidates": candidates, "query": query, "page": page}
 
@@ -271,16 +306,16 @@ async def api_shorts_stream(slot: str):
             yield 'data: {"step":"Error","pct":-1,"msg":"이미 실행 중입니다."}\n\n'
         return StreamingResponse(_busy(), media_type="text/event-stream")
 
-    if not s.get("gpt") or not s.get("bg_url"):
+    if not s.get("gpt"):
         async def _missing():
-            yield 'data: {"step":"Error","pct":-1,"msg":"GPT 대본 또는 배경 영상이 없습니다."}\n\n'
+            yield 'data: {"step":"Error","pct":-1,"msg":"GPT 대본이 없습니다."}\n\n'
         return StreamingResponse(_missing(), media_type="text/event-stream")
 
     s["is_running"] = True
 
     async def _gen():
         try:
-            async for ev in run_shorts_stream(slot, s["gpt"], s["bg_url"]):
+            async for ev in run_shorts_stream(slot, s["gpt"], bg_url=s.get("bg_url")):
                 yield ev
                 await asyncio.sleep(0)
         finally:
@@ -312,29 +347,61 @@ async def api_longform_script():
     LONGFORM_STATE["script"] = script
     return script
 
-@app.get("/api/longform/pexels/{idx}")
-async def api_longform_pexels(idx: int, page: int = Query(default=1, ge=1)):
+@app.get("/api/longform/paragraphs")
+async def api_longform_paragraphs():
+    """long_script.json에서 섹션별 나레이션 문단 목록 반환 (배경 슬롯 동적 생성용)."""
+    import re
+    script_path = BASE / "long_script.json"
+    if not script_path.exists():
+        raise HTTPException(404, "long_script.json 없음")
+    try:
+        script = json.loads(script_path.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise HTTPException(500, f"스크립트 파싱 실패: {e}")
+
+    def extract_paras(text: str) -> list:
+        clean = re.sub(r'===차트\[[^\]]*\]===.*?===차트끝===', '', text, flags=re.DOTALL)
+        paras = [p.strip() for p in clean.split('\n') if p.strip()]
+        return [{"idx": i, "preview": p[:60]} for i, p in enumerate(paras)]
+
+    issues = script.get("issues", [])
+    return {
+        "intro":  [{"idx": 0, "preview": (script.get("intro", {}).get("script", "") or "")[:60]}],
+        "issue1": extract_paras(issues[0].get("script", "") if issues else ""),
+        "issue2": extract_paras(issues[1].get("script", "") if len(issues) > 1 else ""),
+    }
+
+@app.get("/api/longform/pexels/para/{section_key}/{para_idx}")
+async def api_longform_pexels_para(section_key: str, para_idx: int, page: int = Query(default=1, ge=1)):
+    """섹션·문단 지정 Pexels 후보 조회 (문단별 배경 선택용)."""
     script   = LONGFORM_STATE.get("script") or {}
-    fallback = "japanese economy news"
-    if idx == 0:
+    fallback = "japan economy news"
+    if section_key == "intro":
         query = script.get("intro", {}).get("image_prompt", fallback)
-    else:
+    elif section_key == "issue1":
         issues = script.get("issues", [])
-        query  = issues[idx - 1].get("image_prompt", fallback) if idx - 1 < len(issues) else fallback
+        query  = issues[0].get("image_prompt", fallback) if issues else fallback
+    elif section_key == "issue2":
+        issues = script.get("issues", [])
+        query  = issues[1].get("image_prompt", fallback) if len(issues) > 1 else fallback
+    else:
+        query = fallback
+    if "japan" not in query.lower():
+        query = "japan " + query
     candidates = await asyncio.to_thread(fetch_pexels_candidates, query, 6, page)
-    return {"candidates": candidates, "idx": idx}
+    return {"candidates": candidates, "section_key": section_key, "para_idx": para_idx}
 
 @app.post("/api/longform/select-bg")
 async def api_longform_select_bg(request: Request):
     body  = await request.json()
-    idx   = body.get("idx")
+    key   = body.get("key")   # e.g. "intro", "issue1_p0", "issue2_p1"
     url   = body.get("url", "")
     thumb = body.get("thumb", "")
-    if idx is None or not url:
-        raise HTTPException(400, "idx·url 필드 필요")
-    LONGFORM_STATE["bg_urls"][idx] = {"url": url, "thumb": thumb}
+    if key is None or not url:
+        raise HTTPException(400, "key·url 필드 필요")
+    LONGFORM_STATE["bg_urls"][key] = {"url": url, "thumb": thumb}
     save_used_video(url, thumb)
-    return {"ok": True, "idx": idx}
+    return {"ok": True, "key": key}
 
 @app.get("/api/longform/topics")
 async def api_longform_topics():
@@ -453,6 +520,81 @@ async def api_longform_verify_read():
     except Exception:
         return {"exists": False}
 
+_SECTION_KEYS = ("intro", "issue1", "issue2", "outro")
+_SECTION_LABELS = {"intro": "イントロ / アウトロ", "issue1": "イシュー①", "issue2": "イシュー②", "outro": "アウトロ"}
+
+
+@app.get("/api/longform/section-bg/search")
+async def api_section_bg_search(
+    section: str = Query(...),
+    q: str       = Query(default=""),
+    page: int    = Query(default=1, ge=1),
+):
+    """섹션 배경 Pexels 검색 (section: intro/issue1/issue2/outro)."""
+    if section not in _SECTION_KEYS:
+        raise HTTPException(400, "section은 intro/issue1/issue2/outro")
+
+    if not q.strip():
+        script = LONGFORM_STATE.get("script") or {}
+        issues = script.get("issues", [])
+        if section in ("intro", "outro"):
+            q = script.get("image_prompt", "") or script.get("intro", {}).get("image_prompt", "japan economy")
+        elif section == "issue1":
+            q = (issues[0].get("image_prompt", "") if issues else "") or "japan economy"
+        elif section == "issue2":
+            q = (issues[1].get("image_prompt", "") if len(issues) > 1 else "") or "japan energy"
+
+    if "japan" not in q.lower():
+        q = "japan " + q.strip()
+
+    candidates = await asyncio.to_thread(fetch_pexels_candidates, q, 6, page)
+    return {"candidates": candidates, "section": section, "page": page, "query": q}
+
+
+@app.post("/api/longform/section-bg/select")
+async def api_section_bg_select(request: Request):
+    """섹션 배경 선택 → 다운로드 + brief.bg_section 갱신."""
+    body    = await request.json()
+    section = body.get("section", "")
+    url     = body.get("url", "")
+    thumb   = body.get("thumb", "")
+
+    if section not in _SECTION_KEYS:
+        raise HTTPException(400, "section 값 오류")
+    if not url:
+        raise HTTPException(400, "url 필드 필요")
+
+    dest_filename = f"long_bg_brief_{section}.mp4"
+    dest_path     = str(BASE / dest_filename)
+
+    try:
+        await asyncio.to_thread(_download_video, url, dest_path)
+    except Exception as e:
+        raise HTTPException(500, f"다운로드 실패: {e}")
+
+    # brief.bg_section 갱신
+    try:
+        script_path = BASE / "long_script.json"
+        if script_path.exists():
+            script = json.loads(script_path.read_text(encoding="utf-8"))
+            slug   = script.get("_slug_keyword", "").replace("-", "_")
+            if slug:
+                brief_path = BASE / f"brief_{slug}.json"
+                if brief_path.exists():
+                    brief = json.loads(brief_path.read_text(encoding="utf-8"))
+                    if section in brief and isinstance(brief[section], dict):
+                        brief[section]["bg_section"] = dest_filename
+                        brief_path.write_text(
+                            json.dumps(brief, ensure_ascii=False, indent=2), encoding="utf-8"
+                        )
+    except Exception as e:
+        print(f"[경고] brief.bg_section 갱신 실패: {e}")
+
+    save_used_video(url, thumb)
+    LONGFORM_STATE["section_bgs"][section] = {"url": url, "thumb": thumb, "path": dest_filename}
+    return {"ok": True, "section": section, "path": dest_filename}
+
+
 @app.get("/api/longform/stream")
 async def api_longform_stream(slot: str = Query(default="sun")):
     if slot not in ("sun", "thu"):
@@ -469,6 +611,30 @@ async def api_longform_stream(slot: str = Query(default="sun")):
     async def _gen():
         try:
             async for ev in run_longform_stream(bg_urls, slot=slot):
+                yield ev
+                await asyncio.sleep(0)
+        finally:
+            LONGFORM_STATE["is_running"] = False
+
+    return StreamingResponse(
+        _gen(), media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.get("/api/longform/render-bg-only")
+async def api_longform_render_bg_only():
+    """배경만 재렌더: long4(FFmpeg) + 기존 ASS 번인. TTS·Whisper 재호출 없음."""
+    if LONGFORM_STATE["is_running"]:
+        async def _busy():
+            yield 'data: {"step":"Error","pct":-1,"msg":"롱폼 이미 실행 중입니다."}\n\n'
+        return StreamingResponse(_busy(), media_type="text/event-stream")
+
+    LONGFORM_STATE["is_running"] = True
+
+    async def _gen():
+        try:
+            async for ev in run_longform_bg_only_stream():
                 yield ev
                 await asyncio.sleep(0)
         finally:

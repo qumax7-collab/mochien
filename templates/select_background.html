@@ -16,7 +16,15 @@
 <main class="container">
   <div class="section-title">
     <h2>Pexels 후보 6개</h2>
-    <p class="hint">검색어: <code>{{ image_prompt }}</code> &nbsp;|&nbsp; 최근 30일 사용 영상 자동 제외</p>
+    <p class="hint">현재 검색어: <code id="active-query">{{ image_prompt }}</code> &nbsp;|&nbsp; 최근 30일 사용 영상 자동 제외</p>
+    <div style="display:flex; gap:.5rem; margin-top:.6rem; align-items:center;">
+      <input id="custom-query" type="text" class="input-field"
+             placeholder="검색어 직접 입력 (예: tokyo street night)"
+             style="flex:1; max-width:420px;"
+             onkeydown="if(event.key==='Enter') searchCustom()">
+      <button class="btn btn-primary btn-sm" onclick="searchCustom()">🔍 검색</button>
+      <button class="btn btn-ghost btn-sm" onclick="resetQuery()" title="GPT 검색어로 되돌리기">↩ 원래대로</button>
+    </div>
   </div>
 
   <div id="loading" class="loading-box">
@@ -27,8 +35,11 @@
   <div id="bg-grid" class="bg-grid" style="display:none"></div>
 
   <div id="btn-refresh-zone" style="display:none; text-align:center; margin-top:1rem;">
-    <button class="btn btn-ghost" onclick="refreshCandidates()">🔄 다른 영상 보기</button>
-    <p class="hint" id="refresh-hint">새로고침 시 다른 영상 세트를 가져옵니다.</p>
+    <div style="display:flex; gap:.6rem; justify-content:center; align-items:center;">
+      <button id="btn-prev" class="btn btn-ghost" onclick="prevCandidates()" style="display:none">← 이전 영상</button>
+      <button class="btn btn-ghost" onclick="nextCandidates()">다음 영상 →</button>
+    </div>
+    <p class="hint" id="refresh-hint" style="margin-top:.4rem"></p>
   </div>
 </main>
 
@@ -42,25 +53,56 @@
 
 <script>
 const SLOT = "{{ slot }}";
+const DEFAULT_QUERY = "{{ image_prompt }}";
 let _pageCount = 1;
+let _currentQuery = "";  // 빈 문자열 = 서버 기본값(image_prompt) 사용
 
-async function loadCandidates(page = 1) {
+async function loadCandidates(page = 1, query = _currentQuery) {
   document.getElementById("loading").style.display = "flex";
   document.getElementById("bg-grid").style.display = "none";
   document.getElementById("btn-refresh-zone").style.display = "none";
 
-  const r = await fetch(`/api/shorts/${SLOT}/pexels?page=${page}`);
+  const params = new URLSearchParams({ page });
+  if (query) params.set("q", query);
+
+  const r = await fetch(`/api/shorts/${SLOT}/pexels?${params}`);
   document.getElementById("loading").style.display = "none";
 
   if (!r.ok) { alert("Pexels 로드 실패"); return; }
   const data = await r.json();
+  document.getElementById("active-query").textContent = data.query;
   renderCandidates(data.candidates);
 }
 
-function refreshCandidates() {
+function searchCustom() {
+  const q = document.getElementById("custom-query").value.trim();
+  _currentQuery = q;
+  _pageCount = 1;
+  loadCandidates(1, q);
+}
+
+function resetQuery() {
+  _currentQuery = "";
+  document.getElementById("custom-query").value = "";
+  _pageCount = 1;
+  loadCandidates(1, "");
+}
+
+function nextCandidates() {
   _pageCount++;
-  document.getElementById("refresh-hint").textContent = `세트 ${_pageCount} / 검색어: {{ image_prompt }}`;
-  loadCandidates(_pageCount);
+  loadCandidates(_pageCount, _currentQuery);
+}
+
+function prevCandidates() {
+  if (_pageCount <= 1) return;
+  _pageCount--;
+  loadCandidates(_pageCount, _currentQuery);
+}
+
+function updatePageUI() {
+  document.getElementById("btn-prev").style.display = _pageCount > 1 ? "inline-flex" : "none";
+  document.getElementById("refresh-hint").textContent =
+    `세트 ${_pageCount} / 검색어: ${document.getElementById("active-query").textContent}`;
 }
 
 function fmtDur(sec) {
@@ -72,6 +114,7 @@ function renderCandidates(candidates) {
   const grid = document.getElementById("bg-grid");
   grid.style.display = "grid";
   document.getElementById("btn-refresh-zone").style.display = "block";
+  updatePageUI();
 
   if (candidates.length === 0) {
     grid.innerHTML = '<p class="empty">Pexels에서 결과를 가져오지 못했습니다.<br>API 키 또는 쿼리를 확인해주세요.</p>';

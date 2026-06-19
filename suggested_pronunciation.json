@@ -1027,11 +1027,11 @@
   },
   "輸送": {
     "suggested": "ゆそう",
-    "count": 1,
+    "count": 2,
     "first_seen": "2026-05-25",
-    "last_seen": "2026-05-25",
-    "approved": false,
-    "reason": "정정된 발음 'ゆそう'가 잘못되었습니다. 올바른 발음은 'ゆそう'가 아니라 'ゆそう'입니다. 오류 있는 후보이므로 거절합니다.",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 '食品の生産や輸送に'로 포함되어 있으며, 명확한 표준 발음입니다.",
     "examples": []
   },
   "米": {
@@ -1225,11 +1225,11 @@
   },
   "例えば": {
     "suggested": "たとえば",
-    "count": 1,
+    "count": 2,
     "first_seen": "2026-05-30",
-    "last_seen": "2026-05-30",
-    "approved": false,
-    "reason": "원문에서 '例えば、昨年も今年も' 등으로 올바르게 사용되고 있으며, 'たとえば'는 일반적인 정상 단어입니다. 발음 오류가 아닙니다.",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 '例えば、エネルギー価格は'로 포함되어 있으며, 명확한 표준 발음입니다.",
     "examples": []
   },
   "円": {
@@ -1455,6 +1455,519 @@
     "last_seen": "2026-06-03",
     "approved": true,
     "reason": "원문 마지막에 명확히 포함. 일반 일본어 단어로 안정적 오류 패턴이고 정상 단어 간섭 없음",
+    "examples": []
+  },
+  "食卓": {
+    "suggested": "しょくたく",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 '食卓に並ぶ食品'로 명확히 나타나며, 안정적인 표준 발음 오류입니다.",
+    "examples": []
+  },
+  "動いている": {
+    "suggested": "うごいている",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 '動いているわけではない'로 포함되어 있으며, 명확한 발음 오류입니다.",
+    "examples": []
+  },
+  "紐解いて": {
+    "suggested": "ひもといて",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 '紐解いていきます'로 명확히 나타나며, 안정적인 표준 발음입니다.",
+    "examples": []
+  },
+  "値": {
+    "suggested": "あたい",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "文脈에서 '값段'의 의미로 '値'는 다양한 읽기가 가능하며, 이것만으로는 특정 오류로 판단하기 어렵습니다.",
+    "examples": []
+  },
+  "日用品": {
+    "suggested": "にちようひん",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 '日用品の値段'로 포함되어 있으며, 명확한 표준 발음 오류입니다.",
+    "examples": []
+  },
+  "データ": {
+    "suggested": "データ",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "이미 정정된 형태이므로 오류 등록 대상이 아닙니다.",
+    "examples": []
+  },
+  "品目": {
+    "suggested": "ひんもく",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 '品目ごとに'로 여러 번 나타나며, 안정적인 표준 발음 오류입니다.",
+    "examples": []
+  },
+  "統計": {
+    "suggested": "とうけい",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 '統計で見る平均値'로 포함되어 있으며, 안정적인 표준 발음 오류입니다.",
+    "examples": []
+  },
+  "依然": {
+    "suggested": "いぜん",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 '依然として高いままです'로 명확히 나타나며, 안정적인 표준 발음입니다.",
+    "examples": []
+  },
+  "実際に": {
+    "suggested": "じっさいに",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 '実際には食品のような'로 포함되어 있으며, 명확한 표준 발음입니다.",
+    "examples": []
+  },
+  "穀類": {
+    "suggested": "こくるい",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 '穀類は'로 명확히 나타나며, 안정적인 표준 발음 오류입니다.",
+    "examples": []
+  },
+  "急激に": {
+    "suggested": "きゅうげきに",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 '急激に値上がりしました'로 포함되어 있으며, 명확한 표준 발음입니다.",
+    "examples": []
+  },
+  "魚": {
+    "suggested": "さかな",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 '魚など'로 포함되어 있으며, 안정적인 표준 발음 오류입니다.",
+    "examples": []
+  },
+  "生鮮食品": {
+    "suggested": "せいせんしょくひん",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 '生鮮食品は'로 명확히 나타나며, 안정적인 표준 발음입니다.",
+    "examples": []
+  },
+  "棚": {
+    "suggested": "たな",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 'スーパーの棚で'로 포함되어 있으며, 안정적인 표준 발음 오류입니다.",
+    "examples": []
+  },
+  "逆": {
+    "suggested": "ぎゃく",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 '逆の現象が起きている'으로 포함되어 있으며, 안정적인 표준 발음 오류입니다.",
+    "examples": []
+  },
+  "買い物カゴ": {
+    "suggested": "かいものかご",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에 '買い物カゴでも'로 포함되어 있으며, 명확한 표준 발음입니다.",
+    "examples": []
+  },
+  "増し": {
+    "suggested": "まし",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에서 '負担が増しています'로 명확하게 사용되어 있으며, '그러다', '더하다'는 뜻의 일상적 단어입니다. 발음 오류로 등록할 안전한 항목입니다.",
+    "examples": []
+  },
+  "穏やか": {
+    "suggested": "おだやか",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에서 '全体の物価指数...は穏やかに見えても'로 사용되어 있으며, 일반적인 일본어 형용사입니다. 안전하게 등록 가능합니다.",
+    "examples": []
+  },
+  "お米": {
+    "suggested": "おこめ",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에서 'お米、パン、牛乳'로 명확하게 사용되어 있으며, 일상 생활용어입니다. 발음 오류 등록에 안전합니다.",
+    "examples": []
+  },
+  "経路": {
+    "suggested": "けいろ",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에서 '輸入の経路'로 사용되어 있으며, 표준 일본어 단어입니다. 안전한 발음 오류 등록 항목입니다.",
+    "examples": []
+  },
+  "絡み合っている": {
+    "suggested": "からみあっている",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에서 '複雑に絡み合っているからです'로 사용되어 있으며, 표준 동사 형태입니다. 등록에 안전합니다.",
+    "examples": []
+  },
+  "穀物": {
+    "suggested": "こくもつ",
+    "count": 3,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "이미 위에서 동일한 항목을 승인했으므로 중복입니다. 별도로 다시 등록할 필요가 없습니다.",
+    "examples": []
+  },
+  "天候": {
+    "suggested": "てんこう",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에서 '海外の天候'로 사용되어 있으며, 일반적인 일본어 단어입니다. 발음 오류 등록에 안전합니다.",
+    "examples": []
+  },
+  "上下": {
+    "suggested": "じょうげ",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에서 '短期間に大きく上下する'로 사용되어 있으며, 표준 일본어 단어입니다. 안전한 등록입니다.",
+    "examples": []
+  },
+  "小麦粉": {
+    "suggested": "こむぎこ",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에서 '小麦粉などの穀類'로 사용되어 있으며, 일반적인 식품 용어입니다. 안전하게 등록 가능합니다.",
+    "examples": []
+  },
+  "一時的": {
+    "suggested": "いちじてき",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에서 '一時的に大きく上がった'로 사용되어 있으며, 표준 형용사입니다. 안전한 발음 오류 등록입니다.",
+    "examples": []
+  },
+  "緩やか": {
+    "suggested": "ゆるやか",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에서 '上昇が緩やかになっても'로 사용되어 있으며, 표준 형용사입니다. 등록에 안전합니다.",
+    "examples": []
+  },
+  "減らない": {
+    "suggested": "へらない",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "원문에서 '食卓の負担がなかなか減らないのです'로 사용되어 있으며, 표준 동사 부정형입니다. 안전하게 등록 가능합니다.",
+    "examples": []
+  },
+  "ドル円": {
+    "suggested": "ドル円",
+    "count": 1,
+    "first_seen": "2026-06-14",
+    "last_seen": "2026-06-14",
+    "approved": false,
+    "reason": "원문에서 'ドル円為替レート'로 올바르게 사용되고 있으며, 'ドルトゲン'은 일회성 오인식일 가능성이 높습니다. 등록 시 정상적인 용어를 오치환할 위험이 있습니다.",
+    "examples": []
+  },
+  "両替": {
+    "suggested": "両替",
+    "count": 1,
+    "first_seen": "2026-06-14",
+    "last_seen": "2026-06-14",
+    "approved": false,
+    "reason": "원문에서 '両替費用'과 '両替負担'으로 정확하게 사용되고 있습니다. '両体'는 문맥상 일회성 오류이며, 안정적인 패턴이 아닙니다.",
+    "examples": []
+  },
+  "保ち": {
+    "suggested": "保ち",
+    "count": 1,
+    "first_seen": "2026-06-14",
+    "last_seen": "2026-06-14",
+    "approved": false,
+    "reason": "원문에서 '態度を保ち'로 올바르게 사용되고 있으며, '斧ち'는 문맥상 불가능한 일회성 오인식입니다. 등록하면 정상어를 오치환할 위험이 있습니다.",
+    "examples": []
+  },
+  "幅": {
+    "suggested": "幅",
+    "count": 1,
+    "first_seen": "2026-06-14",
+    "last_seen": "2026-06-14",
+    "approved": false,
+    "reason": "원문에서 '為替変動の幅を抑え'로 정확하게 사용되고 있습니다. '服'은 문맥에 맞지 않는 일회성 오류이며, 안정적인 패턴이 아닙니다.",
+    "examples": []
+  },
+  "関税": {
+    "suggested": "かんぜい",
+    "count": 1,
+    "first_seen": "2026-06-15",
+    "last_seen": "2026-06-15",
+    "approved": true,
+    "reason": "원문에 '関税가 下がり'로 정확히 포함되어 있으며, '関水'는 일본어에서 정상적인 단어가 아닌 명백한 오류입니다. 안정적인 패턴의 오인식으로 판단됩니다.",
+    "examples": []
+  },
+  "農業従事者": {
+    "suggested": "のうぎょうじゅうじしゃ",
+    "count": 1,
+    "first_seen": "2026-06-15",
+    "last_seen": "2026-06-15",
+    "approved": true,
+    "reason": "원문에 '農業従事者の収入に直結する問題'로 정확히 포함되어 있으며, '農業自社'는 일본어에서 정상적인 단어 조합이 아닙니다. 안정적인 오인식 패턴입니다.",
+    "examples": []
+  },
+  "講じる": {
+    "suggested": "こうじる",
+    "count": 1,
+    "first_seen": "2026-06-15",
+    "last_seen": "2026-06-15",
+    "approved": true,
+    "reason": "원문에 '政府が十分な対策を講じるか'로 정확히 포함되어 있으며, 'サバンジル'은 일본어가 아닌 완전한 오류입니다. 이는 안정적인 음성 오인식 패턴으로 사전 등록이 필요합니다.",
+    "examples": []
+  },
+  "製油": {
+    "suggested": "せいゆ",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": true,
+    "reason": "원문에 '製油会社'로 명확히 포함되어 있으며, 'しょくゆう'는 일반적인 일본어 단어가 아님. 안정적인 오독 패턴으로 안전함",
+    "examples": []
+  },
+  "減らせる": {
+    "suggested": "へらせる",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "'はらわせる'는 '腹わせる'(배를 채우다) 등 다른 문맥에서 정상 단어로 사용될 수 있음. 일회성 오인식의 가능성이 높음",
+    "examples": []
+  },
+  "削減": {
+    "suggested": "さくげん",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": true,
+    "reason": "원문에 'コスト削減'으로 명확히 포함되어 있으며, 'がくけん'은 일반적인 일본어 단어가 아님. 안정적인 오독 패턴",
+    "examples": []
+  },
+  "反映": {
+    "suggested": "はんえい",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": true,
+    "reason": "원문에 '反映されます'로 명확히 포함되어 있으며, 'はんのう'(반응)은 다른 한자이므로 명확한 오독. 정상어를 대체할 위험이 없음",
+    "examples": []
+  },
+  "節減": {
+    "suggested": "せつげん",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": true,
+    "reason": "원문에 '生活費節減効果'로 명확히 포함되어 있으며, 'かいけん'은 일반적인 일본어 단어가 아님. 안정적인 오독 패턴으로 안전함",
+    "examples": []
+  },
+  "株式": {
+    "suggested": "かぶしき",
+    "count": 2,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": true,
+    "reason": "원고에 동일한 단어가 포함되어 있으며, 발음 오류 かぶいめ는 명확한 오인식입니다. 정상 어휘를 해치지 않으므로 등록 가능합니다.",
+    "examples": []
+  },
+  "流出": {
+    "suggested": "りゅうしゅつ",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": true,
+    "reason": "원고에 '資金が流出する'이 명확히 포함되어 있으며, 정확한 발음은 りゅうしゅつ입니다. 발음 오류가 명확하고 안정적인 패턴이며 정상어 오치환 위험이 없습니다.",
+    "examples": []
+  },
+  "預金": {
+    "suggested": "よきん",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "원고에서 '預金利息'라는 문맥으로 올바르게 사용되고 있으며, 'あの'는 발음 오류가 아니라 OCR 오인식으로 보입니다. 한 번의 인식 오류일 가능성이 높고, '預金'은 금융 용어로서 다른 문맥에서도 정상적으로 사용되는 안정적인 단어이므로 사전 등록의 필요성이 낮습니다.",
+    "examples": []
+  },
+  "個室座席": {
+    "suggested": "こしつざせき",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": true,
+    "reason": "원문에 실제로 포함된 단어이며, '개실좌석'은 정상적인 일본어로 사용되는 용어입니다. 발음 오류 패턴이 명확합니다.",
+    "examples": []
+  },
+  "個室": {
+    "suggested": "こしつ",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "동일한 단어 '個室'에 대해 여러 오류 후보가 중복 등재되어 있어 안정성이 낮습니다. 하나의 항목으로만 통합되어야 합니다.",
+    "examples": []
+  },
+  "快適さ": {
+    "suggested": "かいてきさ",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": true,
+    "reason": "원문에 포함된 단어이며, 발음 오류 패턴이 명확하고 안정적입니다.",
+    "examples": []
+  },
+  "交通費": {
+    "suggested": "こうつうひ",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": true,
+    "reason": "원문에 실제로 포함된 단어이며, '費(ひ)'의 발음 오류 패턴이 명확합니다.",
+    "examples": []
+  },
+  "座席": {
+    "suggested": "ざせき",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": true,
+    "reason": "원문에 포함된 단어이며, 발음 오류 패턴이 명확하고 안정적입니다.",
+    "examples": []
+  },
+  "利便性": {
+    "suggested": "りべんせい",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": true,
+    "reason": "원문에 실제로 포함된 단어이며, 발음 오류 패턴이 명확합니다.",
+    "examples": []
+  },
+  "一般座席": {
+    "suggested": "いっぱんざせき",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": true,
+    "reason": "원문에 포함된 단어이며, 발음 오류 패턴이 명확합니다.",
+    "examples": []
+  },
+  "仕事": {
+    "suggested": "しごと",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": true,
+    "reason": "원문에 포함된 단어이며, 발음 오류 패턴이 명확합니다.",
+    "examples": []
+  },
+  "貸出金利": {
+    "suggested": "貸出金利",
+    "count": 1,
+    "first_seen": "2026-06-18",
+    "last_seen": "2026-06-18",
+    "approved": false,
+    "reason": "원문에 '貸出金利'가 정확히 존재하며, 잘못된 읽기로 제시된 '政策金利'는 원문에서도 별개의 정상적인 단어로 사용되고 있습니다. 이는 발음 오류가 아니라 단어 혼동으로 보이므로 사전 등록이 부적절합니다.",
+    "examples": []
+  },
+  "預金利息": {
+    "suggested": "預金利息",
+    "count": 2,
+    "first_seen": "2026-06-18",
+    "last_seen": "2026-06-18",
+    "approved": false,
+    "reason": "'アズ金利系'는 극히 예외적인 일회성 오인식으로 보이며, 원문에 존재하지 않습니다. 정상적인 일본어 단어와 혼동될 위험성이 높아 사전 등록이 부적절합니다.",
+    "examples": []
+  },
+  "生魚": {
+    "suggested": "さかな",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": false,
+    "reason": "원고에서 '生魚(さかな)'로 정확하게 표기되어 있으며, 잘못된 발음 'なまざかな'은 원고에 나타나지 않습니다. 일회성 오인식으로 보이며 안정적인 패턴이 아닙니다.",
+    "examples": []
+  },
+  "激しい": {
+    "suggested": "はげしい",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": false,
+    "reason": "원고에서 '激(はげ)しい'로 정확하게 표기되어 있으며, 잘못된 발음 'さびしい'는 원고에 나타나지 않습니다. 이는 다른 문맥에서도 정상 일본어로 사용되는 단어입니다.",
+    "examples": []
+  },
+  "比": {
+    "suggested": "ひ",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": false,
+    "reason": "원고에서 '比'는 '比で'라는 표현으로 올바르게 사용되고 있으며, 잘못된 발음 'あんてい'는 원고에 나타나지 않습니다. 원고의 '安定(あんてい)'와 혼동된 것으로 보입니다.",
     "examples": []
   }
 }

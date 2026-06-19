@@ -64,7 +64,8 @@ def extract_script_years(text: str) -> set:
 
 def correct_year_tokens(segments: list, script_years: set) -> tuple:
     """자막 연도 토큰을 대본 정답 집합과 대조해 교정.
-    정답 연도 1종일 때만 강제 교정. 2종 이상이면 경고 후 sys.exit(1)."""
+    정답 연도 1종: 불일치 연도 강제 교정.
+    정답 연도 2종 이상: 불일치 연도 경고만 출력 (자동 교정 없음 — 다연도 대본 보존)."""
     if not script_years:
         return segments, 0
     mismatches = {
@@ -76,10 +77,9 @@ def correct_year_tokens(segments: list, script_years: set) -> tuple:
     if not mismatches:
         return segments, 0
     if len(script_years) >= 2:
-        print(f"  [⚠ 연도 가드] Whisper 불일치: {sorted(mismatches)}")
-        print(f"  대본 연도 {len(script_years)}종: {sorted(script_years)} — 자동 교정 불가")
-        print("  자막을 수동 확인하세요.")
-        sys.exit(1)
+        print(f"  [⚠ 연도 가드] Whisper 불일치 {len(mismatches)}건: {sorted(mismatches)}")
+        print(f"  대본 연도 {len(script_years)}종: {sorted(script_years)} — 자동 교정 불가, 수동 확인 권장")
+        return segments, 0
     correct = next(iter(script_years))
     fixed = 0
     for seg in segments:
@@ -292,10 +292,11 @@ def main():
         try:
             with open(LONG_SCRIPT_PATH, encoding="utf-8") as f:
                 d = json.load(f)
-            combined = " ".join(
-                d.get(k, {}).get("script", "")
-                for k in ["intro", "issue1", "issue2", "outro"]
-            )
+            parts = [d.get("intro", {}).get("script", "")]
+            for iss in d.get("issues", []):
+                parts.append(iss.get("script", ""))
+            parts.append(d.get("outro", {}).get("script", ""))
+            combined = " ".join(parts)
             script_years = extract_script_years(combined)
         except Exception:
             pass

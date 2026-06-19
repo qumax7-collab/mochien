@@ -41,6 +41,11 @@
 
   <!-- ① 한국어 초안 검토 -->
   <div id="step-1" class="wizard-step active">
+    <!-- 기존 스크립트 감지 시 배경 선택 단계로 바로 이동 -->
+    <div id="existing-script-banner" style="display:none; background:#1a2a1a; border:1px solid #2a4a2a; border-radius:8px; padding:.8rem 1rem; margin-bottom:1rem; display:none; align-items:center; gap:1rem; flex-wrap:wrap">
+      <span style="font-size:.88rem; color:#7ab87a">✅ 기존 스크립트: <strong id="existing-script-title"></strong></span>
+      <button class="btn btn-ghost btn-sm" onclick="goStep(3)" style="margin-left:auto">③ 배경 선택으로 이동 →</button>
+    </div>
     <div class="fetch-zone">
 
       <!-- 생성 모드 탭 -->
@@ -213,23 +218,18 @@
   <!-- ③ 배경 영상 선택 -->
   <div id="step-3" class="wizard-step">
     <div class="section-title">
-      <h2>배경 영상 선택</h2>
-      <p class="hint">인트로·아웃트로 공용 배경을 선택해주세요.<br>이슈1·2 배경은 자동으로 선택됩니다.</p>
+      <h2>배경 영상 선택 <small style="font-size:.78rem;color:var(--text-sub);font-weight:400">(선택사항)</small></h2>
+      <p class="hint">배경을 선택하지 않은 섹션은 NavyDark 단색으로 합성됩니다.</p>
     </div>
-    <div id="bg-slots">
-      <div class="bg-slot-section" id="slot-section-0">
-        <h3>🎬 인트로 &amp; 아웃트로 배경 <span id="slot-done-0"></span></h3>
-        <div id="bg-loading-0" class="loading-box" style="display:none"><div class="spinner"></div></div>
-        <div id="bg-grid-0" class="bg-grid-sm"></div>
-        <button class="btn btn-ghost btn-sm" onclick="refreshLFBg(0)">🔄 다시 받기</button>
-      </div>
-    </div>
+    <div id="section-bg-slots"></div>
 
-    <div class="action-row" style="margin-top:1.5rem">
-      <button id="btn-start-lf" class="btn btn-primary btn-lg" onclick="goStep(4)" disabled>
-        ▶ 롱폼 영상 생성 시작
+    <div class="action-row" style="margin-top:1.5rem; flex-direction:column; gap:.6rem">
+      <button id="btn-start-lf" class="btn btn-primary btn-lg" onclick="goStep(4)">
+        ▶ 전체 파이프라인 실행 (TTS→영상→업로드)
       </button>
-      <p class="hint" id="bg-status-hint">배경 영상 선택 후 버튼이 활성화됩니다.</p>
+      <button class="btn btn-ghost btn-lg" onclick="startBgOnlyRender()" style="border-color:#7ab87a; color:#7ab87a">
+        🎬 배경만 재렌더 (TTS·자막 보존)
+      </button>
     </div>
     <div style="text-align:center;margin-top:.5rem">
       <button class="btn btn-ghost" onclick="goStep(2)">← 일본어 확인으로</button>
@@ -275,8 +275,13 @@
 </main>
 
 <script>
-const selectedBgs = {};
-const lfBgPages   = {0: 1};
+// ── 섹션 배경 선택 (신규) ──────────────────────────────────
+const SECTION_KEYS   = ["intro", "issue1", "issue2", "outro"];
+const SECTION_LABELS = {intro:"🎬 인트로 / 아웃트로", issue1:"📊 이슈①", issue2:"📊 이슈②", outro:"🎬 아웃트로"};
+const sectionBgPages    = {intro:1, issue1:1, issue2:1, outro:1};
+const sectionBgSelected = {};  // {section: {url, thumb}}
+const sectionBgLoading  = {};  // {section: bool}
+
 let verifyVisible   = false;
 let selectedSlot    = "sun";
 let selectedTopicId = "";
@@ -537,6 +542,7 @@ function toggleVerify() {
 const LF_STEPS = [
   {key:"Long3", label:"배경 영상 준비",    icon:"🎥"},
   {key:"Long2", label:"롱폼 음성 생성",    icon:"🎙️"},
+  {key:"Charts", label:"차트 렌더링",      icon:"📊"},
   {key:"Long4", label:"롱폼 영상 합성",    icon:"🎬"},
   {key:"Long5", label:"롱폼 자막 생성",    icon:"📝"},
   {key:"Long6", label:"YouTube 업로드",    icon:"📤"},
@@ -548,71 +554,146 @@ function goStep(n) {
   document.querySelectorAll(".wizard-tab").forEach(el => el.classList.remove("active"));
   document.getElementById(`step-${n}`).classList.add("active");
   document.getElementById(`tab-${n}`).classList.add("active");
-  if (n === 3) loadLFBg(0);
+  if (n === 1 && document.getElementById("ko-intro").value.trim()) {
+    document.getElementById("ko-draft-area").style.display = "block";
+  }
+  if (n === 3) { loadSectionBgSlots(); }
   if (n === 4) startLongform();
 }
 
-async function loadLFBg(idx) {
-  document.getElementById(`bg-loading-${idx}`).style.display = "flex";
-  document.getElementById(`bg-grid-${idx}`).innerHTML = "";
-  const page = lfBgPages[idx] || 1;
-  const r = await fetch(`/api/longform/pexels/${idx}?page=${page}`);
-  document.getElementById(`bg-loading-${idx}`).style.display = "none";
-  if (!r.ok) { document.getElementById(`bg-grid-${idx}`).innerHTML = '<p class="empty">Pexels 로드 실패</p>'; return; }
+// ── 섹션 배경 선택 (신규) ─────────────────────────────────
+function loadSectionBgSlots() {
+  const container = document.getElementById("section-bg-slots");
+  container.innerHTML = SECTION_KEYS.map(sec => `
+    <div style="margin-top:1.4rem; padding:1rem; background:var(--card-bg); border-radius:8px; border:1px solid var(--border)">
+      <div style="display:flex; align-items:center; gap:.8rem; margin-bottom:.6rem">
+        <h3 style="margin:0">${SECTION_LABELS[sec]}
+          <span id="sec-status-${sec}" style="font-size:.82rem; color:#7ab87a; margin-left:.4rem"></span>
+        </h3>
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto"
+                onclick="skipSectionBg('${sec}')">건너뜀 (단색)</button>
+      </div>
+      <div style="display:flex; gap:.5rem; margin-bottom:.6rem">
+        <input id="sec-q-${sec}" class="revise-area" style="min-height:unset;height:2rem;padding:.3rem .6rem;flex:1"
+               placeholder="Pexels 검색 키워드 (한/영)" value="">
+        <button class="btn btn-ghost btn-sm" onclick="searchSectionBg('${sec}')">🔍 검색</button>
+        <button class="btn btn-ghost btn-sm" onclick="refreshSectionBg('${sec}')">🔄 다음 페이지</button>
+      </div>
+      <div id="sec-loading-${sec}" class="loading-box" style="display:none"><div class="spinner"></div></div>
+      <div id="sec-grid-${sec}" class="bg-grid-sm"></div>
+    </div>
+  `).join("");
+
+  // 기본 검색 실행
+  SECTION_KEYS.forEach(sec => searchSectionBgAuto(sec));
+}
+
+async function searchSectionBgAuto(sec) {
+  const q = document.getElementById(`sec-q-${sec}`)?.value.trim() || "";
+  await _loadSectionBgGrid(sec, q, sectionBgPages[sec] || 1);
+}
+
+async function searchSectionBg(sec) {
+  sectionBgPages[sec] = 1;
+  const q = document.getElementById(`sec-q-${sec}`)?.value.trim() || "";
+  await _loadSectionBgGrid(sec, q, 1);
+}
+
+async function refreshSectionBg(sec) {
+  sectionBgPages[sec] = (sectionBgPages[sec] || 1) + 1;
+  const q = document.getElementById(`sec-q-${sec}`)?.value.trim() || "";
+  await _loadSectionBgGrid(sec, q, sectionBgPages[sec]);
+}
+
+async function _loadSectionBgGrid(sec, q, page) {
+  if (sectionBgLoading[sec]) return;
+  sectionBgLoading[sec] = true;
+  document.getElementById(`sec-loading-${sec}`).style.display = "flex";
+  document.getElementById(`sec-grid-${sec}`).innerHTML = "";
+
+  const qs = new URLSearchParams({section: sec, page});
+  if (q) qs.set("q", q);
+  const r = await fetch(`/api/longform/section-bg/search?${qs}`).catch(() => null);
+  sectionBgLoading[sec] = false;
+  document.getElementById(`sec-loading-${sec}`).style.display = "none";
+
+  if (!r || !r.ok) {
+    document.getElementById(`sec-grid-${sec}`).innerHTML = '<p class="empty">Pexels 로드 실패</p>';
+    return;
+  }
   const data = await r.json();
-  renderLFGrid(idx, data.candidates);
+
+  // 반환된 keyword를 input에 채움 (첫 로드 시 자동 키워드 표시)
+  const qEl = document.getElementById(`sec-q-${sec}`);
+  if (qEl && !qEl.value.trim()) qEl.value = data.query || "";
+
+  renderSectionBgGrid(sec, data.candidates);
 }
 
-function refreshLFBg(idx) {
-  lfBgPages[idx] = (lfBgPages[idx] || 1) + 1;
-  loadLFBg(idx);
-}
-
-function renderLFGrid(idx, candidates) {
-  const grid = document.getElementById(`bg-grid-${idx}`);
-  if (!candidates.length) { grid.innerHTML = '<p class="empty">결과 없음</p>'; return; }
+function renderSectionBgGrid(sec, candidates) {
+  const grid = document.getElementById(`sec-grid-${sec}`);
+  if (!candidates || !candidates.length) { grid.innerHTML = '<p class="empty">결과 없음</p>'; return; }
   grid.innerHTML = candidates.map((c, i) => `
-    <div class="bg-card-sm ${selectedBgs[idx]?.url === c.url ? 'selected' : ''}" id="lfcard-${idx}-${i}">
-      <div class="bg-thumb-wrap" onmouseenter="playLFVid(${idx},${i})" onmouseleave="stopLFVid(${idx},${i})">
-        <img src="${c.thumb}" class="bg-thumb" id="lfimg-${idx}-${i}" alt="">
-        <video id="lfvid-${idx}-${i}" class="bg-video" muted loop playsinline src="${c.url}" preload="none"></video>
+    <div class="bg-card-sm ${sectionBgSelected[sec]?.url === c.url ? 'selected' : ''}" id="seccard-${sec}-${i}">
+      <div class="bg-thumb-wrap"
+           onmouseenter="playSecVid('${sec}',${i})"
+           onmouseleave="stopSecVid('${sec}',${i})">
+        <img src="${c.thumb}" class="bg-thumb" id="secimg-${sec}-${i}" alt="">
+        <video id="secvid-${sec}-${i}" class="bg-video" muted loop playsinline
+               src="${c.url}" preload="none"></video>
         <div class="dur-badge">${fmtDur(c.duration)}</div>
       </div>
       <button class="btn btn-primary btn-sm" style="margin-top:.4rem"
-              onclick="selectLFBg(${idx},${i},'${escQ(c.url)}','${escQ(c.thumb)}')">✅ 선택</button>
+              onclick="selectSectionBg('${sec}',${i},'${escQ(c.url)}','${escQ(c.thumb)}')">✅ 선택</button>
     </div>
   `).join("");
 }
 
-function playLFVid(idx, i) {
-  const vid = document.getElementById(`lfvid-${idx}-${i}`);
-  const img = document.getElementById(`lfimg-${idx}-${i}`);
+function playSecVid(sec, i) {
+  const vid = document.getElementById(`secvid-${sec}-${i}`);
+  const img = document.getElementById(`secimg-${sec}-${i}`);
   if (!vid) return;
   vid.style.display = "block"; img.style.display = "none";
   vid.play().catch(() => {});
 }
-function stopLFVid(idx, i) {
-  const vid = document.getElementById(`lfvid-${idx}-${i}`);
-  const img = document.getElementById(`lfimg-${idx}-${i}`);
+function stopSecVid(sec, i) {
+  const vid = document.getElementById(`secvid-${sec}-${i}`);
+  const img = document.getElementById(`secimg-${sec}-${i}`);
   if (!vid) return;
   vid.pause(); vid.style.display = "none"; img.style.display = "block";
 }
 
-async function selectLFBg(idx, i, url, thumb) {
-  const r = await fetch("/api/longform/select-bg", {
+async function selectSectionBg(sec, i, url, thumb) {
+  const statusEl = document.getElementById(`sec-status-${sec}`);
+  if (statusEl) statusEl.textContent = "⏳ 다운로드 중...";
+
+  const r = await fetch("/api/longform/section-bg/select", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idx, url, thumb }),
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({section: sec, url, thumb}),
   });
-  if (!r.ok) { alert("저장 실패"); return; }
-  selectedBgs[idx] = { url, thumb };
-  document.querySelectorAll(`[id^="lfcard-${idx}-"]`).forEach(el => el.classList.remove("selected"));
-  document.getElementById(`lfcard-${idx}-${i}`)?.classList.add("selected");
-  document.getElementById(`slot-done-${idx}`).textContent = "✅";
-  if (selectedBgs[0]) {
-    document.getElementById("btn-start-lf").disabled = false;
-    document.getElementById("bg-status-hint").textContent = "배경 영상 선택 완료 — 생성을 시작할 수 있습니다.";
+
+  if (!r.ok) {
+    if (statusEl) statusEl.textContent = "❌ 실패";
+    alert("선택 실패: " + await r.text());
+    return;
   }
+
+  sectionBgSelected[sec] = {url, thumb};
+  document.querySelectorAll(`[id^="seccard-${sec}-"]`).forEach(el => el.classList.remove("selected"));
+  document.getElementById(`seccard-${sec}-${i}`)?.classList.add("selected");
+  if (statusEl) statusEl.textContent = "✅ 선택됨";
+}
+
+function skipSectionBg(sec) {
+  const statusEl = document.getElementById(`sec-status-${sec}`);
+  if (statusEl) statusEl.textContent = "단색 폴백";
+  delete sectionBgSelected[sec];
+  document.querySelectorAll(`[id^="seccard-${sec}-"]`).forEach(el => el.classList.remove("selected"));
+}
+
+function escH(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
 function startLongform() {
@@ -678,6 +759,61 @@ function escHtml(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 function escQ(s) { return String(s).replace(/'/g, "\\'"); }
+
+// ── 기존 스크립트 감지 (페이지 로드 시) ──────────────────────
+document.addEventListener("DOMContentLoaded", async () => {
+  const r = await fetch("/api/longform/script/exists").catch(() => null);
+  if (!r || !r.ok) return;
+  const d = await r.json();
+  if (d.exists) {
+    const banner = document.getElementById("existing-script-banner");
+    document.getElementById("existing-script-title").textContent = d.title || "(제목 없음)";
+    banner.style.display = "flex";
+  }
+});
+
+// ── 배경만 재렌더 (TTS·자막 보존) ────────────────────────────
+function startBgOnlyRender() {
+  // step-4 패널 수동 진입 (goStep(4) 호출 시 startLongform()이 실행되므로 직접 전환)
+  document.querySelectorAll(".wizard-step").forEach(el => el.classList.remove("active"));
+  document.querySelectorAll(".wizard-tab").forEach(el => el.classList.remove("active"));
+  document.getElementById("step-4").classList.add("active");
+  document.getElementById("tab-4").classList.add("active");
+
+  // 진행 패널 초기화
+  document.getElementById("lf-step-list").innerHTML =
+    '<div class="step-item"><span class="step-label">Long4</span><span>롱폼 FFmpeg 합성</span><span id="lf-si-st-Long4" class="step-status"></span></div>' +
+    '<div class="step-item"><span class="step-label">Sub</span><span>자막 번인</span><span id="lf-si-st-Sub" class="step-status"></span></div>';
+  document.getElementById("lf-pbar").style.width = "0%";
+  document.getElementById("lf-pct-label").textContent = "0%";
+  document.getElementById("lf-current-msg").textContent = "FFmpeg 합성 시작...";
+  document.getElementById("lf-done-panel").style.display = "none";
+  document.getElementById("lf-error-panel").style.display = "none";
+
+  const es = new EventSource("/api/longform/render-bg-only");
+  es.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.step === "Error") { es.close(); showLFError(d.msg); return; }
+    if (d.step === "Done") {
+      es.close();
+      document.getElementById("lf-done-panel").style.display = "block";
+      document.getElementById("lf-pbar").style.width = "100%";
+      document.getElementById("lf-pct-label").textContent = "100%";
+      document.querySelector("#lf-done-panel h2").textContent = "배경 재렌더 완료!";
+      document.getElementById("lf-yt-link").style.display = "none";
+      return;
+    }
+    // 진행률 업데이트
+    if (d.pct !== undefined) {
+      document.getElementById("lf-pbar").style.width = d.pct + "%";
+      document.getElementById("lf-pct-label").textContent = d.pct + "%";
+    }
+    if (d.msg) document.getElementById("lf-current-msg").textContent = d.msg;
+    const stEl = document.getElementById(`lf-si-st-${d.step}`);
+    if (stEl) { stEl.textContent = "진행 중 ⏳"; stEl.className = "step-status running"; }
+  };
+  es.onerror = () => { showLFError("서버 연결 끊김. 페이지를 새로고침하세요."); es.close(); };
+}
 </script>
 </body>
 </html>

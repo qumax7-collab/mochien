@@ -34,12 +34,19 @@ META_DESC_MAX_CHARS   = 120
 
 SENTENCES_PER_PARA = 3            # ① 한 <p>에 묶을 문장 수
 
+H3_PARA_THRESHOLD = 3                               # H3 삽입 최소 단락 수
+H3_INSERT_AT      = [1, 3]                          # H3 삽입 위치 (단락 직후 0-based index)
+ISSUE_H3_TEXTS    = ["背景と仕組み", "生活への影響"]  # issue 섹션 내 고정 H3 텍스트
+
 AD_SLOT_1 = "<!-- AD_SLOT_1 -->"  # ② intro 첫 문단 직후
 AD_SLOT_2 = "<!-- AD_SLOT_2 -->"  # ② issue1~2 사이
 AD_SLOT_3 = "<!-- AD_SLOT_3 -->"  # ② まとめ 뒤
 
 VIDEO_OUTRO_PAT = re.compile(      # ③ 영상 전용 멘트
     r'(以上、モチエンがお伝えしました[！!]|チャンネル登録お願いします[！!])\s*'
+)
+CHART_TAG_PAT   = re.compile(      # 차트 태그 B안 제거
+    r'===차트(?:\[[^\]]*\])?===|===차트끝==='
 )
 BLOG_OUTRO_TMPL   = (              # ③ 블로그용 마무리 (YouTube URL 있을 때)
     '<p>この内容は<a href="{url}">動画</a>でもご覧いただけます。'
@@ -271,6 +278,30 @@ def strip_video_phrases(text: str) -> str:
     return VIDEO_OUTRO_PAT.sub('', text).strip()
 
 
+def strip_chart_tags(text: str) -> str:
+    """차트 태그 B안 제거 (===차트[…]=== / ===차트끝===)."""
+    return CHART_TAG_PAT.sub('', text).strip()
+
+
+def _build_meta_desc(script: str) -> str:
+    """intro.script → 메타 디스크립션용 정제 텍스트.
+
+    차트 태그·영상 전용 멘트·후리가나를 제거한 뒤,
+    META_DESC_MAX_CHARS 이내의 마지막 句点(。) 위치에서 자른다.
+    句点이 없으면 최대 글자수에서 그대로 자른다.
+    """
+    text = strip_chart_tags(script)
+    text = strip_video_phrases(text)
+    text = FURIGANA_PAT.sub('', text).strip()
+    if len(text) <= META_DESC_MAX_CHARS:
+        return text
+    window = text[:META_DESC_MAX_CHARS]
+    cut = window.rfind('。')
+    if cut == -1:
+        return window.rstrip()
+    return text[:cut + 1]
+
+
 def insert_ad_after_first_para(html_block: str, marker: str) -> str:
     """HTML 블록의 첫 </p> 직후에 광고 마커 삽입."""
     idx = html_block.find("</p>")
@@ -280,9 +311,10 @@ def insert_ad_after_first_para(html_block: str, marker: str) -> str:
 
 
 def to_paragraphs(text: str) -> str:
-    """출처·영상 멘트 제거 → 句点 분할 → SENTENCES_PER_PARA 문장씩 <p>로 묶음."""
+    """출처·영상 멘트·차트 태그 제거 → 句点 분할 → SENTENCES_PER_PARA 문장씩 <p>로 묶음."""
     text = strip_citations(text)
     text = strip_video_phrases(text)
+    text = strip_chart_tags(text)
     sentences = split_japanese(text)
     if not sentences:
         return ''
@@ -293,6 +325,27 @@ def to_paragraphs(text: str) -> str:
         groups[-2].extend(groups.pop())
     paras = [''.join(g) for g in groups]
     return '\n'.join(f'<p>{p}</p>' for p in paras)
+
+
+def _inject_h3(paras_html: str) -> str:
+    """issue 섹션 HTML에 H3 소제목을 삽입.
+
+    단락 수가 H3_PARA_THRESHOLD 미만이면 skip(에러 아님).
+    H3_INSERT_AT에 지정된 단락 직후, 다음 단락이 있을 때만 삽입.
+    """
+    parts = [p for p in paras_html.split('\n') if p.strip()]
+    if len(parts) < H3_PARA_THRESHOLD:
+        return paras_html
+    result = []
+    h3_ptr = 0
+    for i, para in enumerate(parts):
+        result.append(para)
+        if (h3_ptr < len(H3_INSERT_AT)
+                and i == H3_INSERT_AT[h3_ptr]
+                and i + 1 < len(parts)):
+            result.append(f'<h3>{ISSUE_H3_TEXTS[h3_ptr]}</h3>')
+            h3_ptr += 1
+    return '\n'.join(result)
 
 
 def build_html_body(data: dict, yt_url, issue_img_urls: dict = None) -> str:
@@ -348,11 +401,11 @@ def build_html_body(data: dict, yt_url, issue_img_urls: dict = None) -> str:
         f"{embed_block}\n\n"
         f"<h2>{issue1['title']}</h2>\n"
         f"{img_block('issue1', issue1['title'])}"
-        f"{to_paragraphs(issue1['script'])}\n\n"
+        f"{_inject_h3(to_paragraphs(issue1['script']))}\n\n"
         f"{AD_SLOT_2}\n\n"
         f"<h2>{issue2['title']}</h2>\n"
         f"{img_block('issue2', issue2['title'])}"
-        f"{to_paragraphs(issue2['script'])}\n\n"
+        f"{_inject_h3(to_paragraphs(issue2['script']))}\n\n"
         f"<h2>まとめ</h2>\n"
         f"{to_paragraphs(outro_script)}\n"
         f"{source_block}"
@@ -408,6 +461,32 @@ def get_unique_slug(base_slug: str) -> str:
 # WP 글 발행
 # ─────────────────────────────────────────
 
+def _patch_yoast_meta(post_id: int, meta_desc: str, focus_kw: str) -> bool:
+    """글 생성 후 별도 PATCH로 Yoast private meta 필드를 확실히 저장.
+
+    WordPress REST API는 private meta(_로 시작)를 초기 POST에서 무시할 수 있다.
+    생성 직후 별도 PATCH를 보내 양쪽 경우를 모두 커버한다.
+    """
+    try:
+        resp = requests.post(
+            f"{WP_URL}/wp-json/wp/v2/posts/{post_id}",
+            auth=(WP_USER, WP_PASS),
+            json={
+                "meta": {
+                    "_yoast_wpseo_metadesc": meta_desc,
+                    "_yoast_wpseo_focuskw":  focus_kw,
+                }
+            },
+            timeout=20,
+        )
+        resp.raise_for_status()
+        print(f"  Yoast meta PATCH 완료 (post_id={post_id})")
+        return True
+    except Exception as e:
+        print(f"  [경고] Yoast meta PATCH 실패: {e}")
+        return False
+
+
 def publish_post(title: str, content: str, slug: str, media_id,
                  meta_desc: str, publish_at: str,
                  tag_ids: list = None, focus_kw: str = ""):
@@ -439,8 +518,12 @@ def publish_post(title: str, content: str, slug: str, media_id,
                 timeout=30,
             )
             resp.raise_for_status()
-            post_url = resp.json().get("link", "")
+            resp_data = resp.json()
+            post_url  = resp_data.get("link", "")
+            post_id   = resp_data.get("id")
             print(f"  WP 발행 완료: {post_url}")
+            if post_id:
+                _patch_yoast_meta(post_id, meta_desc, focus_kw)
             return post_url
         except Exception as e:
             print(f"  [오류] WP 발행 시도 {attempt}/{RETRY_COUNT} 실패: {e}")
@@ -537,9 +620,9 @@ def main():
     title     = data.get("title", "モチエン経済解説")
     base_slug = data.get("_slug_keyword", "economy")
 
-    # ⑤ excerpt: 후리가나 제거 후 120자
+    # ⑤ excerpt: 차트 태그·영상 멘트 제거 → 마지막 句点 위치에서 120자 이내로 자름
     intro_text = data.get("intro", {}).get("script", "")
-    meta_desc  = FURIGANA_PAT.sub('', intro_text)[:META_DESC_MAX_CHARS].rstrip()
+    meta_desc  = _build_meta_desc(intro_text)
 
     print(f"\n제목: {title}")
     print(f"slug 기반: {base_slug}")

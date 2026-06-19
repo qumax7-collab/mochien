@@ -3418,5 +3418,1058 @@
     "approved": false,
     "reason": "주시와 주시찰은 의미가 거의 같지만, 원문에 정확한 표현이 있어 일회성 오인식으로 판단",
     "examples": []
+  },
+  "まで他にも": {
+    "suggested": "データにも",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "원문에서 '데이터에도 명확히 나타나고 있습니다'라는 문맥이 있으며, 'データ'는 일반적으로 사용되는 정상 일본어입니다. 'まで他にも'는 문맥상 의미가 맞지 않습니다. 그러나 이것은 한 번의 오인식일 가능성이 높고, 정상어를 오치환할 위험이 크므로 안전하지 않습니다.",
+    "examples": []
+  },
+  "のでしょうかエ": {
+    "suggested": "でしょうか？",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "문맥상 마지막 문장 끝 오류로 보이며, 이 표현은 일반적인 일본어이므로 사전 등록 시 정상어 오치환 위험이 높음",
+    "examples": []
+  },
+  "際の食卓はど": {
+    "suggested": "実際の食卓は",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "\"実際의\" 일부 누락 오류로 보이나, \"際の\" 는 다른 문맥에서도 정상 사용되는 표현이므로 안전하지 않음",
+    "examples": []
+  },
+  "そしています周りも": {
+    "suggested": "そしています。まわりも",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "\"周り\" 는 \"まわり\" 의 일반적인 한자 표기이며, 다른 문맥에서도 정상 사용되므로 사전 등록 위험",
+    "examples": []
+  },
+  "通計": {
+    "suggested": "統計",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "\"通計\" 는 일본어에서 거의 사용되지 않는 한자 조합이며, \"統計\" 로의 오인식은 명확한 음성인식 오류 패턴임",
+    "examples": []
+  },
+  "身にする": {
+    "suggested": "耳にする",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "\"身にする\" 도 \"마음에 새기다\" 라는 정상적인 일본어 표현이므로 사전 등록 시 위험",
+    "examples": []
+  },
+  "ぶどやか": {
+    "suggested": "穏やか",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "\"ぶどやか\" 는 일본어에 존재하지 않는 조합이며, 명확한 음성인식 오류",
+    "examples": []
+  },
+  "裏えば": {
+    "suggested": "例えば",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "\"裏えば\" 는 일본어에서 거의 사용되지 않으나, 일부 문맥에서 가능성이 있으므로 안전성 재검토 필요",
+    "examples": []
+  },
+  "おめ": {
+    "suggested": "お米",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "\"おめ\" 는 일본어에서 정상적인 단어가 아니며, 명확한 음절 누락 오류",
+    "examples": []
+  },
+  "こなる": {
+    "suggested": "異なる",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "원문에 \"異なる\" 가 없거나 매우 드문 단어로 보임. 일회성 오류일 가능성 높음",
+    "examples": []
+  },
+  "精露": {
+    "suggested": "経路",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "\"精露\" 는 매우 드문 표현이나, 원문에서 \"経路\" 의 빈도가 적으므로 일회성 오류 가능성 높음",
+    "examples": []
+  },
+  "はみ合っている": {
+    "suggested": "絡み合っている",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "\"はみ合っている\" 도 \"겹치다\" 라는 정상 일본어 표현이므로 사전 등록 위험",
+    "examples": []
+  },
+  "コリモ": {
+    "suggested": "穀物",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "\"コリモ\" 는 일본어에 존재하지 않는 음절 조합이며, 명확한 음성인식 오류",
+    "examples": []
+  },
+  "添合": {
+    "suggested": "天候",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "\"添合\" 는 매우 드물지만, 일부 문맥에서 사용 가능성이 있으므로 위험",
+    "examples": []
+  },
+  "製作": {
+    "suggested": "政策",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "\"製作\" 은 \"제작\" 이라는 정상적인 일본어 단어이므로 사전 등록 시 오치환 위험 높음",
+    "examples": []
+  },
+  "上昇する": {
+    "suggested": "上下する",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "\"上昇する\" 는 \"상승하다\" 라는 정상 표현이며, 문맥에 따라 다를 수 있으므로 등록 부적절",
+    "examples": []
+  },
+  "前年当月": {
+    "suggested": "前年同月",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "\"前年当月\" 도 일본어에서 사용 가능한 표현이므로 등록 위험",
+    "examples": []
+  },
+  "きょうべぶん": {
+    "suggested": "小麦粉",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "\"きょうべぶん\" 는 일본어에 존재하지 않는 조합이며, 명확한 음성인식 오류",
+    "examples": []
+  },
+  "コリム": {
+    "suggested": "穀物",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "\"コリム\" 는 일본어에 존재하지 않는 음절 조합이며, \"穀物\" 의 명확한 오류 패턴",
+    "examples": []
+  },
+  "意識的": {
+    "suggested": "一時的",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "\"意識的\" 은 \"의식적\" 이라는 정상 단어이므로 사전 등록 시 오치환 위험",
+    "examples": []
+  },
+  "エネルギー波": {
+    "suggested": "エネルギーは",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "조사 오류로 보이나, 일회성 오류일 가능성 높음",
+    "examples": []
+  },
+  "やるやか": {
+    "suggested": "緩やか",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "\"やるやか\" 는 일본어에 존재하지 않는 조합이며, 명확한 음성인식 오류",
+    "examples": []
+  },
+  "コテモ": {
+    "suggested": "穀物",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": true,
+    "reason": "\"コテモ\" 는 일본어에 존재하지 않는 음절 조합이며, \"穀物\" 의 명확한 오류 패턴",
+    "examples": []
+  },
+  "無流費": {
+    "suggested": "物流費",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "\"無流費\" 는 거의 사용되지 않으나, 가능성이 있으므로 등록 부적절",
+    "examples": []
+  },
+  "現在料費": {
+    "suggested": "原材料費",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "\"現在料費\" 는 매우 드물지만, 사전 등록 시 부작용 가능성 있음",
+    "examples": []
+  },
+  "好み": {
+    "suggested": "穀物",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "\"好み\" 는 \"취향\" 이라는 정상 단어이므로 사전 등록 시 오치환 위험",
+    "examples": []
+  },
+  "張らない": {
+    "suggested": "減らない",
+    "count": 1,
+    "first_seen": "2026-06-06",
+    "last_seen": "2026-06-06",
+    "approved": false,
+    "reason": "\"張らない\" 도 정상적인 일본어 표현이므로 사전 등록 위험",
+    "examples": []
+  },
+  "両体": {
+    "suggested": "両替",
+    "count": 1,
+    "first_seen": "2026-06-14",
+    "last_seen": "2026-06-14",
+    "approved": true,
+    "reason": "원문에서 '両替費用'이 명확히 나타나며, '両体'는 정상적인 일본어가 아닙니다. 안전한 사전 등록 대상입니다.",
+    "examples": []
+  },
+  "いないません": {
+    "suggested": "いません",
+    "count": 1,
+    "first_seen": "2026-06-14",
+    "last_seen": "2026-06-14",
+    "approved": false,
+    "reason": "문맥상 정상 표현이 '動いていません'이며, 'いないません'은 원문에 존재하지 않습니다. 일회성 오류일 가능성이 높습니다.",
+    "examples": []
+  },
+  "アメリカリカ": {
+    "suggested": "アメリカ",
+    "count": 1,
+    "first_seen": "2026-06-14",
+    "last_seen": "2026-06-14",
+    "approved": true,
+    "reason": "원문에 'アメリカ'가 명확히 존재하며, '아메리카리카'는 정상적인 일본어가 아닙니다. 안전한 등록 대상입니다.",
+    "examples": []
+  },
+  "タイ": {
+    "suggested": "際",
+    "count": 1,
+    "first_seen": "2026-06-14",
+    "last_seen": "2026-06-14",
+    "approved": false,
+    "reason": "'際'와 '타이'는 음성적으로 유사하지 않습니다. '際'는 일상적인 정상 단어이며, 다른 문맥에서도 자주 사용되어 오등록 위험이 있습니다.",
+    "examples": []
+  },
+  "直し": {
+    "suggested": "保ち",
+    "count": 1,
+    "first_seen": "2026-06-14",
+    "last_seen": "2026-06-14",
+    "approved": false,
+    "reason": "'保ち'와 '직시'는 음성적으로 유사하지 않습니다. '직し'는 정상적인 일본어이며, 오등록으로 인한 오치환 위험이 높습니다.",
+    "examples": []
+  },
+  "アルティード": {
+    "suggested": "ある程度",
+    "count": 1,
+    "first_seen": "2026-06-14",
+    "last_seen": "2026-06-14",
+    "approved": false,
+    "reason": "원문에 '어느 정도'의 의미로 'ある程度'가 명확히 나타나지만, '아루티도'는 음성적으로 부자연스럽습니다. 일회성 오류일 가능성이 높습니다.",
+    "examples": []
+  },
+  "行効果": {
+    "suggested": "役割",
+    "count": 1,
+    "first_seen": "2026-06-14",
+    "last_seen": "2026-06-14",
+    "approved": false,
+    "reason": "원문에 '役割を果たしています'가 명확히 나타나지만, '행효과'는 정상적인 일본어입니다. 안정적인 패턴이 아니며 오등록 위험이 있습니다.",
+    "examples": []
+  },
+  "交渉をすると": {
+    "suggested": "メルコスール",
+    "count": 1,
+    "first_seen": "2026-06-15",
+    "last_seen": "2026-06-15",
+    "approved": false,
+    "reason": "원문에 '메르코수르'가 명확히 포함되어 있으나, '교섭을 하면'은 문맥상 전혀 다른 내용입니다. 이는 일시적 음성인식 오류로 보이며, 안정적인 오류 패턴이 아닙니다.",
+    "examples": []
+  },
+  "輸入": {
+    "suggested": "収入",
+    "count": 1,
+    "first_seen": "2026-06-15",
+    "last_seen": "2026-06-15",
+    "approved": true,
+    "reason": "원문에 '수입'이라는 정확한 단어가 명시되어 있고, '輸入'은 발음이 유사하지만 의미가 완전히 다른 단어입니다. 이는 안정적인 오류 패턴이며 사전 등록으로 오류 수정이 필요합니다.",
+    "examples": []
+  },
+  "動き": {
+    "suggested": "変動",
+    "count": 1,
+    "first_seen": "2026-06-15",
+    "last_seen": "2026-06-15",
+    "approved": false,
+    "reason": "'動き'는 일상적인 일본어 단어로 다른 문맥에서도 정상적으로 사용됩니다. 이는 일시적 오류로 보이며, 안정적인 오류 패턴이 아닙니다.",
+    "examples": []
+  },
+  "締結": {
+    "suggested": "直結",
+    "count": 1,
+    "first_seen": "2026-06-15",
+    "last_seen": "2026-06-15",
+    "approved": true,
+    "reason": "원문에 '직결'이라는 정확한 단어가 포함되어 있고, '締結'은 발음이 유사하지만 의미가 다른 단어(조약 체결)입니다. 이는 안정적인 오류 패턴이며 사전 등록이 필요합니다.",
+    "examples": []
+  },
+  "懸念する": {
+    "suggested": "講じる",
+    "count": 1,
+    "first_seen": "2026-06-15",
+    "last_seen": "2026-06-15",
+    "approved": false,
+    "reason": "원문에 '강구하다'가 명확히 포함되어 있으나, '우려하다'는 문맥상 완전히 다른 의미입니다. 이는 일시적 음성인식 오류로 보이며 안정적인 패턴이 아닙니다.",
+    "examples": []
+  },
+  "下落しました": {
+    "suggested": "下がりました",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "下落(げらく)은 이미 pronunciation.json에 등록된 정상 일본어 단어이며, 원문에도 '価格の下落は'로 정상 사용되고 있음. 한 번의 오인식으로 보임",
+    "examples": []
+  },
+  "電気代": {
+    "suggested": "電気料金",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "電気代(でんきだい)는 일상 일본어에서 정상적으로 사용되는 동의어이며, 다른 맥락에서도 올바른 표현임. 표기법 차이일 뿐 오류가 아님",
+    "examples": []
+  },
+  "原材料費費を負担せるため": {
+    "suggested": "原材料費を減らせるため",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": true,
+    "reason": "원문에 정확히 '原材料費を減らせるため'로 기록되어 있고, 미스히어는 중복된 '費費'와 오류 '負担せる'를 포함하고 있어 명확한 오인식 패턴임",
+    "examples": []
+  },
+  "反応されます": {
+    "suggested": "反映されます",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": true,
+    "reason": "원문에 '反映されます'로 명시되어 있고, 반응(はんのう)은 다른 의미의 단어임. 발음 유사성으로 인한 안정적 오인식 패턴으로 보임",
+    "examples": []
+  },
+  "生活費、会見効果": {
+    "suggested": "生活費節減効果",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": true,
+    "reason": "원문에 '生活費節減効果'로 정확히 기록되어 있고, '会見(かいけん)'은 전혀 다른 단어임. 안정적이고 재현 가능한 오인식 패턴임",
+    "examples": []
+  },
+  "以上、モチエンでした。でした": {
+    "suggested": "以上、モチエンでした。",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "단순 중복 오류로 보이며, glossary.json에 이미 'モチエンでした。でした' → 'モチエンでした。'로 등록되어 있음. 추가 등록이 불필요함",
+    "examples": []
+  },
+  "東京株式東京株式": {
+    "suggested": "東京株式",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "단순 반복 오류로 보이며, 등록 시 정상 단어를 오치환할 위험이 높음",
+    "examples": []
+  },
+  "近づきています": {
+    "suggested": "近づいています",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "「近づき」와 「近づいて」는 모두 정상적인 일본어 표현으로 사용되며, 안정적 오류 패턴이 아님",
+    "examples": []
+  },
+  "東京株式市場市場": {
+    "suggested": "東京株式市場",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "단순 반복 오류로 보이며, 등록 시 정상 단어를 오치환할 위험이 높음",
+    "examples": []
+  },
+  "迫近づき": {
+    "suggested": "近づき",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "일회성 오류로 보이며, 「迫」는 다른 문맥에서 정상적으로 사용되는 한자",
+    "examples": []
+  },
+  "老後支出": {
+    "suggested": "老後資金",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": true,
+    "reason": "안정적인 음성 인식 오류 패턴이며, 「支出」는 의미가 다르므로 오치환 위험이 적음",
+    "examples": []
+  },
+  "入手に": {
+    "suggested": "主に",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "「入手に」는 다른 문맥에서도 사용 가능한 정상 표현이며, 일회성 오류로 판단됨",
+    "examples": []
+  },
+  "投資投資家の": {
+    "suggested": "投資家の",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "단순 반복 오류로 보이며, 등록 시 정상 단어를 오치환할 위험이 높음",
+    "examples": []
+  },
+  "期待期待感が": {
+    "suggested": "期待感が",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "단순 반복 오류로 보이며, 등록 시 정상 단어를 오치환할 위험이 높음",
+    "examples": []
+  },
+  "AI関連企業業": {
+    "suggested": "AI関連企業",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "단순 반복 오류로 보이며, 등록 시 정상 단어를 오치환할 위험이 높음",
+    "examples": []
+  },
+  "流これ": {
+    "suggested": "流れ",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "일회성 오류로 보이며, 안정적 패턴이 아님",
+    "examples": []
+  },
+  "AI関東京株に": {
+    "suggested": "AI関連株に",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "「関東京」는 비정상이지만, 일회성 오류로 보이며 원문에 「AI関連」이 명확히 존재함",
+    "examples": []
+  },
+  "投資金が": {
+    "suggested": "資金が",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "「投資金」는 다른 문맥에서도 사용 가능한 표현이며, 일회성 오류로 판단됨",
+    "examples": []
+  },
+  "支出が": {
+    "suggested": "資金が",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "「支出が」는 정상적인 일본어 표현이며, 의미 차이로 일회성 오류로 판단됨",
+    "examples": []
+  },
+  "かもしれませんません": {
+    "suggested": "かもしれません",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "단순 반복 오류로 보이며, 등록 시 정상 단어를 오치환할 위험이 높음",
+    "examples": []
+  },
+  "ポートフォリオリオ": {
+    "suggested": "ポートフォリオ",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "단순 반복 오류로 보이며, 등록 시 정상 단어를 오치환할 위험이 높음",
+    "examples": []
+  },
+  "必要です必要です": {
+    "suggested": "必要です",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "단순 반복 오류로 보이며, 등록 시 정상 단어를 오치환할 위험이 높음",
+    "examples": []
+  },
+  "にAI": {
+    "suggested": "特にAI",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "일회성 오류로 보이며, 원문에 「特にAI」가 명확히 존재함",
+    "examples": []
+  },
+  "株価の上昇株価の上昇": {
+    "suggested": "株価の上昇",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "단순 반복 오류로 보이며, 등록 시 정상 단어를 오치환할 위험이 높음",
+    "examples": []
+  },
+  "ありませませんが": {
+    "suggested": "ありませんが",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "단순 반복 오류로 보이며, 등록 시 정상 단어를 오치환할 위험이 높음",
+    "examples": []
+  },
+  "主要テーマーマ": {
+    "suggested": "主要テーマ",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "단순 반복 오류로 보이며, 등록 시 정상 단어를 오치환할 위험이 높음",
+    "examples": []
+  },
+  "長定期的に": {
+    "suggested": "長期的に",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": true,
+    "reason": "안정적인 음성 인식 오류 패턴이며, 「定期」와 구분 가능하므로 오치환 위험이 낮음",
+    "examples": []
+  },
+  "モチエンでした。した": {
+    "suggested": "モチエンでした",
+    "count": 1,
+    "first_seen": "2026-06-16",
+    "last_seen": "2026-06-16",
+    "approved": false,
+    "reason": "단순 반복/구두점 오류로 보이며, 일회성 오류로 판단됨",
+    "examples": []
+  },
+  "利": {
+    "suggested": "と",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "1글자 조사로 매우 높은 오인식 가능성이 있으며, 정상 문맥에서도 \"利\"가 사용될 수 있어 안전성이 낮음",
+    "examples": []
+  },
+  "買い日銀": {
+    "suggested": "買い配利息",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "원문에 \"買い配利息\"이 실제로 존재하지 않으며, 정정 대상 자체가 비표준 일본어임",
+    "examples": []
+  },
+  "か": {
+    "suggested": "かも",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "1글자 조사로 정상적인 일본어에서 매우 자주 사용되어 오류 수정 시 정상 표현을 잘못 대체할 위험이 높음",
+    "examples": []
+  },
+  "もしれません": {
+    "suggested": "しれません",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "원문에 \"かもしれません\"이 완전한 형태로 존재하며, 부분 수정은 일회성 오류로 패턴 가치가 낮음",
+    "examples": []
+  },
+  "ました": {
+    "suggested": "",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "정정 대상이 공백이므로 사전 항목 등록 기준에 부적합함",
+    "examples": []
+  },
+  "物物価": {
+    "suggested": "物価",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": true,
+    "reason": "명확한 중복 오류이며, 원문에 \"물価\"가 실제로 존재하고, \"물물価\"는 일본어에서 사용되지 않는 표현으로 안전성이 높음",
+    "examples": []
+  },
+  "ためのの": {
+    "suggested": "ための",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": true,
+    "reason": "명확한 중복 오류이며, \"ためのの\"는 비문법적 표현으로 정정 안전성이 높음",
+    "examples": []
+  },
+  "銀行行の": {
+    "suggested": "銀行の",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": true,
+    "reason": "명확한 중복 오류이며, \"銀行行\"은 존재하지 않는 표현으로 안전성이 높음",
+    "examples": []
+  },
+  "アド": {
+    "suggested": "あの",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "\"アド\"는 광고(advertisement)의 약자로 정상적인 일본어 표현이므로 안전한 치환이 어려움",
+    "examples": []
+  },
+  "": {
+    "suggested": "系",
+    "count": 2,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-19",
+    "approved": false,
+    "reason": "誤認識候補が空文字列であり、辞書登録の対象として不適切です。",
+    "examples": []
+  },
+  "資銀行が": {
+    "suggested": "資金を",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "원문 전체에서 정정 대상 표현이 명확히 나타나지 않으며, 복잡한 구조의 오류로 패턴 신뢰도가 낮음",
+    "examples": []
+  },
+  "かもしれませ んれません": {
+    "suggested": "かもしれません",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "공백이 포함된 복잡한 오류로 일회성 가능성이 높으며, 안정적인 패턴으로 보기 어려움",
+    "examples": []
+  },
+  "っと": {
+    "suggested": "もっと",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "원문에 \"もっと\"이 존재하지만, 2글자 부분 오류로 정상 표현 \"っと\"를 포함한 다양한 문맥에서 오인식 위험이 있음",
+    "examples": []
+  },
+  "でした": {
+    "suggested": "",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "정정 대상이 공백이므로 사전 항목 등록 기준에 부적합함",
+    "examples": []
+  },
+  "個室、個室料金": {
+    "suggested": "敬氏、酒料金",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "원문에 '敬氏'와 '酒料金'이 실제로 존재하지 않음. 문맥상 오류 패턴이 명확하지 않음",
+    "examples": []
+  },
+  "一人洋菓": {
+    "suggested": "1人洋菓子",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "원문에 해당 표현이 없음. 문맥상 '1人用個室座席'이 정확한 표현이며 이는 별도 오류",
+    "examples": []
+  },
+  "個室": {
+    "suggested": "座席",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "'個室'은 원문에 정상적으로 여러 번 사용되는 단어로, 안전한 사전 등록 항목이 아님",
+    "examples": []
+  },
+  "片道": {
+    "suggested": "変動",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "'片道'는 원문에 '片道3万2660円'으로 정상적으로 사용되므로 오류가 아님",
+    "examples": []
+  },
+  "2660円": {
+    "suggested": "2旬560円",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "원문에 실제로 존재하지 않는 오류 후보. 원문은 '3万2660円'임",
+    "examples": []
+  },
+  "小字": {
+    "suggested": "古紙",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "원문에 이러한 단어들이 존재하지 않음",
+    "examples": []
+  },
+  "交通費": {
+    "suggested": "交通配",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "'交通費'는 원문에 정상적으로 사용되는 표준 단어로, 사전 등록 시 오류 유발 위험 높음",
+    "examples": []
+  },
+  "負担担につながる": {
+    "suggested": "負担につながる",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": true,
+    "reason": "원문에 정확하게 '負担につながる'가 포함되어 있고, '負担担'은 명백한 중복 오류이며 안전한 사전 항목임",
+    "examples": []
+  },
+  "保障する": {
+    "suggested": "保証する",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "'保障'는 '保証'와 유사하지만 독립적으로 정상 사용되는 단어이므로 사전 등록 시 정상 텍스트를 오오류로 치환할 위험 높음",
+    "examples": []
+  },
+  "費費用差が生": {
+    "suggested": "費用差が生じる",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": true,
+    "reason": "원문에 정확하게 '費用差が生じる'가 포함되어 있고, '費費'는 명백한 중복 오류 패턴으로 안전함",
+    "examples": []
+  },
+  "各個室を選": {
+    "suggested": "各種",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "'各種'는 정상적으로 사용되는 표준 단어. 사전 등록 시 정상 텍스트 오류 유발 위험",
+    "examples": []
+  },
+  "利便性": {
+    "suggested": "離変性",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "원문에 실제로 존재하지 않는 단어. 원문에는 '利便性'이 정상 사용됨",
+    "examples": []
+  },
+  "仕事等": {
+    "suggested": "指示灯",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "원문에 이러한 단어들이 존재하지 않음",
+    "examples": []
+  },
+  "各市の安": {
+    "suggested": "各種",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "'各種'는 정상 단어. 중복 등록이며 정상 텍스트 오류 유발 위험",
+    "examples": []
+  },
+  "影響を与える える": {
+    "suggested": "影響を与える",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": true,
+    "reason": "원문에 정확하게 '影響を与える'가 포함되어 있고, ' える' 중복은 명백한 오류이며 안전한 사전 항목",
+    "examples": []
+  },
+  "以上、以上": {
+    "suggested": "以上",
+    "count": 1,
+    "first_seen": "2026-06-17",
+    "last_seen": "2026-06-17",
+    "approved": false,
+    "reason": "원문에 '以上'이 정상적으로 한 번만 사용되므로 중복 오류 패턴이 불안정함",
+    "examples": []
+  },
+  "イ 金利上昇": {
+    "suggested": "イ金利系",
+    "count": 1,
+    "first_seen": "2026-06-18",
+    "last_seen": "2026-06-18",
+    "approved": false,
+    "reason": "원문에 '이 금리 상승'이라는 표현이 없으며, '이금리계'라는 정상적인 일본어도 아닙니다. 단순 오인식으로 보이며 사전 등록의 필요성이 없습니다.",
+    "examples": []
+  },
+  "株式": {
+    "suggested": "株",
+    "count": 1,
+    "first_seen": "2026-06-18",
+    "last_seen": "2026-06-18",
+    "approved": false,
+    "reason": "株(かぶ)과 株式(かぶしき)은 모두 표준 일본어이며, 일반적으로 상호 대체 가능한 용어입니다. 이미 pronunciation.json에 '株: かぶ'와 glossary.json에 '株式: かぶしき'가 등록되어 있어 추가 등록이 불필요합니다.",
+    "examples": []
+  },
+  "預金利息": {
+    "suggested": "圧理欲",
+    "count": 1,
+    "first_seen": "2026-06-18",
+    "last_seen": "2026-06-18",
+    "approved": false,
+    "reason": "원문에 '預金利息'이 실제로 존재하며, 이는 정상적인 일본어 단어입니다. '圧理欲'은 의미 없는 문자 조합으로, 오인식 패턴이 명확하지 않아 사전 등록에 부적절합니다.",
+    "examples": []
+  },
+  "14%": {
+    "suggested": "1.4%",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": false,
+    "reason": "数字の誤認識であり、一般的な日本語単語ではないため辞書登録には適していません。",
+    "examples": []
+  },
+  "性、かつひD、女": {
+    "suggested": "生活費に",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": false,
+    "reason": "音声認識の大きな誤認識ですが、登録するとテキスト全般に悪影響を及ぼすリスクが高すぎます。",
+    "examples": []
+  },
+  "価格変動価格変動の": {
+    "suggested": "価格変動の",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": true,
+    "reason": "명확한 중복 오류이며, 일반적인 일본어 단어인 '価格変動'의 중복 제거로 안전합니다.",
+    "examples": []
+  },
+  "14": {
+    "suggested": "1.4%",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": false,
+    "reason": "수치 오류이며, 일반적인 일본어 단어 사전에는 부적절합니다.",
+    "examples": []
+  },
+  "同じじで": {
+    "suggested": "同じで",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": true,
+    "reason": "'同じじで'는 명확한 오타이며, '同じで'로의 정정은 안전합니다.",
+    "examples": []
+  },
+  "流れれ": {
+    "suggested": "流れを",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": true,
+    "reason": "'流れれ'은 문법적으로 부정확한 오류이며, 안정적인 교정 패턴입니다.",
+    "examples": []
+  },
+  "示していますいます": {
+    "suggested": "示しています",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": true,
+    "reason": "명확한 중복 오류로 'います'의 반복이며, 안전한 교정입니다.",
+    "examples": []
+  },
+  "増えますがが": {
+    "suggested": "増えますが",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": true,
+    "reason": "'が'의 중복으로 명확한 오류이며, 안전한 교정입니다.",
+    "examples": []
+  },
+  "大大きな": {
+    "suggested": "大きな",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": true,
+    "reason": "'大'의 중복으로 명확한 오류이며, 안전한 교정입니다.",
+    "examples": []
+  },
+  "点良い": {
+    "suggested": "点が良い",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": true,
+    "reason": "'が'의 생략 오류로 명확하며, 안전한 교정입니다.",
+    "examples": []
+  },
+  "物価上昇率率": {
+    "suggested": "物価上昇率",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": true,
+    "reason": "'率'의 중복 오류로 명확하며, 안전한 교정입니다.",
+    "examples": []
+  },
+  "価格上昇率圧力": {
+    "suggested": "価格上昇圧力",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": true,
+    "reason": "'圧力'이 '率'로 잘못 인식된 명확한 오류이며, 안전한 교정입니다.",
+    "examples": []
+  },
+  "生活費費": {
+    "suggested": "生活費",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": true,
+    "reason": "'費'의 중복 오류로 명확하며, 안전한 교정입니다.",
+    "examples": []
+  },
+  "かんりに": {
+    "suggested": "管理に",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": false,
+    "reason": "'かんり'는 '管理'의 히라가나 표기이며, 오류가 아니라 다른 표현 방식입니다. 등록하면 정상 텍스트를 오치환할 위험이 있습니다.",
+    "examples": []
+  },
+  "なるる": {
+    "suggested": "なる",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": true,
+    "reason": "'なる'의 중복 오류로 명확하며, 안전한 교정입니다.",
+    "examples": []
+  },
+  "指標標": {
+    "suggested": "指標",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": true,
+    "reason": "'標'의 중복 오류로 명확하며, 안전한 교정입니다.",
+    "examples": []
+  },
+  "コメント欄へ。へ": {
+    "suggested": "コメント欄へ。",
+    "count": 1,
+    "first_seen": "2026-06-19",
+    "last_seen": "2026-06-19",
+    "approved": true,
+    "reason": "'へ'의 중복으로 명확한 오류이며, 안전한 교정입니다.",
+    "examples": []
   }
 }

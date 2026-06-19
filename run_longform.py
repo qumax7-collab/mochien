@@ -9,6 +9,7 @@ PIPELINE_PRE_UPLOAD = [
     "long1_script.py",
     "long2_tts.py",
     "long3_pexels.py",
+    "long_render_charts.py",   # 차트 데이터 fetch + Remotion 렌더
     "long4_ffmpeg.py",
     "long5_whisper.py",
 ]
