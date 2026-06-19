@@ -1118,3 +1118,70 @@
         [신규 파일 2종] remotion/public/chart_data/energy_dual_dummy.json (테스트용)
                         remotion/public/chart_data/energy_dual.json (실 데이터)
         [보류] energy-dependency 롱폼 대본 생성은 내일 별도 진행
+
+✅  작업 5-4(B) 완료 (2026-06-19) — long4 차트/테롭 품질 패스 + energy-dependency 발행
+        [배경] energy-dependency 롱폼 검수 과정에서 발견된 3종 품질 문제 일반 로직으로 해결
+          → 향후 모든 토픽에 자동 적용 (토픽별 하드코딩 없음)
+
+        [차트 표시 원칙 변경 — chart_srt_window()]
+          · 기존: 차트 블록 전체 = 차트 화면 (배경 없음)
+          · 변경: 차트 블록에서 데이터 언급 SRT 구간만 차트 표시 / 앞뒤는 배경+자막
+          · chart_srt_window(block_abs_s, block_abs_e, srt_segs) → (pre_rel, post_rel)
+            CHART_DATA_RE = r"\d{2,}|マイナス|プラス|前年|横ば" 패턴으로 데이터 구간 판정
+            CHART_LEAD_IN=0.3s / CHART_LEAD_OUT=1.5s / CHART_MIN_DUR=3.0s
+            창 찾기 실패 또는 너무 짧으면 → 전체 블록 폴백 (차트 전체 표시)
+          · build_issue_clip_with_charts(): srt_segs + section_abs_start 파라미터 추가
+          · main(): 두 파라미터 전달 경로 연결 (section_abs_starts dict 사용)
+          · energy-dependency 실측 윈도우:
+            issue1 ドバイ原油(11.1s): 배경 0.4s + 차트 3.9s + 배경 6.8s
+            issue2 エネルギー[1](19.5s): 배경 0.7s + 차트 12.4s + 배경 6.4s
+            issue2 エネルギー[2](37.4s): 배경 0.9s + 차트 24.1s + 배경 12.5s
+            issue2 dual(28.9s): 배경 0.1s + 차트 16.4s + 배경 12.4s
+
+        [4패스 테롭 매칭 — telop_from_srt()]
+          · 기존 2패스(한자+숫자·카타카나 → bigram)에서 4패스로 확장
+            패스1: 4자리숫자 + 3자+한자 + 카타카나 (특이성 우선)
+            패스2: 2자 한자 (패스1에서 분리)
+            패스3: bigram (_telop_bigrams)
+            패스4: 단일 한자 — _single_kanji_fallback() / 상용 조사 제외
+          · outro #04 "次は「今 補助金は入っている？」を確認" → "今" 단일한자로 244.56s 매칭
+          · 검증: 15개 テロップ 전원 SRT 타이밍 확정 / 0초 폴백 없음
+
+        [차트 루프 방식 변경 — build_chart_video_cmd()]
+          · 기존: stream_loop -1 (무한루프) → 음성 길이 중간에서 끊기는 현상
+          · 변경: 완전루프 × N회 + 마지막 프레임 freeze (tpad stop_mode=clone)
+            full_loops = max(1, int(duration // CHART_RENDER_SECONDS))
+            freeze_t = duration - full_loops * CHART_RENDER_SECONDS
+
+        [NavyDark.tsx — labelIndices 지원]
+          · ChartData type: labelIndices?: number[] 필드 추가
+          · SingleView / CompareView / DualAxisView 3종 모두 적용
+            지정 시 해당 인덱스만 X축 라벨 표시 / 미지정 시 step 기반 자동 솎아내기
+          · energy-dependency 차트 JSON 핵심 날짜 고정:
+            dubai_oil: [0,6,12,18,23,27,30] — idx23='25/4
+            energy: [0,12,24,36,48,53,59] — idx53='25/4 / idx59='26/4
+            energy_dual: [0,4,8,12,17,20,23,25,29] — idx23='25/4 / 반전구간 명시
+
+        [SRT 연도 교정 워크플로우 확립]
+          · 문제: long5 --burn-only도 Whisper API 재호출 → SRT 덮어씀
+            대본 연도 4종 이상이면 자동 교정 불가(경고만 / sys.exit 없음)
+          · 해결: _patch_srt_years.py (str.replace 직접 교정) + _regen_ass_burn.py (ASS 재생성+번인)
+            Edit 도구로 SRT 패치 시 적용 안 되는 인코딩 이슈 → Python replace()가 신뢰할 수 있음
+          · energy-dependency 교정 3건:
+            2015年4月 → 2025年4月 (보조금 정지) / 2016年にはさらに → 2026年
+            2016年4月時点 → 2026年4月時点 (에너지CPI -3.9%)
+
+        [import re 누락 수정]
+          · long4_ffmpeg.py 상단 import re 추가 (CHART_DATA_RE 상수 정의 후 미임포트 오류)
+
+        [energy-dependency 발행]
+          · YouTube: vYkgJhHjP7Y (기본 슬롯 예약 2026-06-21 18:00 JST — 운영자 금요일 17:00으로 조정)
+          · WordPress: mochien.com/?p=66 slug=energy-dependency-2 (기본 슬롯 예약 2026-06-19 21:00 JST — 운영자 조정)
+          · 커밋: cf6f2ea
+
+        [신규 유틸 파일]
+          · long_render_charts.py — Remotion 차트 렌더 자동화 (타임스탬프 collect → npx remotion render)
+          · chart_item_map.json — 차트 항목명 → Remotion key 매핑
+          · brief_energy_dependency.json / brief_TEMPLATE.json — 섹션별 배경·테롭 브리프
+          · _compare_telop.py / _dryrun_telop.py — 테롭 매칭 검증 도구
+          · _patch_srt_years.py / _regen_ass_burn.py — SRT 연도 패치 + ASS 재생성 도구

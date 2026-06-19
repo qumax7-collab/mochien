@@ -1,5 +1,5 @@
 # 모찌엔 YouTube Shorts 자동화 프로젝트 — CLAUDE.md
-최종 업데이트: 2026년 5월 29일 (business-cycle active 승격 + FRED 5개 재검증)
+최종 업데이트: 2026년 6월 19일 (energy-dependency 발행 + long4 차트/테롭 품질 패스)
 
 ================================================================
 ## 0. 작업 규칙
@@ -446,9 +446,21 @@ C:\mochien\
   ├── long2_tts.py                        ← 4섹션 TTS + concat
   ├── long3_pexels.py                     ← 3개 배경 영상 다운로드
   ├── long4_ffmpeg.py                     ← 섹션별 클립 생성 + concat
+  │                                         SRT 기반 차트 윈도우 분할 / 4패스 テロップ 매칭 / 완전루프+freeze
   ├── long5_whisper.py                    ← Whisper 자막 합성
   ├── long6_youtube.py                    ← YouTube 업로드 + 텔레그램
   ├── long7_wordpress.py                  ← WordPress REST API 블로그 발행 (세션 A 신규)
+  ├── long_render_charts.py               ← Remotion 차트 렌더 자동화 (collect+build_props → npx remotion render)
+  ├── [ 롱폼 브리프 / 차트 설정 ]
+  ├── chart_item_map.json                 ← 차트 항목명 → Remotion key 매핑 (미등록 시 sys.exit(1))
+  ├── long_chart_timestamps.json          ← 섹션별 narration/chart 블록 경계 (long4가 생성·소비)
+  ├── brief_TEMPLATE.json                 ← 롱폼 브리프 템플릿
+  ├── brief_{topic}.json                  ← 토픽별 섹션 배경·테롭 브리프 (ex. brief_energy_dependency.json)
+  ├── [ 진단 유틸 ]
+  ├── _compare_telop.py                   ← テロップ 매칭 패스 비교 (구/신 전수 확인)
+  ├── _dryrun_telop.py                    ← テロップ 매칭 드라이런 (4패스)
+  ├── _patch_srt_years.py                 ← SRT 연도 오인식 수동 교정 (Whisper 재실행 없이)
+  ├── _regen_ass_burn.py                  ← SRT → ASS 재생성 + FFmpeg 번인 (long5 API 불호출)
   ├── [ 런타임 생성 파일 ]
   ├── article.json
   ├── gpt_result.json
@@ -655,8 +667,23 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
           구 영상 4DaX2KzJsuM: 비공개 유지 (삭제는 운영자 최종 확인 후)
 ✅  작업 5-3 — 음성·자막 동기화 + long4 합성 = 첫 완성본 / 운영자 검수 게이트 지점
         yen-rate 재합성·발행으로 실현(_yqDDY_RYlI)
-🔶  작업 5-4 — 템플릿 N종 확장 + GitHub Actions Node 셋업 (부분완료)
-        템플릿 확장(시인성 패스 2c24b49 + BarView bd97c77) 완료 / Node 셋업은 보류
+✅  작업 5-4 완료 (2026-06-19) — 차트 표시 원칙 확립 + energy-dependency 발행
+        [long4_ffmpeg.py — 3종 품질 패턴 확립]
+          · SRT 기반 차트 윈도우: chart_srt_window() — 데이터 언급 SRT 구간만 차트 표시
+            앞뒤 배경+자막 유지 (pre_bg + chart + post_bg 3분할)
+            CHART_DATA_RE = r"\d{2,}|マイナス|プラス|前年|横ば" / LEAD_IN 0.3s / LEAD_OUT 1.5s
+          · 4패스 テロップ 매칭: 숫자·장문한자·카타카나 → 2자한자 → bigram → 단일한자
+            outro #04 "今" 단일한자 매칭 포함 / 15개 전원 SRT 타이밍 확정
+          · 차트 루프: stream_loop -1 → 완전루프×N + 마지막프레임 freeze (중간 끊김 제거)
+        [NavyDark.tsx] labelIndices 지원 — 지정 인덱스만 X축 라벨 표시 (혼잡 제거)
+        [차트 데이터] dubai_oil / energy / energy_dual: labelIndices 핵심 날짜 고정 ('25/4 등)
+        [자막 교정 워크플로우] Whisper 연도 오인식 수동 패치 → _patch_srt_years.py + _regen_ass_burn.py
+          long5 --burn-only 재실행 시에도 SRT 덮어씀 확인 → Python replace()로 직접 교정
+          연도 4종 이상 대본: 자동 교정 불가(경고만) → 수동 패치 필수
+        [energy-dependency 발행]
+          YouTube: vYkgJhHjP7Y (예약 2026-06-21 18:00 JST — 운영자 조정 예정)
+          WordPress: mochien.com/?p=66 (예약 2026-06-19 21:00 JST — 운영자 조정 예정)
+        [Node 셋업] 보류 유지
 🔜  선제작 (작업 4 재개) — 작업 5 완성 후 토픽뱅크 상위 토픽 점진 비축
 🔜  34. 롱폼 추가 개선 (챕터 밀도·섹션 구성 최적화)
 
