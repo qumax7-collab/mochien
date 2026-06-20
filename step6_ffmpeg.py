@@ -14,11 +14,13 @@ OUTPUT_W = 1080
 OUTPUT_H = 1920
 OUTPUT_FPS = 30
 
-TOP_BAR_H = 192
+TOP_BAR_Y = 300          # 네이비 바 시작 Y (0~299px 배경 노출 / 다이나믹 아일랜드 안전선)
+TOP_BAR_H = 192          # 네이비 바 높이 → 바 범위 y=300~492
 RED_LINE_H = 5
 TOP_BAR_COLOR = "0x1B2A4A"
 RED_LINE_COLOR = "0xE50000"
 TITLE_FONT_SIZE = 105
+TITLE_CENTER_Y = 396     # 타이틀 텍스트 중심 Y 고정 (다이나믹 아일랜드 통과 확인값)
 
 # ===== 비네팅 + 컬러 그레이딩 =====
 VIGNETTE_ANGLE = 0.8  # 비네팅 강도 (0~PI/2)
@@ -170,7 +172,7 @@ def build_filter(font_path, mouth_gif):
     mouth_y = OUTPUT_H - FACE_H - FACE_MARGIN_Y + MOUTH_OFFSET_Y
 
     fp = ffmpeg_font_path(font_path)
-    title_y = f"({TOP_BAR_H}-text_h)/2"
+    title_y = f"{TITLE_CENTER_Y}-text_h/2"
 
     f = []
     f.append(
@@ -183,10 +185,10 @@ def build_filter(font_path, mouth_gif):
         f"[bg_graded]vignette=angle={VIGNETTE_ANGLE}[bg]"
     )
     f.append(
-        f"[bg]drawbox=x=0:y=0:w={OUTPUT_W}:h={TOP_BAR_H}:color={TOP_BAR_COLOR}:t=fill[bg1]"
+        f"[bg]drawbox=x=0:y={TOP_BAR_Y}:w={OUTPUT_W}:h={TOP_BAR_H}:color={TOP_BAR_COLOR}:t=fill[bg1]"
     )
     f.append(
-        f"[bg1]drawbox=x=0:y={TOP_BAR_H}:w={OUTPUT_W}:h={RED_LINE_H}:color={RED_LINE_COLOR}:t=fill[bg2]"
+        f"[bg1]drawbox=x=0:y={TOP_BAR_Y + TOP_BAR_H}:w={OUTPUT_W}:h={RED_LINE_H}:color={RED_LINE_COLOR}:t=fill[bg2]"
     )
     f.append(
         f"[bg2]drawtext=fontfile={fp}:textfile=short_title.txt"
