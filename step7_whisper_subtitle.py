@@ -28,6 +28,16 @@ WORDS_PER_LINE = 4       # 한 자막에 최대 단어 수
 GAP_THRESHOLD = 0.4      # 이 시간(초) 이상 공백이면 세그먼트 분리
 MAX_LINE_CHARS = 8       # 자막 한 줄 최대 글자 수 (132px × 8 = 1056px, 영상 1080px 이내)
 
+# 스크립트 정렬
+MAX_SKIP           = 15    # greedy 탐색 창 크기 (wt 문자 수)
+MAX_UNMAPPED_RATIO = 0.30  # 미매핑 허용 상한
+
+# 수치 토큰 보호 (분절 억제 대상 문자 집합)
+_NUM_DIGITS = set("0123456789")
+_NUM_EXT    = set(".%年円")  # 숫자 뒤에 붙어 하나의 수치 단위를 이루는 문자
+PARTICLES   = frozenset("はがをにへとのもでねよわ")  # 의미 경계 조사 12종 (や·か 제외 — 형용사 어간 오매칭 방지)
+MIN_PARTICLE_FLUSH_LEN = 3  # 조사 분절 최소 세그먼트 길이 (미만이면 억제)
+
 # 고유명사 교정
 GPT_CORRECTION_MODEL = "gpt-4.1-mini"
 
@@ -69,16 +79,40 @@ def correct_year_tokens(segments: list, script_years: set) -> tuple:
 
 
 def wrap_text(text, sep):
-    """MAX_LINE_CHARS 초과 시 줄바꿈. 구두점 위치 우선, 없으면 문자 단위 분리."""
+    """MAX_LINE_CHARS 초과 시 줄바꿈. 구두점 위치 우선, 없으면 문자 단위 분리.
+    수치 토큰(digit·.·%·年·円) 중간 분리 금지: cut 점을 수치 토큰 앞으로 이동."""
     if len(text) <= MAX_LINE_CHARS:
         return text
     lines = []
     while len(text) > MAX_LINE_CHARS:
         cut = MAX_LINE_CHARS
+        # 1. 우선순위: 구두점 → 조사 → 수치 토큰 직후 (우측에서 좌측 탐색)
         for j in range(MAX_LINE_CHARS - 1, -1, -1):
             if text[j] in "。、！？!?,":
                 cut = j + 1
                 break
+            if text[j] in PARTICLES:
+                # がり/がる 패턴 보호: が 직후가 り·る면 동사 어간이므로 컷 억제
+                if text[j] == 'が' and j + 1 < len(text) and text[j + 1] in 'りる':
+                    continue
+                cut = j + 1
+                break
+            if j > 0 and text[j - 1] in (_NUM_DIGITS | _NUM_EXT) and text[j] not in (_NUM_DIGITS | _NUM_EXT):
+                cut = j
+                break
+        # 2. 수치 토큰 중간 분리 방지: cut이 숫자 토큰 안을 자를 경우 앞으로 이동
+        while 0 < cut < len(text):
+            last = text[cut - 1]
+            nxt  = text[cut]
+            if (last in _NUM_DIGITS or last == ".") and nxt in (_NUM_DIGITS | _NUM_EXT):
+                cut -= 1
+            else:
+                break
+        if cut == 0:
+            # 전체가 수치 토큰이거나 안전한 분리점 없음 → 통째로 한 줄
+            lines.append(text)
+            text = ""
+            break
         lines.append(text[:cut])
         text = text[cut:]
     if text:
@@ -338,6 +372,178 @@ def correct_proper_nouns(segments, api_key):
     return segments
 
 
+def load_script_text():
+    """gpt_result.json → 후리가나 제거한 자막용 스크립트 원문.
+    step5_tts.py와 동일한 괄호 제거 regex 사용."""
+    if not os.path.exists(GPT_RESULT_PATH):
+        msg = "[step7] gpt_result.json 없음 — 스크립트 원문 취득 불가. sys.exit(1)"
+        print(msg)
+        _send_telegram(msg)
+        sys.exit(1)
+    with open(GPT_RESULT_PATH, encoding="utf-8") as f:
+        gpt = json.load(f)
+    _strip = lambda t: re.sub(r'[（(][^）)]*[）)]', '', t)
+    hook   = _strip(gpt.get('hook', ''))
+    script = _strip(gpt.get('script', ''))
+    # step5_tts.py와 동일 결합 방식. 전각 스페이스는 자막에 불필요하므로 제거.
+    combined = (hook + '　' + script).strip() if hook else script.strip()
+    return combined.replace('　', '')
+
+
+def build_wt_timing(corrected_segments):
+    """교정된 세그먼트 → (wt, time_at[], seg_idx_at[]) 생성.
+    seg_idx_at: 각 wt 문자가 속한 세그먼트 인덱스.
+    세그먼트 내부는 start~end 선형 보간. 경계 갭은 자연 보존."""
+    wt = ""
+    time_at = []
+    seg_idx_at = []
+    for si, seg in enumerate(corrected_segments):
+        text  = seg["text"]
+        start = seg["start"]
+        end   = seg["end"]
+        n = len(text)
+        for k in range(n):
+            wt += text[k]
+            t = start + (k / (n - 1)) * (end - start) if n > 1 else start
+            time_at.append(t)
+            seg_idx_at.append(si)
+    return wt, time_at, seg_idx_at
+
+
+def build_anchor_map(script_clean, wt_corrected, time_at, seg_idx_at):
+    """스크립트 원문 각 문자를 wt에서 단조 greedy 탐색 → 타임코드 + Whisper 세그먼트 인덱스 배정.
+    미매핑 구간은 전후 앵커 선형 보간. 실패 시 sys.exit(1)."""
+    n_s = len(script_clean)
+    anchor_map = [None] * n_s
+    anchor_seg = [None] * n_s  # 매핑된 wt 세그먼트 인덱스 (보간 위치는 None 유지)
+    p_w = 0
+
+    for i, c in enumerate(script_clean):
+        window = wt_corrected[p_w : p_w + MAX_SKIP]
+        pos = window.find(c)
+        if pos >= 0:
+            matched = p_w + pos
+            anchor_map[i] = time_at[matched]
+            anchor_seg[i] = seg_idx_at[matched]
+            p_w = matched + 1
+
+    unmapped = sum(1 for a in anchor_map if a is None)
+    ratio = unmapped / n_s if n_s else 0
+    print(f"  정렬 결과: 매핑 {n_s - unmapped}/{n_s}  미매핑 {ratio:.1%}")
+
+    if ratio > MAX_UNMAPPED_RATIO:
+        msg = (f"[자막 정렬 실패] 미매핑 비율 {ratio:.1%} > {MAX_UNMAPPED_RATIO:.0%} "
+               f"— Whisper 전사와 스크립트 불일치 과다. 업로드 금지.")
+        print(msg)
+        _send_telegram(msg)
+        sys.exit(1)
+
+    # 앞쪽 None: 최초 유효 앵커 값으로 채우기
+    first_valid = next((i for i, a in enumerate(anchor_map) if a is not None), None)
+    if first_valid is None:
+        msg = "[자막 정렬 실패] 유효 앵커 없음 — sys.exit(1)"
+        print(msg)
+        _send_telegram(msg)
+        sys.exit(1)
+    for i in range(first_valid):
+        anchor_map[i] = anchor_map[first_valid]
+
+    # 중간/뒤쪽 None: 전후 선형 보간 (anchor_seg는 None 유지)
+    i = 0
+    while i < n_s:
+        if anchor_map[i] is None:
+            j = i + 1
+            while j < n_s and anchor_map[j] is None:
+                j += 1
+            left_t  = anchor_map[i - 1]
+            right_t = anchor_map[j] if j < n_s else anchor_map[i - 1]
+            span = j - i + 1
+            for k in range(i, j):
+                anchor_map[k] = left_t + (k - i + 1) / span * (right_t - left_t)
+            i = j
+        else:
+            i += 1
+
+    # 단조증가 위반 검사 (10ms 여유)
+    for i in range(1, n_s):
+        if anchor_map[i] < anchor_map[i - 1] - 0.01:
+            msg = (f"[자막 정렬 실패] 타임코드 역전 at script[{i}]='{script_clean[i]}' "
+                   f"({anchor_map[i-1]:.3f}s → {anchor_map[i]:.3f}s) — sys.exit(1)")
+            print(msg)
+            _send_telegram(msg)
+            sys.exit(1)
+
+    return anchor_map, anchor_seg
+
+
+def group_script_by_timing(script_clean, anchor_map, anchor_seg):
+    """스크립트 원문 + anchor_map → 세그먼트 리스트.
+    갭: Whisper 세그먼트 경계를 넘을 때만 감지 (보간 구간 내 가짜 갭 방지).
+    구두점: 일본어 전용(。、！？!) — . , 는 소수점 오분절 방지를 위해 제외."""
+    segments  = []
+    cur_text  = ""
+    cur_start = None
+    cur_end   = None
+    cur_seg   = None
+
+    for i, c in enumerate(script_clean):
+        t = anchor_map[i]
+        s = anchor_seg[i]
+
+        # 갭: 다른 Whisper 세그먼트로 넘어갈 때만 (보간 위치 s=None은 갭 감지 안 함)
+        gap_detected = (
+            cur_end is not None and
+            cur_seg is not None and s is not None and
+            s != cur_seg and
+            t - cur_end > GAP_THRESHOLD
+        )
+        has_punct    = cur_text.rstrip().endswith(("。", "、", "！", "？", "!"))
+        has_particle = bool(cur_text) and cur_text[-1] in PARTICLES
+
+        # 조사 분절 억제 조건 (gap·punct는 항상 분절)
+        if has_particle and not gap_detected and not has_punct:
+            # ①がる/がり 패턴: 上がる·値上がり 등 동사 어간 속 が 보호
+            if cur_text[-1] == 'が' and c in 'りる':
+                has_particle = False
+            # ②のか 패턴: 与えるのか 등 문말 のか 분리 억제
+            elif cur_text[-1] == 'の' and c == 'か':
+                has_particle = False
+            # ③최소 길이 미만: 2자 이하 단독 세그먼트 억제
+            elif len(cur_text) < MIN_PARTICLE_FLUSH_LEN:
+                has_particle = False
+
+        if (gap_detected or has_punct or has_particle) and cur_text:
+            segments.append({"text": cur_text.strip(), "start": cur_start, "end": cur_end})
+            cur_text  = ""
+            cur_start = None
+            cur_end   = None
+            cur_seg   = None
+
+        cur_text += c
+        if cur_start is None:
+            cur_start = t
+        cur_end = t
+        if s is not None:
+            cur_seg = s
+
+    if cur_text.strip():
+        segments.append({"text": cur_text.strip(), "start": cur_start, "end": cur_end})
+
+    return segments
+
+
+def _absorb_lone_punct(segments):
+    """구두점 단독 세그먼트(。、！？)를 직전 세그먼트 텍스트에 흡수. 타임코드 변경 없음."""
+    LONE = frozenset("。、！？")
+    result = []
+    for seg in segments:
+        if seg["text"] and all(c in LONE for c in seg["text"]) and result:
+            result[-1]["text"] += seg["text"]
+        else:
+            result.append(seg)
+    return result
+
+
 def to_srt_time(sec):
     h = int(sec // 3600)
     m = int((sec % 3600) // 60)
@@ -443,6 +649,30 @@ def main():
     if n_yr:
         print(f"  연도 교정 {n_yr}건")
 
+    for s in segments[:5]:
+        print(f"  [{s['start']:.2f}s - {s['end']:.2f}s] {s['text']}")
+
+    print("\n=== 2-3단계: 스크립트 원문 정렬 (텍스트=스크립트, 타이밍=Whisper) ===")
+    script_clean = load_script_text()
+    print(f"  스크립트 원문: {len(script_clean)}자")
+    wt_corrected, time_at, seg_idx_at = build_wt_timing(segments)
+    print(f"  Whisper 교정 전사: {len(wt_corrected)}자")
+    ratio_wt = len(wt_corrected) / len(script_clean) if script_clean else 0
+    print(f"  wt/script 비율: {ratio_wt:.2f}")
+    if ratio_wt < 0.5:
+        msg = (f"[자막 정렬 실패] Whisper 전사 과소 (비율 {ratio_wt:.2f} < 0.5) — sys.exit(1)")
+        print(msg)
+        _send_telegram(msg)
+        sys.exit(1)
+    if ratio_wt > 1.8:
+        msg = (f"[자막 정렬 실패] Whisper 전사 과잉 (비율 {ratio_wt:.2f} > 1.8) — sys.exit(1)")
+        print(msg)
+        _send_telegram(msg)
+        sys.exit(1)
+    anchor_map, anchor_seg = build_anchor_map(script_clean, wt_corrected, time_at, seg_idx_at)
+    segments = group_script_by_timing(script_clean, anchor_map, anchor_seg)
+    segments = _absorb_lone_punct(segments)
+    print(f"  최종 세그먼트: {len(segments)}개")
     for s in segments[:5]:
         print(f"  [{s['start']:.2f}s - {s['end']:.2f}s] {s['text']}")
 
