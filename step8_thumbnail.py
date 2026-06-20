@@ -10,6 +10,7 @@ import base64
 import io
 import json
 import os
+import re
 import sys
 
 import requests
@@ -93,6 +94,10 @@ TG_IMG_API_ERROR = (
 GPT_RESULT_PATH = "gpt_result.json"
 OUTPUT_FILE     = "short_thumb.jpg"
 FONT_PATH       = "fonts/NotoSansJP-Bold.ttf"
+
+# ===== thumb_headline 수치 검증 =====
+THUMB_NUM_RE = re.compile(r'\d+(?:\.\d+)?%?')  # 숫자 토큰 추출 (소수점·% 포함)
+FULLWIDTH_TABLE = str.maketrans('０１２３４５６７８９．％', '0123456789.%')
 
 
 # ─────────────────────────────────────────────────────────────
@@ -192,6 +197,44 @@ def get_direction_color(direction: str) -> tuple:
     if direction == "down":
         return COLOR_DOWN_JP
     return ACCENT_RED
+
+
+# ─────────────────────────────────────────────────────────────
+# thumb_headline 수치 검증 게이트
+# ─────────────────────────────────────────────────────────────
+
+def _normalize_num_token(tok: str) -> str:
+    return tok.translate(FULLWIDTH_TABLE)
+
+
+def extract_num_tokens(text: str) -> set:
+    return {_normalize_num_token(t) for t in THUMB_NUM_RE.findall(text)}
+
+
+def validate_thumb_numerics(gpt: dict):
+    """thumb_headline 수치 ↔ script+hook 수치 정합성 검증. 불일치 시 sys.exit(1)."""
+    thumb = gpt.get("thumb_headline", "")
+    thumb_nums = extract_num_tokens(thumb)
+    if not thumb_nums:
+        return  # 워드형(숫자 없음) → 검증 불필요
+
+    ref_text = gpt.get("script", "") + " " + gpt.get("hook", "")
+    ref_nums  = extract_num_tokens(ref_text)
+    bad = thumb_nums - ref_nums
+    if not bad:
+        return  # 전체 일치 → 통과
+
+    title = gpt.get("title", "")
+    msg = (
+        f"⛔ [step8] thumb_headline 수치 불일치 — 파이프라인 중단\n"
+        f"영상: {title}\n"
+        f"thumb_headline: {thumb}\n"
+        f"불일치 수치: {sorted(bad)}\n"
+        f"script+hook 수치 집합: {sorted(ref_nums)}"
+    )
+    tg_notify(msg)
+    print(f"[오류] {msg}")
+    sys.exit(1)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -371,6 +414,8 @@ def main():
     print(f"  thumb_headline : {gpt.get('thumb_headline', '[없음 → short_title fallback]')}")
     print(f"  expression     : {gpt.get('expression', 'N/A')}")
     print(f"  direction      : {gpt.get('direction', 'N/A')}")
+
+    validate_thumb_numerics(gpt)
 
     bg = generate_ai_bg(image_prompt)
     if bg is None:
