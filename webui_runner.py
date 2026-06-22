@@ -71,6 +71,14 @@ def _err(step: str, detail: str) -> str:
     return _ev("Error", -1, f"[{step}] {tail}")
 
 
+def _is_err(ev: str) -> bool:
+    """SSE 이벤트가 Error 이벤트인지 판정. JSON 파싱 기반 — 직렬화 공백에 무관."""
+    try:
+        return json.loads(ev[len("data: "):])["step"] == "Error"
+    except Exception:
+        return False
+
+
 # ── 배경 영상 다운로드 ─────────────────────────────────────
 def download_video(url: str, dest: str, chunk: int = 1 << 20):
     resp = requests.get(url, stream=True, timeout=120)
@@ -315,7 +323,7 @@ async def run_shorts_stream(slot: str, gpt: dict, bg_url: str | None = None) -> 
     failed = False
     async for ev in _run_with_ticks("step5_tts.py", "TTS", 15, 28, "음성 생성 중...", 15.0):
         yield ev
-        if '"step":"Error"' in ev:
+        if _is_err(ev):
             failed = True
     if failed:
         return
@@ -324,7 +332,7 @@ async def run_shorts_stream(slot: str, gpt: dict, bg_url: str | None = None) -> 
     failed = False
     async for ev in _run_with_ticks("step6_ffmpeg.py", "FFmpeg", 30, 62, "영상 합성 중...", TICK_FFmpeg):
         yield ev
-        if '"step":"Error"' in ev:
+        if _is_err(ev):
             failed = True
     if failed:
         return
@@ -333,16 +341,22 @@ async def run_shorts_stream(slot: str, gpt: dict, bg_url: str | None = None) -> 
     failed = False
     async for ev in _run_with_ticks("step7_whisper_subtitle.py", "Whisper", 65, 83, "자막 생성 중...", TICK_Whisper):
         yield ev
-        if '"step":"Error"' in ev:
+        if _is_err(ev):
             failed = True
     if failed:
         return
 
-    # ── 4.5 썸네일 생성 (실패해도 업로드 단계 진행) ──────
+    # ── 4.5 썸네일 생성 ──────────────────────────────────
+    # step8 종료 코드를 존중: 검증 게이트(thumb 수치 불일치) exit(1) → 업로드 차단.
+    # 이미지 생성 실패 등 미관 문제는 step8이 exit(0)으로 통과시키므로 영향 없음.
+    failed = False
     async for ev in _run_with_ticks("step8_thumbnail.py", "Thumbnail", 84, 84,
                                     "썸네일 생성 중...", TICK_Thumbnail):
         yield ev
-        # step8은 항상 exit(0) — Error 이벤트가 와도 파이프라인 계속 진행
+        if _is_err(ev):
+            failed = True
+    if failed:
+        return
 
     # ── 5. YouTube 업로드 (긴 단계 — 의사 진행률) ─────────
     yield _ev("Upload", 85, f"YouTube 업로드 중... ({ETA['Upload']})")
@@ -438,7 +452,7 @@ async def run_longform_stream(bg_urls: dict, slot: str = "sun") -> AsyncGenerato
     failed = False
     async for ev in _run_with_ticks("long2_tts.py", "Long2", 10, 22, "롱폼 음성 생성 중...", 15.0):
         yield ev
-        if '"step":"Error"' in ev:
+        if _is_err(ev):
             failed = True
     if failed:
         return
@@ -447,7 +461,7 @@ async def run_longform_stream(bg_urls: dict, slot: str = "sun") -> AsyncGenerato
     failed = False
     async for ev in _run_with_ticks("long_render_charts.py", "Charts", 23, 25, "차트 렌더 중...", 20.0):
         yield ev
-        if '"step":"Error"' in ev:
+        if _is_err(ev):
             failed = True
     if failed:
         return
@@ -456,7 +470,7 @@ async def run_longform_stream(bg_urls: dict, slot: str = "sun") -> AsyncGenerato
     failed = False
     async for ev in _run_with_ticks("long4_ffmpeg.py", "Long4", 25, 68, "롱폼 영상 합성 중...", TICK_Long4):
         yield ev
-        if '"step":"Error"' in ev:
+        if _is_err(ev):
             failed = True
     if failed:
         return
@@ -465,7 +479,7 @@ async def run_longform_stream(bg_urls: dict, slot: str = "sun") -> AsyncGenerato
     failed = False
     async for ev in _run_with_ticks("long5_whisper.py", "Long5", 70, 84, "롱폼 자막 생성 중...", TICK_Long5):
         yield ev
-        if '"step":"Error"' in ev:
+        if _is_err(ev):
             failed = True
     if failed:
         return
@@ -536,7 +550,7 @@ async def run_longform_bg_only_stream() -> AsyncGenerator[str, None]:
     failed = False
     async for ev in _run_with_ticks("long4_ffmpeg.py", "Long4", 5, 75, "롱폼 영상 합성 중...", TICK_Long4):
         yield ev
-        if '"step":"Error"' in ev:
+        if _is_err(ev):
             failed = True
     if failed:
         return

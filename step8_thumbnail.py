@@ -4,7 +4,9 @@
   1. gpt_result.json → expression / direction / hook / short_title / image_prompt 읽기
   2. OpenAI Images API로 실사 배경 생성
   3. Pillow로 레이아웃 합성 → short_thumb.jpg 저장
-  실패 시 sys.exit(0) — 파이프라인 중단 없음
+  종료 코드 규칙:
+    · 검증 게이트(thumb_headline 수치 불일치) → sys.exit(1) 파이프라인 중단
+    · 이미지 생성 실패·파일 누락 등 미관 문제 → sys.exit(0) 중단 없음
 """
 import base64
 import io

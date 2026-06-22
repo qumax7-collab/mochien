@@ -703,6 +703,14 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
           · 게이트 → 소프트 정렬 전환 (경제 상위·비경제 하위, 둘 다 후보 노출 / 경제 안 묻힘)
           · BLOCKED_KEYWORDS: NISA·iDeCo 차단 해제(정책·세제 뉴스 확보) / 투자 권유성만 잔존
         [안전] 자동 무인 발행 시에도 소프트 정렬로 top-1 = 최신 경제 기사 보장
+✅  webui 에러 감지 버그 수정 (2026-06-23)
+        [증상] step8 thumb 수치 불일치 "중단" 텔레그램이 왔는데도 쇼츠가 예약됨 (webui 한정)
+        [근본 원인] webui_runner.py 에러 감지 문자열 '"step":"Error"'(공백X)이 실제 출력
+          '"step": "Error"'(공백O)과 미매칭 → failed 플래그 9곳 死 코드.
+          타 단계는 연쇄 실패로 최종 Upload returncode 검사가 막아 마스킹 / step8만 표면화
+        [수정] webui_runner.py: _is_err(ev) JSON 파싱 헬퍼 신설 → 9곳 교체 +
+          step8 단계 failed/return 추가 / step8_thumbnail.py docstring 계약 정정
+        [검증] _is_err 단위 + step8 Error 주입 통합 테스트 PASS (Upload 미도달)
 🔜  선제작 (작업 4 재개) — 작업 5 완성 후 토픽뱅크 상위 토픽 점진 비축
 🔜  34. 롱폼 추가 개선 (챕터 밀도·섹션 구성 최적화)
 🔜  썸네일 숫자 후처리 — 게이트 데이터 며칠 후 재판단 (GPT 수치 삽입 자동화 or 차단 강화)

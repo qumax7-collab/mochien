@@ -1265,3 +1265,22 @@
           자동 무인 발행 시에도 소프트 정렬로 top-1 = 최신 경제 기사 보장 (안전)
         [검증] 실측 4피드 71건 수집(경제 13/비경제 58) → 소비세 감세·식료품 값인상·
           수출규제 등 정책·생활 주제가 후보 상위 노출됨을 확인
+
+✅  webui 에러 감지 버그 수정 — step8 게이트가 업로드를 못 막던 문제 (2026-06-23)
+        [증상] step8 thumb_headline 수치 불일치로 "파이프라인 중단" 텔레그램이 왔는데도
+          쇼츠가 그대로 예약 발행됨 (webui 수동 경로 한정)
+        [근본 원인] webui_runner.py 에러 감지 문자열 '"step":"Error"'(공백 없음)이
+          실제 SSE 출력 '"step": "Error"'(공백 있음)과 한 번도 매칭된 적 없음
+          → failed 플래그 9곳 전원 死 코드. TTS/FFmpeg/Whisper는 연쇄 실패 →
+            최종 step9 Upload returncode 검사가 막아줘 마스킹됨.
+            step8은 영상 이미 렌더돼 연쇄가 없어 버그 표면화 (게이트 떠도 업로드 진행)
+        [수정]
+          · webui_runner.py: _is_err(ev) 헬퍼 신설 (JSON 파싱 기반 — 직렬화 공백 무관)
+            깨진 패턴 9곳 전부 _is_err(ev)로 교체 (쇼츠·롱폼·배경재렌더 공통)
+          · webui_runner.py: step8(Thumbnail) 단계에 failed/return 추가 (타 단계와 동일 구조)
+          · step8_thumbnail.py: docstring 계약 정정 (게이트 exit(1) 중단 / 미관 실패 exit(0))
+        [부수 효과] TTS/FFmpeg/Whisper 중간 실패도 이제 즉시 중단 (연쇄 의존 탈피)
+          자동 경로(run_pipeline.py)는 원래 영향 없음 — step8 미포함 + 공용 루프 returncode 검사
+        [검증] _is_err 단위(Error=True/정상=False) + 통합(step8 Error 주입 시
+          BG→TTS→FFmpeg→Whisper→Error에서 중단, Upload/Done 미도달) PASS
+          ※ 실 업로드·검수·파일쓰기는 스텁으로 차단하고 테스트
