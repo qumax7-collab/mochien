@@ -684,8 +684,30 @@ Gemini        활용   - step10 1차 검수 (Gemini 2.5 Flash API / google-genai
           YouTube: vYkgJhHjP7Y (예약 2026-06-21 18:00 JST — 운영자 조정 예정)
           WordPress: mochien.com/?p=66 (예약 2026-06-19 21:00 JST — 운영자 조정 예정)
         [Node 셋업] 보류 유지
+✅  쇼츠 UI 품질 3종 완료 (2026-06-21)
+        [작업 1] step7_whisper_subtitle.py — 자막 의미단위 분절 (커밋 461b62e)
+          조사(は·が·を…) 기반 의미단위 flush / MAX_LINE_CHARS는 시각 줄바꿈 전용으로 역할 축소
+          がる/がり 어미·のか 문말·최소 길이 3중 억제 / 숫자토큰 보호 / _absorb_lone_punct
+        [작업 2] step6_ffmpeg.py — 상단 바 다이나믹 아일랜드 대응 (커밋 bc71020)
+          TOP_BAR_Y=300 / TOP_BAR_H=192 / TITLE_CENTER_Y=396 고정
+          y=0~299 배경 노출 / y=300~492 네이비 바 / 타이틀 중심 396px 폰 통과 확인
+        [작업 3] step8_thumbnail.py — thumb_headline 수치 검증 게이트 (커밋 68d9394)
+          THUMB_NUM_RE / extract_num_tokens / validate_thumb_numerics
+          워드형(숫자 없음) 스킵 / 불일치→sys.exit(1)+텔레그램 / generate_ai_bg 직전 삽입
+✅  기사 소스 다양화 완료 (2026-06-23 / 커밋 0cc83fc)
+        [원인] 웹 UI 후보가 시장·거시(엔/금리/주가)로만 수렴
+          ① cat2 오라벨(주석 "生活·社会政策" ↔ 실제 文化・エンタメ) ② 경제 키워드 게이트 협소(10개)
+        [step2_select.py — fetch_articles() 4개 변경 / 웹 UI·자동 모드 공통 반영]
+          · RSS_URLS: Yahoo 2개 제거 → 전 소스 NHK / cat2 제거 → cat4 政治 + cat1 社会 추가
+          · ECONOMIC_KEYWORDS 10→26개 (생활·정책 축 보강: 雇用/賃金/年金/税金/値上げ/エネルギー 등)
+          · 게이트 → 소프트 정렬 전환 (경제 상위·비경제 하위, 둘 다 후보 노출 / 경제 안 묻힘)
+          · BLOCKED_KEYWORDS: NISA·iDeCo 차단 해제(정책·세제 뉴스 확보) / 투자 권유성만 잔존
+        [안전] 자동 무인 발행 시에도 소프트 정렬로 top-1 = 최신 경제 기사 보장
 🔜  선제작 (작업 4 재개) — 작업 5 완성 후 토픽뱅크 상위 토픽 점진 비축
 🔜  34. 롱폼 추가 개선 (챕터 밀도·섹션 구성 최적화)
+🔜  썸네일 숫자 후처리 — 게이트 데이터 며칠 후 재판단 (GPT 수치 삽입 자동화 or 차단 강화)
+🔜  자막 폰트 135px 확대 + MAX_LINE_CHARS 재조정 (의미단위 분절 변경 후 폭 재검토)
+🔜  MeCab 형태소 분석기 도입 — step7 복합동사(気になる 류) 분절 근본 해결
 
 실행 순서 (전체 — 권장):
   python run_all.py        ← 쇼츠 3편 + 롱폼 통합 실행 (run_all.bat 더블클릭도 가능)
