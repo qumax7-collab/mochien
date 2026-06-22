@@ -19,27 +19,36 @@ sys.stdout.reconfigure(encoding="utf-8")
 load_dotenv()
 
 # ===== RSS =====
+# 소스 전부 NHK(공영방송)로 통일 — Yahoo(상업 애그리게이터) 제거로 투자권유 클릭베이트 차단
 RSS_URLS = [
-    "https://www3.nhk.or.jp/rss/news/cat5.xml",         # NHK 経済
-    "https://www3.nhk.or.jp/rss/news/cat6.xml",         # NHK 国際 (에너지·지정학 연동)
-    "https://www3.nhk.or.jp/rss/news/cat2.xml",         # NHK 生活·社会政策 ← 신규
-    "https://news.yahoo.co.jp/rss/topics/business.xml", # Yahoo Japan 経済
-    "https://news.yahoo.co.jp/rss/topics/domestic.xml", # Yahoo Japan 国内 ← 신규
+    "https://www3.nhk.or.jp/rss/news/cat5.xml",   # NHK 経済
+    "https://www3.nhk.or.jp/rss/news/cat6.xml",   # NHK 国際 (에너지·지정학 연동)
+    "https://www3.nhk.or.jp/rss/news/cat4.xml",   # NHK 政治 (세금·연금·예산·정책)
+    "https://www3.nhk.or.jp/rss/news/cat1.xml",   # NHK 社会 (생활물가·고용·소비)
 ]
 MAX_ARTICLES   = 5
 MAX_CANDIDATES = 5
 RSS_FETCH_LIMIT = 20
 FRESHNESS_HOURS = 6
 RECENT_USED_URL_DAYS = 30
-ECONOMIC_KEYWORDS = ["株", "円", "物価", "金利", "為替", "経済", "GDP", "インフレ", "日銀", "財務"]
+# 경제 키워드: 게이트가 아니라 소프트 정렬 가중치 (포함 기사를 후보 상위로 올림)
+ECONOMIC_KEYWORDS = [
+    # 시장·거시
+    "株", "円", "物価", "金利", "為替", "経済", "GDP", "インフレ", "日銀", "財務",
+    # 생활·정책 경제 (확장)
+    "雇用", "賃金", "賃上げ", "年金", "税金", "補助金", "景気", "倒産",
+    "値上げ", "消費", "貿易", "輸出", "輸入", "エネルギー", "電気代", "ガソリン",
+]
+# 차단 키워드: NHK는 종목추천·코인투기 콘텐츠가 없어 사실상 안전망. 투자 권유성만 잔존
+# (NISA·iDeCo는 정책·세제 뉴스로도 등장하므로 차단 해제)
 BLOCKED_KEYWORDS = [
     # 종목·주가 예측·추천
     "個別銘柄", "株価予想", "株価予測", "推奨銘柄", "注目株", "おすすめ株", "買い推奨", "売り推奨",
-    # 가상화폐
+    # 가상화폐 투기 권유
     "暗号資産", "仮想通貨", "ビットコイン", "イーサリアム", "NFT",
-    # 자산 운용 상품
-    "NISA", "iDeCo", "投資信託", "つみたて投資", "積立NISA",
-    # 부동산 투자
+    # 자산 운용 상품 권유
+    "投資信託", "つみたて投資", "積立NISA",
+    # 부동산 투자 권유
     "不動産投資", "REIT", "リート", "マンション投資", "不動産ファンド",
 ]
 
@@ -540,15 +549,13 @@ def fetch_articles(limit: int = MAX_ARTICLES):
         print(f"  차단된 기사 {len(all_articles) - len(clean_articles)}개 제거")
     all_articles = clean_articles
 
-    filtered = [a for a in all_articles if contains_keyword(a["title"], a["article_body"])]
-
-    if filtered:
-        print(f"경제 키워드 기사 {len(filtered)}개 / 전체 {len(all_articles)}개")
-        return sort_by_freshness(filtered)[:limit]
-
-    print("경제 키워드 기사 없음 → 전체 기사에서 선택")
-    tg_send("⚠️ 경제 키워드 기사 없어 전체에서 선택")
-    return sort_by_freshness(all_articles)[:limit]
+    # 소프트 정렬: 경제 키워드 기사를 상위로, 비경제 기사를 하위로 (게이트 아님)
+    # → 경제 주제가 묻히지 않으면서, 정책·생활 기사도 후보로 노출 (운영자가 직접 선별)
+    economic = [a for a in all_articles if contains_keyword(a["title"], a["article_body"])]
+    others   = [a for a in all_articles if not contains_keyword(a["title"], a["article_body"])]
+    print(f"경제 키워드 기사 {len(economic)}개 / 비경제 {len(others)}개 (전체 {len(all_articles)}개)")
+    ranked = sort_by_freshness(economic) + sort_by_freshness(others)
+    return ranked[:limit]
 
 
 # ─────────────────────────────────────────
