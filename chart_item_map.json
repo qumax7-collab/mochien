@@ -141,5 +141,39 @@
         "filters": { "cdTab": "3", "cdCat01": "0167", "cdArea": "00000" }
       }
     ]
+  },
+  "貿易収支 vs 経常収支": {
+    "key": "trade_vs_current",
+    "type": "compare",
+    "title_ja": "貿易収支 vs 経常収支",
+    "unit": "億円",
+    "series": [
+      {
+        "label": "貿易収支",
+        "source": "boj",
+        "db": "BP01",
+        "code": "BPBP6JYNTB"
+      },
+      {
+        "label": "経常収支",
+        "source": "boj",
+        "db": "BP01",
+        "code": "BPBP6JYNCB"
+      }
+    ]
+  },
+  "経常収支": {
+    "key": "current_account",
+    "type": "single",
+    "title_ja": "経常収支",
+    "unit": "億円",
+    "series": [
+      {
+        "label": "経常収支",
+        "source": "boj",
+        "db": "BP01",
+        "code": "BPBP6JYNCB"
+      }
+    ]
   }
 }

@@ -690,6 +690,29 @@ def _validate_numerics(ko_data: dict) -> None:
                 f"  issue{idx}: '{m.group(0)}' — _data_block 미포함 (data_block 외 수치 생성 의심)"
             )
 
+    # ── [추가] 한글 단위(조/억/만)+엔/円 수치 역추적 ───────────────
+    # data_block 값은 億 스케일. 조→×10000, 억→×1, 만→×0.0001 로 億 환산 후
+    # block 수치와 상대오차 비교. 변환 매칭이라 정상 '조' 표기는 통과,
+    # 조작값(예: 1.3조)만 검출. 엔/円 인접 조건으로 万人 등 타 단위 오검출 방지.
+    KOR_UNIT_FACTOR = {"조": 10000.0, "억": 1.0, "만": 0.0001}
+    KOR_TOL = 0.15  # 상대오차 15% 이내면 역추적 성공으로 간주
+    block_floats = []
+    for n in block_nums:
+        try:
+            block_floats.append(abs(float(n)))
+        except ValueError:
+            pass
+    _kor_num = _re.compile(r"(\d+(?:\.\d+)?)\s*([조억만])\s*(?:엔|円)")
+    for idx, issue in enumerate(ko_data.get("issues", []), 1):
+        text = _re.sub(r"(?<=\d),(?=\d)", "", issue.get("script_ko", ""))  # 천단위 콤마 제거
+        for m in _kor_num.finditer(text):
+            val_eok = float(m.group(1)) * KOR_UNIT_FACTOR[m.group(2)]
+            ok = any(abs(bf - val_eok) <= KOR_TOL * max(bf, 1.0) for bf in block_floats)
+            if not ok:
+                flagged.append(
+                    f"  issue{idx}: '{m.group(0)}' (≈{val_eok:.0f}億 환산) — data_block 역추적 실패(한글단위)"
+                )
+
     if flagged:
         print("\n[수치 검증 실패] data_block 밖 수치 검출:")
         for f in flagged:
