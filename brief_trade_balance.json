@@ -1,0 +1,33 @@
+{
+  "_topic_id": "trade-balance",
+  "_note": "B안 재생성용 + 영상화 bg_section 연결. 파일명은 _slug_keyword('trade-balance')→'trade_balance' 언더스코어 규칙(webui/long4 자동 로드). bg_section은 webui ③ 선택분(long_bg_brief_{section}.mp4).",
+
+  "forced_angles": {
+    "issue1": "무역수지와 경상수지의 구조적 차이와 그 관계를 쉽게 해설",
+    "issue2": "무역수지가 적자여도 경상수지가 흑자를 유지하는 배경과 투자수익의 역할"
+  },
+
+  "intro": {
+    "narrative": "",
+    "screen_text": [],
+    "bg_section": "long_bg_brief_intro.mp4"
+  },
+
+  "issue1": {
+    "narrative": "무역수지의 방향을 '적자'로 말할 땐 반드시 data_block에 실값이 있는 적자월을 기준으로 삼을 것 — 2026년 1월(무역수지 약 -6천억 엔 적자, data_block 실값)을 기준 적자월로 사용할 것. 2026년 4월은 무역수지가 흑자(약 +4천억 엔)이므로 절대 '적자'라 칭하지 말 것. '무역적자에도 경상흑자' 대비는 무역적자=2026년 1월 실값 / 경상흑자=2026년 4월 실값(약 3.9조 엔)으로, 두 값의 기준시점을 각각 따로 명시할 것. 경상수지는 data_block에 2026-04·2025-04 두 시점만 있으므로 그 외 달(2026-01 등)의 경상수지 수치는 만들지 말 것. 데이터 차트 태그의 항목명은 정확히 '貿易収支 vs 経常収支' 로 표기할 것(임의 접두·오탈자·번체/약자 변형 금지).",
+    "screen_text": [],
+    "bg_section": "long_bg_brief_issue1.mp4"
+  },
+
+  "issue2": {
+    "narrative": "경상수지를 서술할 때 '매달·꾸준히·항상·이어가고 있다' 등 보유하지 않은 기간의 월별 패턴을 단정하지 말 것. data_block이 가진 두 시점(경상수지 2026-04 약 3.9조 엔, 2025-04 약 2.4조 엔)만 근거로, 각 시점을 명시해 비교할 것. 무역수지는 적자·흑자가 오가는 변동만 언급하고 특정 흑자월(2026-04)을 적자라 부르지 말 것. 데이터 차트 태그의 항목명은 정확히 '経常収支' 또는 '貿易収支 vs 経常収支'로 표기할 것(오탈자·임의 접두 금지).",
+    "screen_text": [],
+    "bg_section": "long_bg_brief_issue2.mp4"
+  },
+
+  "outro": {
+    "narrative": "",
+    "screen_text": [],
+    "bg_section": "long_bg_brief_outro.mp4"
+  }
+}
