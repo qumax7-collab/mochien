@@ -15,6 +15,9 @@
          max_chars 상한도 '가장 가까운 경계'로 끊는다(경계 없을 때만 최후 강제).
 """
 
+import json
+import re
+
 # ── 경계 규칙 상수 (step7 계승, 단일 출처) ──────────────────────
 # 의미 경계 조사 12종 (や·か 제외 — 형용사 어간 오매칭 방지)
 PARTICLES = frozenset("はがをにへとのもでねよわ")
@@ -237,3 +240,91 @@ def merge_short(segments, threshold, max_chars=None):
         out[1]["start"] = out[0]["start"]
         out = out[1:]
     return out
+
+
+# ════════════════════════════════════════════════════════════════
+# 롱폼 정렬+분절 (long5_whisper · _align_subtitle 공용 — 단일 출처)
+# ════════════════════════════════════════════════════════════════
+# 롱폼 분절 파라미터 기본값
+LONGFORM_TARGET_CHARS = 16   # 목표 세그먼트 글자수 (가독 14~18 중앙)
+LONGFORM_MAX_CHARS    = 21   # 절대 상한 (1920px / 90px 한 줄)
+LONGFORM_MERGE_BELOW  = 3    # 이 글자수 이하 세그먼트 인접 병합
+
+
+def clean_spoken(text: str) -> str:
+    """차트 태그·개행 제거 → 발화문만 (롱폼 대본 정제)."""
+    text = re.sub(r"===차트\[[^\]]*\]===", "", text)
+    text = re.sub(r"===차트끝===", "", text)
+    return text.replace("\n", "").replace("\r", "").strip()
+
+
+def load_longform_sections(script_path: str):
+    """long_script.json → [(섹션키, 발화문)] 4섹션 (intro/issue1/issue2/outro)."""
+    d = json.load(open(script_path, encoding="utf-8"))
+    return [
+        ("intro",  clean_spoken(d["intro"]["script"])),
+        ("issue1", clean_spoken(d["issues"][0]["script"])),
+        ("issue2", clean_spoken(d["issues"][1]["script"])),
+        ("outro",  clean_spoken(d["outro"]["script"])),
+    ]
+
+
+def load_chapter_starts(chapters_path: str):
+    """long_chapters.json → 섹션 시작 시간 리스트 [0, 21, 132, 219]."""
+    chaps = json.load(open(chapters_path, encoding="utf-8"))
+    return [c["time"] for c in chaps]
+
+
+def build_aligned_segments(whisper_segs, sections, section_starts, *,
+                           target_chars=LONGFORM_TARGET_CHARS,
+                           max_chars=LONGFORM_MAX_CHARS,
+                           merge_below=LONGFORM_MERGE_BELOW,
+                           protect_numbers=True, gap_clean_only=True):
+    """Whisper 세그(텍스트+타이밍) + 대본 섹션 → 정렬·분절된 출력 세그먼트.
+
+    섹션 경계로 Whisper 세그를 배정 → 섹션 내부만 anchor 정렬(드리프트 방지)
+    → segment_script(목표/상한/병합). 타이밍=Whisper / 글자=대본 100%.
+    반환 (out_segments, problems, stats). problems 비어있지 않으면 호출측이 처리(보통 sys.exit).
+    long5_whisper(파이프라인)·_align_subtitle(수동) 공용 단일 출처.
+    """
+    if len(section_starts) != len(sections):
+        return [], [f"섹션 수 불일치: 챕터 {len(section_starts)} vs 대본 {len(sections)}"], []
+    if not whisper_segs:
+        return [], ["Whisper 세그먼트 0개"], []
+
+    last_end = max(s["end"] for s in whisper_segs)
+    bounds = list(section_starts) + [last_end + 1]
+
+    sec_ws = {k: [] for k, _ in sections}
+    for s in whisper_segs:
+        for i, (k, _) in enumerate(sections):
+            if bounds[i] <= s["start"] < bounds[i + 1]:
+                sec_ws[k].append(s)
+                break
+
+    out, problems = [], []
+    stats = []
+    for k, text in sections:
+        ws = sec_ws[k]
+        if not ws:
+            problems.append(f"섹션 '{k}': 배정된 Whisper 세그 0개 — 정렬 불가")
+            continue
+        wt, time_at, seg_idx_at = build_char_timing(ws)
+        try:
+            anchor_map, anchor_seg, ratio = align_script(text, wt, time_at, seg_idx_at)
+        except AlignmentError as e:
+            problems.append(f"섹션 '{k}': 정렬 실패 — {e}")
+            continue
+        seg = segment_script(
+            text, anchor_map, anchor_seg,
+            target_chars=target_chars, max_chars=max_chars, merge_below=merge_below,
+            protect_numbers=protect_numbers, gap_clean_only=gap_clean_only,
+        )
+        rebuilt = "".join(s["text"] for s in seg)
+        if rebuilt != text:
+            problems.append(f"섹션 '{k}': 재조립≠대본 ({len(rebuilt)} vs {len(text)})")
+            continue
+        stats.append((k, ratio, len(seg)))
+        out.extend(seg)
+
+    return out, problems, stats

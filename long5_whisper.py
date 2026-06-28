@@ -6,6 +6,10 @@ import subprocess
 from openai import OpenAI
 from dotenv import load_dotenv
 
+from subtitle_segment import (
+    build_aligned_segments, load_longform_sections, load_chapter_starts,
+)
+
 sys.stdout.reconfigure(encoding="utf-8")
 load_dotenv()
 
@@ -18,6 +22,7 @@ SRT_FILE        = "long_subtitle.srt"
 GLOSSARY_PATH    = "glossary.json"
 GPT_RESULT_PATH  = "gpt_result.json"
 LONG_SCRIPT_PATH = "long_script.json"
+LONG_CHAPTERS_FILE = "long_chapters.json"
 
 KNOWN_ASR_ERRORS = [
     # 한자 오인식
@@ -307,6 +312,25 @@ def main():
 
     for s in segments[:5]:
         print(f"  [{s['start']:.2f}s - {s['end']:.2f}s] {s['text']}")
+
+    print("\n=== 2-2단계: 대본 정렬 + 공용 분절 (목표 16자 / 단어중간 절단 0) ===")
+    if os.path.exists(LONG_SCRIPT_PATH) and os.path.exists(LONG_CHAPTERS_FILE):
+        # 정렬 매칭용 raw Whisper 백업 (수동 _align_subtitle.py 재실행·디버그용)
+        write_srt(segments, SRT_FILE + ".whisper.bak")
+        sections = load_longform_sections(LONG_SCRIPT_PATH)
+        starts   = load_chapter_starts(LONG_CHAPTERS_FILE)
+        aligned, problems, stats = build_aligned_segments(segments, sections, starts)
+        for k, ratio, n in stats:
+            print(f"  [{k}] 미매핑 {ratio:.1%} / 세그먼트 {n}개")
+        if problems:
+            print("  [정렬/무결성 실패 — 중단]")
+            for p in problems:
+                print("    " + p)
+            sys.exit(1)
+        print(f"  무결성 OK — 재조립 == 대본 / 총 {len(aligned)} 세그먼트")
+        segments = aligned
+    else:
+        print("  [경고] long_script.json/long_chapters.json 없음 — Whisper 원문 분절 폴백(과분할 가능)")
 
     print("\n=== 3단계: ASS 자막 파일 생성 ===")
     font_name, font_dir = get_font()
