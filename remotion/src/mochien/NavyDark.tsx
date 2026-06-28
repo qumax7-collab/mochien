@@ -104,6 +104,43 @@ function toYDyn(v: number, h: number, yMin: number, yMax: number): number {
   return h - ((v - yMin) / (yMax - yMin)) * h;
 }
 
+// ── 값 폰트 자동 축소 (큰 수치가 카드/패널 밖으로 유출되는 것 방지) ──
+// 데이터·단위 무변경. 값 문자열 길이에 맞춰 fontSize만 가변.
+// 짧은 값은 baseFs 그대로(소값 차트 외관 불변), 긴 값만 축소(하한 minFs).
+const FIT_SAFETY = 0.94;  // 폭 추정 오차 흡수 여유
+
+// 값 카드 폰트 상수 (모드별 base / 하한)
+const CMP_VAL_BASE_FS   = 96;
+const CMP_VAL_MIN_FS    = 46;
+const CMP_CARD_INNER    = 350 - 28 * 2;   // 294 = 카드폭 350 − 좌우패딩 28
+const SINGLE_VAL_BASE_FS = 152;
+const SINGLE_VAL_MIN_FS  = 84;
+const SINGLE_VAL_MAXW    = 560;           // 게이지 중앙 숫자 가용폭 (svg 680 내 ±280 여유)
+const DUAL_VAL_BASE_FS   = 88;
+const DUAL_VAL_MIN_FS    = 46;
+const DUAL_CARD_INNER    = 350 - 26 * 2;  // 298 = 카드폭 350 − 좌우패딩 26
+const BAR_VAL_MIN_FS     = 28;            // base 는 기존 BAR_VALUE_FS(52) 재사용
+
+function estTextEm(s: string): number {
+  // 문자별 대략 advance(em) 합산: 숫자 0.60 / 부호 0.58 / 점·콤마 0.30 / 전각(CJK) 1.0
+  let em = 0;
+  for (const ch of s) {
+    const code = ch.charCodeAt(0);
+    if (ch >= "0" && ch <= "9") em += 0.60;
+    else if (ch === "." || ch === ",") em += 0.30;
+    else if (ch === "+" || ch === "-" || ch === "−") em += 0.58;
+    else if (code > 0x2e80) em += 1.0;   // CJK 전각
+    else em += 0.60;
+  }
+  return em || 1;
+}
+
+function fitFontSize(text: string, maxWidth: number, baseFs: number, minFs: number): number {
+  const need = (maxWidth * FIT_SAFETY) / estTextEm(text);
+  if (need >= baseFs) return baseFs;   // 짧은 값 → 기존 크기 유지
+  return Math.max(need, minFs);        // 긴 값 → 축소(하한 minFs)
+}
+
 // ── Props types ───────────────────────────────────────────────
 export type SeriesData = {
   label:       string;
@@ -204,6 +241,9 @@ const SingleView: React.FC<{ chartData?: ChartData; frame: number }> = ({ chartD
     extrapolateRight: "clamp", extrapolateLeft: "clamp",
   });
 
+  // 게이지 중앙 숫자 폰트 자동 축소 (최종값 기준)
+  const gaugeFs = fitFontSize(targetValue.toFixed(1), SINGLE_VAL_MAXW, SINGLE_VAL_BASE_FS, SINGLE_VAL_MIN_FS);
+
   return (
     <>
       {/* 수직 구분선 */}
@@ -225,7 +265,7 @@ const SingleView: React.FC<{ chartData?: ChartData; frame: number }> = ({ chartD
           )}
           <circle cx={dot.x} cy={dot.y} r={GAUGE_DOT_OUTER} fill={RED} opacity={fi} />
           <circle cx={dot.x} cy={dot.y} r={GAUGE_DOT_INNER} fill={WHITE} opacity={fi} />
-          <text x={CX_G} y={490} textAnchor="middle" fill={WHITE} fontSize={152} fontFamily={fontFamily} fontWeight={700}>
+          <text x={CX_G} y={490} textAnchor="middle" fill={WHITE} fontSize={gaugeFs} fontFamily={fontFamily} fontWeight={700}>
             {value.toFixed(1)}
           </text>
           <text x={CX_G} y={584} textAnchor="middle" fill={RED} fontSize={56} fontFamily={fontFamily} fontWeight={700} opacity={fi}>
@@ -333,6 +373,16 @@ const CompareView: React.FC<{ chartData: ChartData; frame: number }> = ({ chartD
   const pinLabels  = chartData.labelIndices ? new Set(chartData.labelIndices) : null;
   const zeroY      = toYDyn(0, CMP_CH, yMin, yMax);
 
+  // 값 폰트 자동 축소 (최종값 문자열 기준 — 카운트업 중 폰트 점프 방지)
+  const s1Str = `${s1.latestValue >= 0 ? "+" : ""}${s1.latestValue.toFixed(1)}`;
+  const s2Str = `${s2.latestValue >= 0 ? "+" : ""}${s2.latestValue.toFixed(1)}`;
+  const fs1 = fitFontSize(s1Str, CMP_CARD_INNER, CMP_VAL_BASE_FS, CMP_VAL_MIN_FS);
+  const fs2 = fitFontSize(s2Str, CMP_CARD_INNER, CMP_VAL_BASE_FS, CMP_VAL_MIN_FS);
+
+  // 큰 자릿수(억엔 등) 차트는 y축 틱 라벨에 단위를 붙이면 좌측 여백을 넘쳐 클립됨
+  // → 단위 생략 + 살짝 우측 정렬. 소값 차트(%·円 등 |틱|<1000)는 기존 경로 그대로(불변).
+  const bigMagTick = yTicks.some(t => Math.abs(t) >= 1000);
+
   return (
     <>
       {/* 왼쪽: 두 수치 카드 */}
@@ -341,7 +391,7 @@ const CompareView: React.FC<{ chartData: ChartData; frame: number }> = ({ chartD
           <div style={{ fontFamily, fontSize: 22, color: RED, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12, opacity: fi as unknown as number }}>
             {s1.label}
           </div>
-          <div style={{ fontFamily, fontSize: 96, color: WHITE, fontWeight: 700, lineHeight: 1 }}>
+          <div style={{ fontFamily, fontSize: fs1, color: WHITE, fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap" }}>
             {v1Anim >= 0 ? "+" : ""}{v1Anim.toFixed(1)}
           </div>
           <div style={{ fontFamily, fontSize: 32, color: RED, fontWeight: 700, marginTop: 8, opacity: fi as unknown as number }}>
@@ -355,7 +405,7 @@ const CompareView: React.FC<{ chartData: ChartData; frame: number }> = ({ chartD
           <div style={{ fontFamily, fontSize: 22, color: WHITE_LINE, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 12, opacity: fi as unknown as number }}>
             {s2.label}
           </div>
-          <div style={{ fontFamily, fontSize: 96, color: WHITE_DIM, fontWeight: 700, lineHeight: 1 }}>
+          <div style={{ fontFamily, fontSize: fs2, color: WHITE_DIM, fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap" }}>
             {v2Anim >= 0 ? "+" : ""}{v2Anim.toFixed(1)}
           </div>
           <div style={{ fontFamily, fontSize: 32, color: WHITE_LINE, fontWeight: 700, marginTop: 8, opacity: fi as unknown as number }}>
@@ -403,7 +453,7 @@ const CompareView: React.FC<{ chartData: ChartData; frame: number }> = ({ chartD
               return (
                 <g key={t}>
                   <line x1={0} y1={y} x2={CMP_CW} y2={y} stroke={GRID_C} strokeWidth={1} />
-                  <text x={-10} y={y + 5} textAnchor="end" fill={AXIS_C} fontSize={17} fontFamily={fontFamily}>{t}{unitLabel}</text>
+                  <text x={bigMagTick ? -6 : -10} y={y + 5} textAnchor="end" fill={AXIS_C} fontSize={17} fontFamily={fontFamily}>{bigMagTick ? t : `${t}${unitLabel}`}</text>
                 </g>
               );
             })}
@@ -544,6 +594,8 @@ const BarView: React.FC<{ chartData: ChartData; frame: number }> = ({ chartData,
         });
         const top    = BAR_START_Y + i * (BAR_ROW_H + BAR_ROW_GAP);
         const barTop = (BAR_ROW_H - BAR_FILL_H) / 2;
+        const barValStr = `${item.value.toFixed(1)}${unitLabel}`;
+        const barFs  = fitFontSize(barValStr, BAR_VALUE_AREA_W, BAR_VALUE_FS, BAR_VAL_MIN_FS);
         return (
           <div key={i} style={{
             position: "absolute", left: BAR_CONTENT_LEFT, top,
@@ -577,7 +629,7 @@ const BarView: React.FC<{ chartData: ChartData; frame: number }> = ({ chartData,
               width: BAR_VALUE_AREA_W, height: BAR_ROW_H,
               display: "flex", alignItems: "center",
             }}>
-              <span style={{ fontFamily, fontWeight: 700, fontSize: BAR_VALUE_FS, color: RED }}>
+              <span style={{ fontFamily, fontWeight: 700, fontSize: barFs, color: RED, whiteSpace: "nowrap" }}>
                 {item.value.toFixed(1)}{unitLabel}
               </span>
             </div>
@@ -636,6 +688,12 @@ const DualAxisView: React.FC<{ chartData: ChartData; frame: number }> = ({ chart
   const labelStep  = n > 20 ? 4 : n > 12 ? 3 : n > 6 ? 2 : 1;
   const pinLabels  = chartData.labelIndices ? new Set(chartData.labelIndices) : null;
 
+  // 값 폰트 자동 축소 (최종값 기준)
+  const d1Str = `${s1.latestValue.toFixed(1)}`;
+  const d2Str = `${s2.latestValue >= 0 ? "+" : ""}${s2.latestValue.toFixed(1)}`;
+  const fs1d = fitFontSize(d1Str, DUAL_CARD_INNER, DUAL_VAL_BASE_FS, DUAL_VAL_MIN_FS);
+  const fs2d = fitFontSize(d2Str, DUAL_CARD_INNER, DUAL_VAL_BASE_FS, DUAL_VAL_MIN_FS);
+
   return (
     <>
       {/* 왼쪽 패널: 제목 + 두 값 카드 */}
@@ -650,7 +708,7 @@ const DualAxisView: React.FC<{ chartData: ChartData; frame: number }> = ({ chart
           <div style={{ fontFamily, fontSize: 20, color: WHITE_LINE, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 10, opacity: fi as unknown as number }}>
             {s1.label}
           </div>
-          <div style={{ fontFamily, fontSize: 88, color: WHITE, fontWeight: 700, lineHeight: 1 }}>
+          <div style={{ fontFamily, fontSize: fs1d, color: WHITE, fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap" }}>
             {v1Anim.toFixed(1)}
           </div>
           <div style={{ fontFamily, fontSize: 26, color: WHITE_LINE, fontWeight: 700, marginTop: 6, opacity: fi as unknown as number }}>
@@ -665,7 +723,7 @@ const DualAxisView: React.FC<{ chartData: ChartData; frame: number }> = ({ chart
           <div style={{ fontFamily, fontSize: 20, color: RED, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 10, opacity: fi as unknown as number }}>
             {s2.label}
           </div>
-          <div style={{ fontFamily, fontSize: 88, color: WHITE, fontWeight: 700, lineHeight: 1 }}>
+          <div style={{ fontFamily, fontSize: fs2d, color: WHITE, fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap" }}>
             {v2Anim >= 0 ? "+" : ""}{v2Anim.toFixed(1)}
           </div>
           <div style={{ fontFamily, fontSize: 26, color: RED, fontWeight: 700, marginTop: 6, opacity: fi as unknown as number }}>

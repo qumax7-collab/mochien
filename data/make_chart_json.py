@@ -48,8 +48,21 @@ def _yrange(values: list) -> tuple:
 
 
 def _yticks(y_min: int, y_max: int) -> list:
+    """span에 비례하는 nice interval로 눈금 산출(목표 ~6~10개).
+    소값 사다리(≤30→5, ≤80→10, ≤200→20)는 기존과 동일 — 정상 차트 외관 불변.
+    그 이상은 비례 확장(억엔 레인지 step 20 → 3,186줄 떡칠 방지)."""
     span = y_max - y_min
-    interval = 5 if span <= 30 else (10 if span <= 80 else 20)
+    if   span <= 30:    interval = 5
+    elif span <= 80:    interval = 10
+    elif span <= 200:   interval = 20
+    elif span <= 500:   interval = 50
+    elif span <= 1000:  interval = 100
+    elif span <= 2000:  interval = 200
+    elif span <= 5000:  interval = 500
+    elif span <= 10000: interval = 1000
+    elif span <= 20000: interval = 2000
+    elif span <= 50000: interval = 5000
+    else:               interval = 10000
     start = int(math.ceil(y_min / interval)) * interval
     end   = int(math.floor(y_max / interval)) * interval
     return list(range(start, end + 1, interval))

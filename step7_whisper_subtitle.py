@@ -7,6 +7,8 @@ import requests
 from openai import OpenAI
 from dotenv import load_dotenv
 
+from subtitle_segment import segment_script, PARTICLES  # 분절 규칙 공용 출처
+
 sys.stdout.reconfigure(encoding="utf-8")
 load_dotenv()
 
@@ -20,6 +22,11 @@ GLOSSARY_PATH   = "glossary.json"
 
 # 자막 커버리지 검증
 SUBTITLE_COVERAGE_THRESHOLD = 2.0   # 첫 자막 시작이 이 값(초)을 초과하면 업로드 금지
+
+# 자막 깜빡임 제거 (cue gap 메우기)
+MIN_SUB_DUR = 0.5   # 0길이 cue 최소 표시시간(초). 동일 timestamp 묶음은 이 값을 목표로 균등 분배
+TS_EPS      = 0.001 # 두 start가 같은 timestamp인지 판정하는 허용 오차(초)
+OUTRO_HOLD_MAX = 1.5  # 표시시간 이 값(초) 초과 = outro 과다 hold. 꼬리 재분배의 도너 겸 좌측 경계
 
 # 자막 스타일
 FONT_SIZE = 132
@@ -35,8 +42,8 @@ MAX_UNMAPPED_RATIO = 0.30  # 미매핑 허용 상한
 # 수치 토큰 보호 (분절 억제 대상 문자 집합)
 _NUM_DIGITS = set("0123456789")
 _NUM_EXT    = set(".%年円")  # 숫자 뒤에 붙어 하나의 수치 단위를 이루는 문자
-PARTICLES   = frozenset("はがをにへとのもでねよわ")  # 의미 경계 조사 12종 (や·か 제외 — 형용사 어간 오매칭 방지)
-MIN_PARTICLE_FLUSH_LEN = 3  # 조사 분절 최소 세그먼트 길이 (미만이면 억제)
+# PARTICLES 는 subtitle_segment 에서 import (분절 규칙 단일 출처) — wrap_text 에서도 사용
+MIN_PARTICLE_FLUSH_LEN = 3  # 쇼츠 목표 글자수 = segment_script(target_chars) 로 전달
 
 # 고유명사 교정
 GPT_CORRECTION_MODEL = "gpt-4.1-mini"
@@ -476,72 +483,130 @@ def build_anchor_map(script_clean, wt_corrected, time_at, seg_idx_at):
     return anchor_map, anchor_seg
 
 
-def group_script_by_timing(script_clean, anchor_map, anchor_seg):
-    """스크립트 원문 + anchor_map → 세그먼트 리스트.
-    갭: Whisper 세그먼트 경계를 넘을 때만 감지 (보간 구간 내 가짜 갭 방지).
-    구두점: 일본어 전용(。、！？!) — . , 는 소수점 오분절 방지를 위해 제외."""
-    segments  = []
-    cur_text  = ""
-    cur_start = None
-    cur_end   = None
-    cur_seg   = None
-
-    for i, c in enumerate(script_clean):
-        t = anchor_map[i]
-        s = anchor_seg[i]
-
-        # 갭: 다른 Whisper 세그먼트로 넘어갈 때만 (보간 위치 s=None은 갭 감지 안 함)
-        gap_detected = (
-            cur_end is not None and
-            cur_seg is not None and s is not None and
-            s != cur_seg and
-            t - cur_end > GAP_THRESHOLD
+def get_audio_duration(path):
+    """ffprobe로 오디오 길이(초) 측정. 실패 시 None (outro 정렬 스킵용)."""
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=nk=1:nw=1", path],
+            capture_output=True, text=True,
         )
-        has_punct    = cur_text.rstrip().endswith(("。", "、", "！", "？", "!"))
-        has_particle = bool(cur_text) and cur_text[-1] in PARTICLES
+        return float(out.stdout.strip())
+    except Exception:
+        return None
 
-        # 조사 분절 억제 조건 (gap·punct는 항상 분절)
-        if has_particle and not gap_detected and not has_punct:
-            # ①がる/がり 패턴: 上がる·値上がり 등 동사 어간 속 が 보호
-            if cur_text[-1] == 'が' and c in 'りる':
-                has_particle = False
-            # ②のか 패턴: 与えるのか 등 문말 のか 분리 억제
-            elif cur_text[-1] == 'の' and c == 'か':
-                has_particle = False
-            # ③최소 길이 미만: 2자 이하 단독 세그먼트 억제
-            elif len(cur_text) < MIN_PARTICLE_FLUSH_LEN:
-                has_particle = False
 
-        if (gap_detected or has_punct or has_particle) and cur_text:
-            segments.append({"text": cur_text.strip(), "start": cur_start, "end": cur_end})
-            cur_text  = ""
-            cur_start = None
-            cur_end   = None
-            cur_seg   = None
+def _redistribute_outro_tail(segments, audio_end):
+    """마무리 멘트(시그니처) 초고속 전환 해소.
 
-        cur_text += c
-        if cur_start is None:
-            cur_start = t
-        cur_end = t
-        if s is not None:
-            cur_seg = s
+    Whisper가 한 점(예: 48.400)에 뭉갠 마지막 동일-start 묶음은 시작이 늦어
+    오디오 끝까지 0.5초도 안 되는 창에 여러 cue가 몰려 휙휙 넘어간다.
+    이를 풀기 위해 outro 꼬리를 하나의 묶음으로 보고 [꼬리 시작, 오디오 끝]에
+    균등 재분배한다. 꼬리 범위는 '마지막 동일-start 묶음'에서 앞으로 확장하되,
+    표시시간 < MIN_SUB_DUR 인 크램드 cue를 흡수하고, 과다 hold(OUTRO_HOLD_MAX 초과)
+    cue를 만나면 그것을 포함하고 정지한다(도너 겸 좌측 firewall — 본문 침범 방지).
 
-    if cur_text.strip():
-        segments.append({"text": cur_text.strip(), "start": cur_start, "end": cur_end})
+    다음 cue 밀기·텍스트 합치기 없음. 본문(정상 길이 cue)은 건드리지 않는다.
+    audio_end 없으면(측정 실패) 원본 그대로 반환.
+    """
+    if audio_end is None or len(segments) < 2:
+        return segments
 
+    n = len(segments)
+    # 1) 마지막 동일-start 묶음 식별
+    last_start = segments[-1]["start"]
+    c = n - 1
+    while c - 1 >= 0 and abs(segments[c - 1]["start"] - last_start) < TS_EPS:
+        c -= 1
+    cluster_size = n - c
+    last_dur = segments[-1]["end"] - segments[-1]["start"]
+    # 잘 분배된 단일 끝 cue면 손대지 않음 (크램드 묶음일 때만 개입)
+    if cluster_size < 2 and last_dur >= MIN_SUB_DUR:
+        return segments
+
+    # 2) 앞으로 확장: 크램드 흡수 / 과다 hold 만나면 포함 후 정지
+    g = c
+    while g - 1 >= 0:
+        dur = segments[g - 1]["end"] - segments[g - 1]["start"]
+        if dur > OUTRO_HOLD_MAX:   # 과다 hold 도너 → 포함하고 정지
+            g -= 1
+            break
+        if dur < MIN_SUB_DUR:      # 크램드 → 포함하고 계속
+            g -= 1
+            continue
+        break                      # 정상 길이 cue → 정지(미포함)
+
+    group = segments[g:]
+    k = len(group)
+    g_start = group[0]["start"]
+    span = audio_end - g_start
+    if k < 2 or span <= 0:
+        return segments
+
+    # 3) [꼬리 시작, 오디오 끝] 균등 분배 / 마지막 cue는 오디오 끝 정렬
+    slice_dur = span / k
+    for m, seg in enumerate(group):
+        seg["start"] = g_start + slice_dur * m
+        seg["end"]   = g_start + slice_dur * (m + 1)
+    segments[-1]["end"] = audio_end
     return segments
 
 
-def _absorb_lone_punct(segments):
-    """구두점 단독 세그먼트(。、！？)를 직전 세그먼트 텍스트에 흡수. 타임코드 변경 없음."""
-    LONE = frozenset("。、！？")
-    result = []
-    for seg in segments:
-        if seg["text"] and all(c in LONE for c in seg["text"]) and result:
-            result[-1]["text"] += seg["text"]
+def fill_subtitle_gaps(segments, audio_end=None):
+    """cue 간 빈 화면(gap) 제거 + 0길이 cue 최소 표시시간 보장.
+
+    깜빡임 원인은 cue 종료~다음 cue 시작 사이의 빈 화면. 각 cue의 end를
+    '다음 cue의 실제 start'까지 연장(hold-to-next)해 연속(gap=0)으로 만든다.
+    추측·고정값을 쓰지 않고 반드시 다음 cue의 start만 사용한다.
+
+    단, Whisper가 같은 timestamp로 뭉갠 동일-start 묶음(start[i]==start[i+1])은
+    hold-to-next로도 0길이로 남아 아예 표시되지 않으므로, 묶음이 쓸 수 있는 창
+    [공통 start, 묶음 다음의 distinct start)을 묶음 cue 수로 순차 균등 분배해
+    겹침 없이 차례로 표시되게 한다. 묶음 크기 1이면 분배가 곧 hold-to-next와 같다.
+
+    텍스트·시간 외 필드는 건드리지 않고, 마지막 cue는 next가 없으므로
+    원래 end를 유지하되 0길이이면 MIN_SUB_DUR만 보장한다.
+    """
+    if not segments:
+        return segments
+
+    n = len(segments)
+    i = 0
+    while i < n:
+        # 동일 start 묶음(run) 탐지 — 대부분 길이 1
+        j = i
+        while j + 1 < n and abs(segments[j + 1]["start"] - segments[i]["start"]) < TS_EPS:
+            j += 1
+        run_start = segments[i]["start"]
+
+        # 묶음이 쓸 수 있는 창의 끝 = 묶음 다음 cue의 start (없으면 마지막 묶음)
+        if j + 1 < n:
+            window_end = segments[j + 1]["start"]
         else:
-            result.append(seg)
-    return result
+            # 전체 마지막 묶음: 마지막 cue의 원래 end를 창 끝으로 사용
+            window_end = segments[j]["end"]
+            # 단일 cue인데 0길이면 최소 표시시간 보장
+            if window_end - run_start < MIN_SUB_DUR:
+                window_end = run_start + MIN_SUB_DUR
+
+        k = j - i + 1
+        if k == 1:
+            # 일반 케이스: 다음 cue start까지 연장 = hold-to-next
+            segments[i]["end"] = window_end
+        else:
+            # 동일-start 묶음: 창을 k개로 순차 균등 분배 (겹침·빈화면 없음)
+            span = window_end - run_start
+            slice_dur = span / k
+            for m in range(k):
+                seg = segments[i + m]
+                seg["start"] = run_start + slice_dur * m
+                seg["end"]   = run_start + slice_dur * (m + 1)
+
+        i = j + 1
+
+    # outro 마무리 멘트 초고속 전환 해소 (오디오 길이 알 때만)
+    segments = _redistribute_outro_tail(segments, audio_end)
+    return segments
 
 
 def to_srt_time(sec):
@@ -618,6 +683,64 @@ def burn_subtitles(font_dir):
     return True
 
 
+def _dump_anchors(script_clean, anchor_map, anchor_seg, path="_anchor_dump.txt"):
+    """[임시 디버그 — 출력 전용] 정렬 결과 진단용 덤프.
+
+    문제1(반복구 0.88초 선행) 원인 확인용. 정렬 로직은 일절 수정하지 않고,
+    build_anchor_map 결과(anchor_map/anchor_seg)를 읽어 파일+콘솔로 출력만 한다.
+    확인 후 이 함수와 호출부는 제거 예정.
+    """
+    n = len(script_clean)
+    matched = sum(1 for s in anchor_seg if s is not None)
+    interp  = n - matched
+
+    # 보간(anchor_seg=None) 연속 run 추출 → 시간대와 함께
+    runs = []
+    i = 0
+    while i < n:
+        if anchor_seg[i] is None:
+            j = i
+            while j < n and anchor_seg[j] is None:
+                j += 1
+            runs.append((i, j - 1))
+            i = j
+        else:
+            i += 1
+
+    # "日本株" 등장 인덱스 (반복구 위치)
+    occ = [m.start() for m in re.finditer("日本株", script_clean)]
+
+    lines = []
+    lines.append(f"# 전체 문자수 {n} / 직접매칭 {matched} / 보간 {interp} "
+                 f"({interp/n:.1%} interp)")
+    lines.append(f"# '日本株' 등장 인덱스: {occ}")
+    lines.append("# 보간 run [start..end] (char='...', time s->e):")
+    for a, b in runs:
+        seg_txt = script_clean[a:b + 1]
+        lines.append(f"#   [{a:>3}..{b:>3}] '{seg_txt}'  "
+                     f"{anchor_map[a]:.3f}s -> {anchor_map[b]:.3f}s")
+    lines.append("")
+    lines.append("idx | char | time(s) | src(seg# / INTERP)")
+    for i in range(n):
+        src = f"seg{anchor_seg[i]}" if anchor_seg[i] is not None else "INTERP"
+        lines.append(f"{i:>3} |  {script_clean[i]}  | {anchor_map[i]:7.3f} | {src}")
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+    # 콘솔 요약 + 반복구 주변 포커스
+    print(f"\n=== [임시 덤프] anchor 진단 → {path} ===")
+    print(f"  직접매칭 {matched}/{n} / 보간 {interp} ({interp/n:.1%})")
+    print(f"  '日本株' 등장 인덱스: {occ}")
+    for k, st in enumerate(occ):
+        seg = script_clean[st:st + 12]
+        print(f"  [{k+1}번째 '日本株' @idx{st}] '{seg}'")
+        for d in range(min(12, n - st)):
+            ix = st + d
+            src = f"seg{anchor_seg[ix]}" if anchor_seg[ix] is not None else "INTERP"
+            print(f"      idx{ix:>3} '{script_clean[ix]}' {anchor_map[ix]:7.3f}s {src}")
+
+
 def main():
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -670,11 +793,19 @@ def main():
         _send_telegram(msg)
         sys.exit(1)
     anchor_map, anchor_seg = build_anchor_map(script_clean, wt_corrected, time_at, seg_idx_at)
-    segments = group_script_by_timing(script_clean, anchor_map, anchor_seg)
-    segments = _absorb_lone_punct(segments)
+    _dump_anchors(script_clean, anchor_map, anchor_seg)  # [임시 디버그 — 확인 후 제거]
+    # 분절 규칙 공용 함수 (쇼츠: target=MIN_PARTICLE_FLUSH_LEN, 상한·병합 없음 → 현행 100% 재현)
+    segments = segment_script(script_clean, anchor_map, anchor_seg,
+                              target_chars=MIN_PARTICLE_FLUSH_LEN,
+                              gap_threshold=GAP_THRESHOLD)
     print(f"  최종 세그먼트: {len(segments)}개")
     for s in segments[:5]:
         print(f"  [{s['start']:.2f}s - {s['end']:.2f}s] {s['text']}")
+
+    print("\n=== 2-4단계: cue gap 메우기 (깜빡임 제거) ===")
+    audio_end = get_audio_duration(INPUT_AUDIO)
+    segments = fill_subtitle_gaps(segments, audio_end)
+    print(f"  hold-to-next + 동일-start 묶음 균등 분배 적용 (오디오 끝 {audio_end}s)")
 
     print("\n=== 3단계: ASS 자막 파일 생성 ===")
     font_name, font_dir = get_font()
